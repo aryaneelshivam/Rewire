@@ -1,33 +1,38 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
 export const fetchOverview = async () => {
-  const response = await api.get('/overview');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/overview?session_id=${sid}`);
   return response.data; // { A: {...}, B: {...} }
 };
 
 export const fetchTopRois = async () => {
-  const response = await api.get('/top-rois');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/top-rois?session_id=${sid}`);
   return response.data; // { A: {...}, B: {...} }
 };
 
 export const fetchEngagement = async () => {
-  const response = await api.get('/engagement');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/engagement?session_id=${sid}`);
   return response.data; // { A: {...}, B: {...} }
 };
 
 export const fetchTimeSeries = async () => {
-  const response = await api.get('/timeseries');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/timeseries?session_id=${sid}`);
   return response.data; // { A: {...}, B: {...} }
 };
 
 export const fetchHeatmap = async () => {
-  const response = await api.get('/heatmap');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/heatmap?session_id=${sid}`);
   return response.data; // { A: {...}, B: {...} }
 };
 
@@ -37,21 +42,25 @@ export const fetchBrainMesh = async () => {
 };
 
 export const fetchBrainActivation = async (timestep, demographic = "baseline", variant = "A") => {
-  const response = await api.get(`/brain-activation/${timestep}?demographic=${demographic}&variant=${variant}`);
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/brain-activation/${timestep}?session_id=${sid}&demographic=${demographic}&variant=${variant}`);
   return response.data;
 };
 
 export const fetchDemographics = async () => {
-  const response = await api.get('/demographics');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/demographics?session_id=${sid}`);
   return response.data; // { A: {...}, B: {...} }
 };
 
 export const fetchABSummary = async () => {
-  const response = await api.get('/ab-summary');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/ab-summary?session_id=${sid}`);
   return response.data;
 };
 export const fetchStatus = async () => {
-  const response = await api.get('/status');
+  const sid = localStorage.getItem('rewire_session') || '';
+  const response = await api.get(`/status?session_id=${sid}`);
   return response.data;
 }
 
@@ -65,6 +74,9 @@ export const uploadPredictions = async (fileA, fileB) => {
       'Content-Type': 'multipart/form-data',
     },
   });
+  if (response.data.session_id) {
+    localStorage.setItem('rewire_session', response.data.session_id);
+  }
   return response.data;
 };
 
