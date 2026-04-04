@@ -12,8 +12,11 @@ from contextlib import asynccontextmanager
 import uuid
 import joblib
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+import traceback
+from io import BytesIO
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from analysis import run_full_analysis
 
@@ -66,6 +69,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_detail = traceback.format_exc()
+    print(f"❌ INTERNAL SERVER ERROR:\n{error_detail}")
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": str(exc), "detail": error_detail},
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
+
 
 def _get_cache(session_id: str, variant: str) -> dict:
     if session_id not in _sessions:
@@ -92,33 +105,35 @@ async def upload_predictions(fileA: UploadFile = File(...), fileB: UploadFile = 
     global _sessions
     
     session_id = str(uuid.uuid4())
+    print(f"📡  Incoming Upload Session: {session_id}")
     
-    base_dir = Path(__file__).resolve().parent.parent
-    path_a = base_dir / "brand_A_predictions.pkl"
-    path_b = base_dir / "brand_B_predictions.pkl"
-    
-    with open(path_a, "wb") as f:
+    try:
+        print(f"📥  Reading Variant A into memory...")
         content_a = await fileA.read()
-        f.write(content_a)
-    with open(path_b, "wb") as f:
-        content_b = await fileB.read()
-        f.write(content_b)
+        data_a = joblib.load(BytesIO(content_a))
         
-    print(f"📦  Processing newly uploaded Variant A...")
-    data_a = joblib.load(str(path_a))
-    preds_a = data_a["preds"]
-    cache_A = run_full_analysis(preds_a, n_subjects=50, seed=42)
-    cache_A["transcript"] = _clean_transcript(data_a)
-    
-    print(f"📦  Processing newly uploaded Variant B...")
-    data_b = joblib.load(str(path_b))
-    preds_b = data_b["preds"]
-    cache_B = run_full_analysis(preds_b, n_subjects=50, seed=43)
-    cache_B["transcript"] = _clean_transcript(data_b)
-    
-    _sessions[session_id] = {"A": cache_A, "B": cache_B}
-    
-    return {"status": "success", "session_id": session_id, "message": "Files analyzed and ready."}
+        print(f"📥  Reading Variant B into memory...")
+        content_b = await fileB.read()
+        data_b = joblib.load(BytesIO(content_b))
+        
+        print(f"🧠  Running Analysis for Variant A...")
+        preds_a = data_a["preds"]
+        cache_A = run_full_analysis(preds_a, n_subjects=50, seed=42)
+        cache_A["transcript"] = _clean_transcript(data_a)
+        
+        print(f"🧠  Running Analysis for Variant B...")
+        preds_b = data_b["preds"]
+        cache_B = run_full_analysis(preds_b, n_subjects=50, seed=43)
+        cache_B["transcript"] = _clean_transcript(data_b)
+        
+        _sessions[session_id] = {"A": cache_A, "B": cache_B}
+        print(f"✅  Analysis Complete. Session {session_id} active.")
+        
+        return {"status": "success", "session_id": session_id, "message": "Files analyzed and ready."}
+        
+    except Exception as e:
+        print(f"💥  UPLOAD FAILED: {str(e)}")
+        raise e  # Global handler catches this
 
 @app.get("/api/overview")
 def get_overview(session_id: str = Query(...)):
