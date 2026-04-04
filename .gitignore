@@ -18,3 +18,4 @@ frontend/dist/
 
 # Large data files
 *.pkl
+!backend/hcp_labels.pkl
