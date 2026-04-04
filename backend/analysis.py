@@ -4,9 +4,55 @@ Ported from triberewire6_updated.py (Cells 5-12)
 All computation is pure numpy/scipy — no GPU required.
 """
 
+import pickle
+from pathlib import Path
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
-from tribev2.utils import get_hcp_labels, summarize_by_roi
+
+# =============================================================================
+# LOCAL ROI UTILS — replaced tribev2 dependency for cloud portability
+# =============================================================================
+
+def get_hcp_labels(mesh="fsaverage5", combine=False, hemi="both"):
+    """Load ROI vertex mappings from the local pkl file."""
+    # We ignore mesh/combine/hemi in this version because they were pre-fixed in the dump
+    pkl_path = Path(__file__).resolve().parent / "hcp_labels.pkl"
+    with open(pkl_path, "rb") as f:
+        return pickle.load(f)
+
+def get_hcp_roi_indices(rois: str | list[str], labels: dict):
+    """Get vertex indices for a specific ROI (supports globbing like 'V1*')."""
+    if isinstance(rois, str):
+        rois = [rois]
+    selected_labels = []
+    for roi in rois:
+        if roi.endswith("*"):
+            pattern = roi[:-1]
+            sel = [l for l in labels.keys() if l.startswith(pattern)]
+        elif roi.startswith("*"):
+            pattern = roi[1:]
+            sel = [l for l in labels.keys() if l.endswith(pattern)]
+        else:
+            sel = [l for l in labels.keys() if l == roi]
+            
+        if not sel:
+            # Silence warning if some ROIs are missing in special cases
+            continue
+        selected_labels.extend(sel)
+    
+    indices = []
+    for l in selected_labels:
+        indices.extend(labels[l])
+    return np.array(indices)
+
+def summarize_by_roi(data: np.ndarray, labels: dict = None):
+    """Average vertex values into ROI summary scores."""
+    if labels is None:
+        labels = _hcp_labels
+    return np.array([
+        data[labels[roi]].mean() if len(labels[roi]) > 0 else 0.0
+        for roi in labels.keys()
+    ])
 
 
 # =============================================================================
@@ -307,7 +353,7 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
     for d_idx, demo in enumerate(DEMO_ORDER):
         subj_time_avg = ensembles[demo].mean(axis=1)  # (50, 20484)
         subj_roi = np.vstack([
-            summarize_by_roi(subj_time_avg[s], hemi="both", mesh="fsaverage5")
+            summarize_by_roi(subj_time_avg[s])
             for s in range(subj_time_avg.shape[0])
         ])
         var_matrix[d_idx] = subj_roi.std(axis=0)
