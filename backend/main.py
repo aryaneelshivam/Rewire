@@ -9,21 +9,18 @@ import math
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-import uuid
 import joblib
 import numpy as np
-import traceback
-from io import BytesIO
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Request
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from analysis import run_full_analysis
 
 # ---------------------------------------------------------------------------
-# Global Session Storage
+# Global cache — computed once at startup, holds both variants
 # ---------------------------------------------------------------------------
-_sessions: dict = {}
+_cache_A: dict = {}
+_cache_B: dict = {}
 
 
 def _clean_transcript(data):
@@ -52,11 +49,12 @@ def _clean_transcript(data):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load both pkl files and run analysis on startup."""
-    global _sessions
-    _sessions.clear()
+    global _cache_A, _cache_B
+
     print("🟡  Backend started. Awaiting PKL upload files from frontend...")
     yield
-    _sessions.clear()
+    _cache_A.clear()
+    _cache_B.clear()
 
 
 app = FastAPI(title="Rewire A/B Dashboard API", version="2.0.0", lifespan=lifespan)
@@ -69,81 +67,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    error_detail = traceback.format_exc()
-    print(f"❌ INTERNAL SERVER ERROR:\n{error_detail}")
-    return JSONResponse(
-        status_code=500,
-        content={"status": "error", "message": str(exc), "detail": error_detail},
-        headers={"Access-Control-Allow-Origin": "*"}
-    )
 
-
-def _get_cache(session_id: str, variant: str) -> dict:
-    if session_id not in _sessions:
-        raise HTTPException(status_code=400, detail="Session expired or not found. Please re-upload PKL files.")
-    
-    if variant not in ["A", "B"]:
-        raise HTTPException(status_code=400, detail="Variant must be 'A' or 'B'")
-        
-    return _sessions[session_id][variant]
+def _get_cache(variant: str) -> dict:
+    if variant == "A":
+        return _cache_A
+    elif variant == "B":
+        return _cache_B
+    raise HTTPException(status_code=400, detail="Variant must be 'A' or 'B'")
 
 
 # =============================================================================
-# API ENDPOINTS
+# API ENDPOINTS — All return { A: ..., B: ... } for comparison
 # =============================================================================
+
 
 @app.get("/api/status")
-def get_status(session_id: str = Query(None)):
-    if not session_id or session_id not in _sessions:
-        return {"loaded": False}
-    return {"loaded": True}
+def get_status():
+    return {"loaded": bool(_cache_A and _cache_B)}
 
 @app.post("/api/upload-predictions")
 async def upload_predictions(fileA: UploadFile = File(...), fileB: UploadFile = File(...)):
-    global _sessions
+    global _cache_A, _cache_B
     
-    session_id = str(uuid.uuid4())
-    print(f"📡  Incoming Upload Session: {session_id}")
+    base_dir = Path(__file__).resolve().parent.parent
+    path_a = base_dir / "brand_A_predictions.pkl"
+    path_b = base_dir / "brand_B_predictions.pkl"
     
-    try:
-        print(f"📥  Reading Variant A into memory...")
+    with open(path_a, "wb") as f:
         content_a = await fileA.read()
-        data_a = joblib.load(BytesIO(content_a))
-        
-        print(f"📥  Reading Variant B into memory...")
+        f.write(content_a)
+    with open(path_b, "wb") as f:
         content_b = await fileB.read()
-        data_b = joblib.load(BytesIO(content_b))
+        f.write(content_b)
         
-        print(f"🧠  Running Analysis for Variant A...")
-        preds_a = data_a["preds"]
-        cache_A = run_full_analysis(preds_a, n_subjects=50, seed=42)
-        cache_A["transcript"] = _clean_transcript(data_a)
-        
-        print(f"🧠  Running Analysis for Variant B...")
-        preds_b = data_b["preds"]
-        cache_B = run_full_analysis(preds_b, n_subjects=50, seed=43)
-        cache_B["transcript"] = _clean_transcript(data_b)
-        
-        _sessions[session_id] = {"A": cache_A, "B": cache_B}
-        print(f"✅  Analysis Complete. Session {session_id} active.")
-        
-        return {"status": "success", "session_id": session_id, "message": "Files analyzed and ready."}
-        
-    except Exception as e:
-        print(f"💥  UPLOAD FAILED: {str(e)}")
-        raise e  # Global handler catches this
+    print(f"📦  Processing newly uploaded Variant A...")
+    data_a = joblib.load(str(path_a))
+    preds_a = data_a["preds"]
+    _cache_A = run_full_analysis(preds_a, n_subjects=50, seed=42)
+    _cache_A["transcript"] = _clean_transcript(data_a)
+    
+    print(f"📦  Processing newly uploaded Variant B...")
+    data_b = joblib.load(str(path_b))
+    preds_b = data_b["preds"]
+    _cache_B = run_full_analysis(preds_b, n_subjects=50, seed=43)
+    _cache_B["transcript"] = _clean_transcript(data_b)
+    
+    return {"status": "success", "message": "Files analyzed and ready."}
 
 @app.get("/api/overview")
-def get_overview(session_id: str = Query(...)):
+def get_overview():
     """Global activation metrics per timestep + metadata — both variants."""
-    try:
-        cA = _get_cache(session_id, "A")
-        cB = _get_cache(session_id, "B")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Session expired")
-        
     def _build(c):
         return {
             "n_timesteps": c["n_timesteps"],
@@ -152,17 +125,17 @@ def get_overview(session_id: str = Query(...)):
             "timestep_metrics": c["timestep_metrics"],
             "transcript": c.get("transcript", []),
         }
-    return {"A": _build(cA), "B": _build(cB)}
+    return {"A": _build(_cache_A), "B": _build(_cache_B)}
 
 
 @app.get("/api/top-rois")
-def get_top_rois(session_id: str = Query(...)):
+def get_top_rois():
     """Top 5 ROIs by peak activation + their time-series — both variants."""
-    return {"A": _get_cache(session_id, "A")["top_rois"], "B": _get_cache(session_id, "B")["top_rois"]}
+    return {"A": _cache_A["top_rois"], "B": _cache_B["top_rois"]}
 
 
 @app.get("/api/engagement")
-def get_engagement(session_id: str = Query(...)):
+def get_engagement():
     """Per-demographic engagement scores — both variants."""
     dims = ["visual", "auditory", "reward", "memory", "attention", "narrative", "personal", "action", "overall"]
     def _build(c):
@@ -173,11 +146,11 @@ def get_engagement(session_id: str = Query(...)):
             "demo_colors": c["demo_colors"],
             "dimensions": dims,
         }
-    return {"A": _build(_get_cache(session_id, "A")), "B": _build(_get_cache(session_id, "B"))}
+    return {"A": _build(_cache_A), "B": _build(_cache_B)}
 
 
 @app.get("/api/timeseries")
-def get_demo_timeseries(session_id: str = Query(...)):
+def get_demo_timeseries():
     """Reward / auditory / PFC time-series by demographic — both variants."""
     groups = ["reward", "auditory", "prefrontal", "memory", "narrative", "personal", "action"]
     def _build(c):
@@ -187,13 +160,13 @@ def get_demo_timeseries(session_id: str = Query(...)):
             "demo_colors": c["demo_colors"],
             "groups": groups,
         }
-    return {"A": _build(_get_cache(session_id, "A")), "B": _build(_get_cache(session_id, "B"))}
+    return {"A": _build(_cache_A), "B": _build(_cache_B)}
 
 
 @app.get("/api/heatmap")
-def get_heatmap(session_id: str = Query(...)):
+def get_heatmap():
     """Inter-subject variance heatmap — both variants."""
-    return {"A": _get_cache(session_id, "A")["heatmap"], "B": _get_cache(session_id, "B")["heatmap"]}
+    return {"A": _cache_A["heatmap"], "B": _cache_B["heatmap"]}
 
 
 @app.get("/api/brain-mesh")
@@ -217,9 +190,9 @@ def get_brain_mesh():
 
 
 @app.get("/api/brain-activation/{timestep}")
-def get_brain_activation(timestep: int, session_id: str = Query(...), demographic: str = "baseline", variant: str = "A"):
+def get_brain_activation(timestep: int, demographic: str = "baseline", variant: str = "A"):
     """Activation values for all 20484 vertices at a specific timestep — for a specific variant."""
-    c = _get_cache(session_id, variant)
+    c = _get_cache(variant)
 
     if demographic == "baseline":
         preds = c["preds"]
@@ -244,7 +217,7 @@ def get_brain_activation(timestep: int, session_id: str = Query(...), demographi
 
 
 @app.get("/api/demographics")
-def get_demographics(session_id: str = Query(...)):
+def get_demographics():
     """Summary stats for demographic cohorts — both variants."""
     def _build(c):
         return {
@@ -254,27 +227,24 @@ def get_demographics(session_id: str = Query(...)):
             "peak_data": c["demo_peak_data"],
             "engagement": c["engagement_scores"],
         }
-    return {"A": _build(_get_cache(session_id, "A")), "B": _build(_get_cache(session_id, "B"))}
+    return {"A": _build(_cache_A), "B": _build(_cache_B)}
 
 
 @app.get("/api/ab-summary")
-def get_ab_summary(session_id: str = Query(...)):
+def get_ab_summary():
     """Quick A/B comparison summary — who wins overall?"""
-    cA = _get_cache(session_id, "A")
-    cB = _get_cache(session_id, "B")
-    
-    a_eng = cA["engagement_scores"]
-    b_eng = cB["engagement_scores"]
+    a_eng = _cache_A["engagement_scores"]
+    b_eng = _cache_B["engagement_scores"]
 
     # Overall score per demographic
     a_overall = {d: a_eng[d]["overall"] for d in a_eng}
     b_overall = {d: b_eng[d]["overall"] for d in b_eng}
 
-    a_global_mean = float(np.mean(cA["preds"].mean(axis=1)))
-    b_global_mean = float(np.mean(cB["preds"].mean(axis=1)))
+    a_global_mean = float(np.mean(_cache_A["preds"].mean(axis=1)))
+    b_global_mean = float(np.mean(_cache_B["preds"].mean(axis=1)))
 
-    a_peak = float(cA["preds"].max())
-    b_peak = float(cB["preds"].max())
+    a_peak = float(_cache_A["preds"].max())
+    b_peak = float(_cache_B["preds"].max())
 
     # Dimension-level winner for each demographic
     dimension_winners = {}

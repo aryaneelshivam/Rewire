@@ -16,7 +16,8 @@ import ImpactScenes from './components/ImpactScenes';
 import LivePulsePanel from './components/LivePulsePanel';
 import ABSummaryPanel from './components/ABSummaryPanel';
 import DimensionalLeadPanel from './components/DimensionalLeadPanel';
-import { Brain, Sparkles, ExternalLink, Play, Pause, Upload, Video, Zap, SkipBack, SkipForward, FlaskConical, ArrowLeftRight } from 'lucide-react';
+import { Brain, Sparkles, ExternalLink, Play, Pause, Upload, Video, Zap, SkipBack, SkipForward, FlaskConical, ArrowLeftRight, FileText, Download, RotateCcw } from 'lucide-react';
+import ReportView from './components/ReportView';
 
 
 
@@ -44,6 +45,78 @@ function App() {
   const [videoUrlB, setVideoUrlB] = useState(null);
   const vRefA = useRef(null);
   const vRefB = useRef(null);
+  const brainRef = useRef(null);
+
+  // Report Generation State
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [reportSnapshots, setReportSnapshots] = useState({ A: null, B: null });
+
+  const handleGenerateReport = async () => {
+    if (isGeneratingReport) return;
+    setIsGeneratingReport(true);
+    const prevTab = activeTab;
+    const prevVariant = brainVariant;
+    const prevTime = currentTime;
+
+    try {
+      console.log("📊 Starting Report Generation...");
+      
+      // 1. Ensure we have the latest data
+      const [sum, eng, rois] = await Promise.all([
+        fetchABSummary(),
+        fetchEngagement(),
+        fetchTopRois()
+      ]);
+
+      if (!rois?.A || !rois?.B || !overview?.A || !overview?.B) {
+        throw new Error("Neural data is still loading or incomplete.");
+      }
+
+      // 2. Automated Capture Sequence
+      setActiveTab('explore');
+      const snaps = { A: null, B: null };
+
+      // Snapshot A
+      try {
+        console.log("📸 Capturing Variant A...");
+        setBrainVariant('A');
+        const peakA = rois.A.rois?.[0]?.peak_timestep || 0;
+        const maxA = overview.A.n_timesteps || 1;
+        const safePeakA = Math.max(0, Math.min(Math.floor(peakA), maxA - 1));
+        
+        setCurrentTime(safePeakA);
+        await new Promise(r => setTimeout(r, 1200)); // Wait for API + WebGL
+        snaps.A = brainRef.current?.getSnapshot();
+      } catch (e) { console.warn("A Snapshot failed", e); }
+
+      // Snapshot B
+      try {
+        console.log("📸 Capturing Variant B...");
+        setBrainVariant('B');
+        const peakB = rois.B.rois?.[0]?.peak_timestep || 0;
+        const maxB = overview.B.n_timesteps || 1;
+        const safePeakB = Math.max(0, Math.min(Math.floor(peakB), maxB - 1));
+        
+        setCurrentTime(safePeakB);
+        await new Promise(r => setTimeout(r, 1200)); // Wait for API + WebGL
+        snaps.B = brainRef.current?.getSnapshot();
+      } catch (e) { console.warn("B Snapshot failed", e); }
+
+      console.log("✅ Report Ready!");
+      setReportSnapshots(snaps);
+      setReportData({ summary: sum, engagement: eng, topRois: rois, overview: overview });
+    } catch (err) {
+      console.error("❌ Report Generation Error:", err);
+      alert(err.message || "Failed to generate report. Please try again.");
+    } finally {
+      // Restore state
+      setActiveTab(prevTab);
+      setBrainVariant(prevVariant);
+      setCurrentTime(prevTime);
+      setIsGeneratingReport(false);
+    }
+  };
 
   const handleFileChange = (variant) => (e) => {
     const file = e.target.files[0];
@@ -179,7 +252,30 @@ function App() {
           <FlaskConical size={14} />
           <span>A/B TEST MODE</span>
         </div>
-        <nav className="header-nav">
+        <nav className="header-nav" style={{ display: 'flex', gap: '0.75rem' }}>
+          <button 
+            onClick={handleGenerateReport}
+            disabled={isGeneratingReport}
+            style={{ 
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.1)', 
+              color: 'rgba(255,255,255,0.7)',
+              padding: '0.4rem 0.8rem',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              cursor: isGeneratingReport ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s',
+              opacity: isGeneratingReport ? 0.4 : 1
+            }}
+            onMouseEnter={(e) => { if(!isGeneratingReport) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
+            onMouseLeave={(e) => { if(!isGeneratingReport) { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; } }}
+          >
+            {isGeneratingReport ? <RotateCcw size={12} className="animate-spin" /> : <FileText size={12} />}
+            {isGeneratingReport ? 'Processing...' : 'Export Strategy Report'}
+          </button>
           <button 
             onClick={() => setAwaitingUpload(true)}
             style={{ 
@@ -372,6 +468,7 @@ function App() {
             <HeadSilhouette />
             <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
               <BrainViewer3D
+                ref={brainRef}
                 nTimesteps={overview[brainVariant].n_timesteps}
                 currentTime={currentTime}
                 setCurrentTime={setCurrentTime}
@@ -519,6 +616,14 @@ function App() {
       <footer className="app-footer">
         <p>© 2026 Rewire Analytics Engine • A/B Neural Testing • Modal GPU</p>
       </footer>
+      {/* Comprehensive Strategy Report Overlay */}
+      {reportData && (
+        <ReportView 
+          data={reportData} 
+          snapshots={reportSnapshots} 
+          onClose={() => setReportData(null)} 
+        />
+      )}
     </div>
   );
 }

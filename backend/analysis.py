@@ -4,55 +4,9 @@ Ported from triberewire6_updated.py (Cells 5-12)
 All computation is pure numpy/scipy — no GPU required.
 """
 
-import pickle
-from pathlib import Path
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
-
-# =============================================================================
-# LOCAL ROI UTILS — replaced tribev2 dependency for cloud portability
-# =============================================================================
-
-def get_hcp_labels(mesh="fsaverage5", combine=False, hemi="both"):
-    """Load ROI vertex mappings from the local pkl file."""
-    # We ignore mesh/combine/hemi in this version because they were pre-fixed in the dump
-    pkl_path = Path(__file__).resolve().parent / "hcp_labels.pkl"
-    with open(pkl_path, "rb") as f:
-        return pickle.load(f)
-
-def get_hcp_roi_indices(rois: str | list[str], labels: dict):
-    """Get vertex indices for a specific ROI (supports globbing like 'V1*')."""
-    if isinstance(rois, str):
-        rois = [rois]
-    selected_labels = []
-    for roi in rois:
-        if roi.endswith("*"):
-            pattern = roi[:-1]
-            sel = [l for l in labels.keys() if l.startswith(pattern)]
-        elif roi.startswith("*"):
-            pattern = roi[1:]
-            sel = [l for l in labels.keys() if l.endswith(pattern)]
-        else:
-            sel = [l for l in labels.keys() if l == roi]
-            
-        if not sel:
-            # Silence warning if some ROIs are missing in special cases
-            continue
-        selected_labels.extend(sel)
-    
-    indices = []
-    for l in selected_labels:
-        indices.extend(labels[l])
-    return np.array(indices)
-
-def summarize_by_roi(data: np.ndarray, labels: dict = None):
-    """Average vertex values into ROI summary scores."""
-    if labels is None:
-        labels = _hcp_labels
-    return np.array([
-        data[labels[roi]].mean() if len(labels[roi]) > 0 else 0.0
-        for roi in labels.keys()
-    ])
+from tribev2.utils import get_hcp_labels, summarize_by_roi
 
 
 # =============================================================================
@@ -61,6 +15,25 @@ def summarize_by_roi(data: np.ndarray, labels: dict = None):
 _hcp_labels = get_hcp_labels(mesh="fsaverage5", combine=False, hemi="both")
 ROI_LABEL_NAMES = list(_hcp_labels.keys())
 N_ROIS = len(ROI_LABEL_NAMES)
+
+# Hemisphere-Aware Bias (Functional Lateralization)
+# Many ROI asymmetries are documented (language L>R, spatial attention R>L)
+HEMISPHERE_BIAS = {
+    "STSvp": ("L", 1.15),   # left STS stronger for language
+    "STSdp": ("L", 1.15),
+    "MT":    ("R", 1.08),   # right MT slightly stronger for motion
+    "PGi":   ("R", 1.10),   # right angular for spatial attention
+}
+
+# ROI Covariance Structure (Functional Networks)
+# Regions in the same network should have correlated noise
+NETWORK_COVARIANCE = {
+    "visual":    (["V1","V2","V3","VMV3","MT","MST"], 0.75),   
+    "reward":    (["OFC","p47r","Area_47"],            0.65),
+    "salience":  (["a24pr","p32pr","IFSa"],            0.60),
+    "dmn":       (["PCC","PGi","PGp","PCV"],           0.70),
+}
+
 
 
 # =============================================================================
@@ -83,8 +56,7 @@ DEMOGRAPHIC_PROFILES = {
         "6a": (1.15, 0.11), "6d": (1.15, 0.11),
         "a24pr": (0.75, 0.12), "p32pr": (0.75, 0.12),
         "IFSa": (0.80, 0.11), "IFSp": (0.80, 0.11),
-        "47": (0.70, 0.13),
-        "PCC": (0.85, 0.12), "PGi": (0.80, 0.10),
+        "47": (0.70, 0.13), "PCC": (0.85, 0.12),
     },
     "genz": {
         "V1": (1.10, 0.08), "V2": (1.10, 0.08), "V3": (1.10, 0.08),
@@ -99,8 +71,7 @@ DEMOGRAPHIC_PROFILES = {
         "6a": (1.35, 0.11), "6d": (1.35, 0.11),
         "a24pr": (0.80, 0.12), "p32pr": (0.80, 0.12),
         "IFSa": (0.88, 0.11), "IFSp": (0.88, 0.11),
-        "47": (0.78, 0.13),
-        "PCC": (0.90, 0.12), "PGi": (1.00, 0.10),
+        "47": (0.78, 0.13), "PCC": (0.90, 0.12),
     },
     "adults": {
         "V1": (1.00, 0.07), "V2": (1.00, 0.07), "V3": (1.00, 0.07),
@@ -115,8 +86,7 @@ DEMOGRAPHIC_PROFILES = {
         "6a": (1.00, 0.09), "6d": (1.00, 0.09),
         "a24pr": (1.00, 0.10), "p32pr": (1.00, 0.10),
         "IFSa": (1.00, 0.09), "IFSp": (1.00, 0.09),
-        "47": (1.00, 0.11),
-        "PCC": (1.00, 0.10), "PGi": (1.00, 0.09),
+        "47": (1.00, 0.11), "PCC": (1.00, 0.10),
     },
     "older": {
         "V1": (0.80, 0.10), "V2": (0.80, 0.10), "V3": (0.80, 0.10),
@@ -131,10 +101,18 @@ DEMOGRAPHIC_PROFILES = {
         "6a": (0.75, 0.12), "6d": (0.75, 0.12),
         "a24pr": (1.20, 0.14), "p32pr": (1.20, 0.14),
         "IFSa": (1.15, 0.12), "IFSp": (1.15, 0.12),
-        "47": (1.25, 0.14),
-        "PCC": (1.30, 0.13), "PGi": (1.10, 0.11),
+        "47": (1.25, 0.14), "PCC": (1.30, 0.13),
     },
 }
+
+# Individual cohort realism parameters
+DEMOGRAPHICS_PARAMS = {
+    "kids":   {"latency_shift": 3, "saturation": 1.1, "fatigue": 0.15},
+    "genz":   {"latency_shift": 0, "saturation": 1.4, "fatigue": 0.10},
+    "adults": {"latency_shift": 1, "saturation": 1.0, "fatigue": 0.05},
+    "older":  {"latency_shift": 5, "saturation": 0.9, "fatigue": 0.20},
+}
+
 
 ENGAGEMENT_WEIGHTS = {
     "visual":    (["V1", "V2", "V3", "VMV3", "MT", "MST"],  0.25),
@@ -163,44 +141,134 @@ DEMO_COLORS = {
 
 
 # =============================================================================
-# ENSEMBLE GENERATOR  (Cell 5)
+# MATHEMATICAL ENGINE CORE — Advanced Neural Modeling
+# =============================================================================
+
+def ar1_noise(rng, shape, sigma=1.0, rho=0.6):
+    """Generate AR(1) temporally correlated noise (mimics BOLD signals)."""
+    T, V = shape
+    noise = np.zeros((T, V))
+    # Generate standard AR(1) with unit variance
+    noise[0] = rng.normal(0, 1.0, V)
+    innov_std = np.sqrt(1 - rho**2)
+    for t in range(1, T):
+        noise[t] = rho * noise[t-1] + rng.normal(0, innov_std, V)
+    return noise * sigma
+
+def correlated_roi_noise(rng, network_rois, hcp_labels, T, base_sigma, rho):
+    """Generate correlated noise across ROIs in the same network using Cholesky."""
+    n_nets = len(network_rois)
+    cov = np.full((n_nets, n_nets), rho * base_sigma**2)
+    np.fill_diagonal(cov, base_sigma**2)
+    L = np.linalg.cholesky(cov)
+    white = rng.standard_normal((T, n_nets))
+    return white @ L.T # (T, n_nets)
+
+def nonlinear_saturate(x, saturation=1.2):
+    """Apply sigmoidal saturation (Logistic function) to mimic neural firing caps."""
+    return 2.0 / (1.0 + np.exp(-saturation * x)) - 1.0
+
+# =============================================================================
+# ENSEMBLE GENERATOR  (Upgraded V3)
 # =============================================================================
 
 def generate_demographic_ensemble(
     base_preds: np.ndarray,
     demographic: str,
     n_subjects: int = 50,
-    spatial_smoothing: int = 3,
     seed: int = 42,
 ) -> np.ndarray:
-    """Generate synthetic ensemble of brain predictions for a target demographic."""
+    """Generate synthetic ensemble of brain predictions for a target demographic (V3)."""
     assert demographic in DEMOGRAPHIC_PROFILES
     profile = DEMOGRAPHIC_PROFILES[demographic]
+    params = DEMOGRAPHICS_PARAMS[demographic]
     rng = np.random.default_rng(seed)
     T, V = base_preds.shape
+    V_split = V // 2
     ensemble = []
 
+    # 1. Activation Envelope for State-Dependent Noise
+    # Noise scales up to 1.4x at high-activation moments
+    activation_envelope = base_preds.mean(axis=1, keepdims=True)  # (T,1)
+    env_min, env_ptp = activation_envelope.min(), np.ptp(activation_envelope)
+    norm_envelope = (activation_envelope - env_min) / (env_ptp + 1e-8)
+
+    # 2. Network-level Noise Cache
+    # Pre-generate correlated noise for each network unit
+    network_noise_units = {}
+    for net_name, (rois, rho) in NETWORK_COVARIANCE.items():
+        # We'll use a standard sigma=1.0 and scale later
+        network_noise_units[net_name] = correlated_roi_noise(rng, rois, _hcp_labels, T, 1.0, rho)
+
     for _ in range(n_subjects):
-        global_scalar = rng.normal(1.0, 0.12)
-        subj = base_preds * global_scalar
+        # A. Log-Normal Global Scalar (Right-skewed individual differences)
+        global_scalar = rng.lognormal(mean=0.0, sigma=0.12)
+        
+        # B. Temporal Shift (Processing Latency)
+        shift = params["latency_shift"]
+        if shift != 0:
+            subj = np.roll(base_preds, shift, axis=0) * global_scalar
+            # Clamp roll artifacts at boundaries
+            if shift > 0: subj[:shift] = subj[shift]
+            else: subj[shift:] = subj[shift-1]
+        else:
+            subj = base_preds * global_scalar
 
-        for roi_name, (scalar, sigma) in profile.items():
-            if roi_name not in _hcp_labels:
+        # C. Attention Fatigue (Linear decay over time)
+        fatigue_vec = 1.0 - (np.linspace(0, 1, T) * params["fatigue"]).reshape(-1, 1)
+        subj *= fatigue_vec
+
+        # D. Add AR(1) ROI Noise with State-Dependence & Network Coherence
+        processed_rois = set()
+
+        # D1. Apply Network-Correlated Noise
+        for net_idx, (net_name, (net_rois, _)) in enumerate(NETWORK_COVARIANCE.items()):
+            net_noise = network_noise_units[net_name] # (T, n_rois_in_net)
+            for i, r_name in enumerate(net_rois):
+                if r_name not in _hcp_labels: continue
+                idx = _hcp_labels[r_name]
+                scalar, sigma = profile.get(r_name, (1.0, 0.08))
+                
+                # Dynamic sigma (1.0x to 1.4x based on activation)
+                dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
+                
+                # Combine AR(1) structure with network correlation
+                # We reuse the correlated unit and apply AR(1) smoothing to it
+                roi_noise = ar1_noise(rng, (T, len(idx)), 1.0, rho=0.6)
+                # Blend: (Network correlation) + (Unique ROI variance)
+                final_noise = (net_noise[:, [i]] * 0.7 + roi_noise * 0.3) * dynamic_sigma
+                
+                subj[:, idx] = (subj[:, idx] * scalar) + final_noise
+                processed_rois.add(r_name)
+
+        # D2. Apply Remaining Independent ROI Noise
+        for r_name, (scalar, sigma) in profile.items():
+            if r_name in processed_rois or r_name not in _hcp_labels:
                 continue
-            idx = _hcp_labels[roi_name]
-            raw_noise = rng.normal(0, sigma, size=(T, len(idx)))
-            if spatial_smoothing > 0 and len(idx) > spatial_smoothing * 2:
-                raw_noise = gaussian_filter1d(raw_noise, sigma=spatial_smoothing, axis=1)
-                raw_noise = raw_noise / (raw_noise.std() + 1e-8) * sigma
-            subj[:, idx] = subj[:, idx] * scalar + raw_noise
+            idx = _hcp_labels[r_name]
+            dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
+            raw_noise = ar1_noise(rng, (T, len(idx)), dynamic_sigma, rho=0.6)
+            subj[:, idx] = (subj[:, idx] * scalar) + raw_noise
 
+        # E. Hemisphere Bias (Functional Lateralization)
+        for r_name, (hemi, bias) in HEMISPHERE_BIAS.items():
+            if r_name in _hcp_labels:
+                indices = _hcp_labels[r_name]
+                # Filter indices by hemisphere
+                if hemi == "L": h_idx = [i for i in indices if i < V_split]
+                else: h_idx = [i for i in indices if i >= V_split]
+                if h_idx: subj[:, h_idx] *= bias
+
+        # F. Nonlinear Saturation (Firing Cap)
+        subj = nonlinear_saturate(subj, params["saturation"])
+        
         ensemble.append(subj)
 
-    return np.stack(ensemble)  # (n_subjects, T, 20484)
+    return np.stack(ensemble)
 
 
 # =============================================================================
-# ENGAGEMENT SCORING  (Cell 7)
+# ENGAGEMENT SCORING  (Upgraded V3)
 # =============================================================================
 
 def compute_engagement_score(
@@ -208,24 +276,28 @@ def compute_engagement_score(
     roi_labels: list = ROI_LABEL_NAMES,
     weights: dict = ENGAGEMENT_WEIGHTS,
 ) -> dict:
-    """Collapse (T, n_rois) matrix into engagement scores."""
+    """Collapse (T, n_rois) matrix into engagement scores using exact matching."""
     time_avg = roi_matrix.mean(axis=0)
     scores = {}
     total_weight = 0
     weighted_sum = 0
-    dimensions = ["visual", "auditory", "reward", "memory", "attention", "narrative", "personal", "action", "overall"]
+    
+    # Pre-build ROI set for O(1) exact lookups
+    label_to_idx = {lbl: i for i, lbl in enumerate(roi_labels)}
+
     for dim_name, (roi_names, w) in weights.items():
-        idxs = [
-            i for i, lbl in enumerate(roi_labels)
-            if any(r in lbl for r in roi_names)
-        ]
+        # Exact match check
+        idxs = [label_to_idx[r] for r in roi_names if r in label_to_idx]
+        
         if not idxs:
             scores[dim_name] = 0.0
             continue
+            
         dim_score = float(time_avg[idxs].mean())
         scores[dim_name] = round(dim_score, 4)
         weighted_sum += dim_score * w
         total_weight += w
+        
     scores["overall"] = round(weighted_sum / total_weight, 4) if total_weight else 0.0
     return scores
 
@@ -297,7 +369,6 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
             base_preds=preds,
             demographic=demo,
             n_subjects=n_subjects,
-            spatial_smoothing=3,
             seed=seed,
         )
 
@@ -353,7 +424,7 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
     for d_idx, demo in enumerate(DEMO_ORDER):
         subj_time_avg = ensembles[demo].mean(axis=1)  # (50, 20484)
         subj_roi = np.vstack([
-            summarize_by_roi(subj_time_avg[s])
+            summarize_by_roi(subj_time_avg[s], hemi="both", mesh="fsaverage5")
             for s in range(subj_time_avg.shape[0])
         ])
         var_matrix[d_idx] = subj_roi.std(axis=0)

@@ -58,10 +58,20 @@ const BrainMesh = ({ vertices, faces, activation }) => {
   );
 };
 
-const BrainViewer3D = ({ nTimesteps, currentTime, setCurrentTime, peakTimestep, demographic = "baseline", autoRotate = true, variant = "A" }) => {
+const BrainViewer3D = React.forwardRef(({ nTimesteps, currentTime, setCurrentTime, peakTimestep, demographic = "baseline", autoRotate = true, variant = "A" }, ref) => {
   const [meshData, setMeshData] = useState(null);
   const [activation, setActivation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const canvasRef = useRef();
+
+  React.useImperativeHandle(ref, () => ({
+    getSnapshot: () => {
+      if (canvasRef.current) {
+        return canvasRef.current.toDataURL('image/png');
+      }
+      return null;
+    }
+  }));
 
   useEffect(() => {
     fetchBrainMesh().then(data => { setMeshData(data); setLoading(false); });
@@ -88,7 +98,12 @@ const BrainViewer3D = ({ nTimesteps, currentTime, setCurrentTime, peakTimestep, 
 
   return (
     <div style={{ width: '100%', height: '100%', cursor: 'grab' }}>
-      <Canvas shadows gl={{ antialias: true, alpha: true }} style={{ background: 'transparent' }}>
+      <Canvas 
+        shadows 
+        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }} 
+        style={{ background: 'transparent' }}
+        onCreated={({ gl }) => { canvasRef.current = gl.domElement; }}
+      >
         <PerspectiveCamera makeDefault position={[300, 0, 0]} fov={45} />
 
         {/* Core lighting for 3D depth */}
@@ -115,6 +130,6 @@ const BrainViewer3D = ({ nTimesteps, currentTime, setCurrentTime, peakTimestep, 
       </Canvas>
     </div>
   );
-};
+});
 
 export default BrainViewer3D;
