@@ -2,7 +2,25 @@
 
 **Rewire** is a professional-grade neuromarketing platform that eliminates guesswork in creative A/B testing. By leveraging state-of-the-art deep learning (Meta's Tribe v2) and biologically-grounded demographic synthesis, Rewire predicts exactly how human brains respond to video content—before you spend a single rupee on ad placements.
 
-![Rewire Demo](file:///Users/aryaneelshivam/Desktop/tribeRewire/demovideorewire.mp4)
+![Rewire Demo](./demovideorewire.mp4)
+
+## 📸 Platform Interface
+
+| ![A/B Test Verdict](./demo1.png) | ![Demographic Dynamics](./demo2.png) |
+|:---:|:---:|
+| *A/B Test Verdict & 3D Brain* | *A/B Demographic Trajectories* |
+
+| ![Engagement Comparison](./demo3.png) | ![High Impact Moments](./demo4.png) |
+|:---:|:---:|
+| *A/B Engagement Comparison* | *High Impact Moments — A/B Comparison* |
+
+| ![Top ROIs](./demo5.png) | ![Neural Variance](./demo6.png) |
+|:---:|:---:|
+| *Top Regions of Interest (ROIs)* | *Neural Variance Topology* |
+
+| ![Dimensional Lead](./demo7.png) |
+|:---:|
+| *Dimensional Lead Analysis* |
 
 ---
 
