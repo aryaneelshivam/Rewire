@@ -52,6 +52,13 @@ Our proprietary engine (`backend/analysis.py`) applies biologically-grounded rea
 ### 3. Intelligence Dashboard
 A unified interface built with **React** and **FastAPI** that distills complex neural data into marketing-actionable metrics.
 
+### 🔄 System Workflow & Logic
+![Neural Processing Pipeline](./flowchart1.png)
+*Figure 1: High-level neural processing and data flow.*
+
+![Ensemble Generation Logic](./flowchart2.png)
+*Figure 2: Biological synthesis and demographic ensemble generation logic.*
+
 ---
 
 ## 🛠️ Tech Stack
