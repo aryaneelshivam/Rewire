@@ -98,9 +98,9 @@ const BrainViewer3D = React.forwardRef(({ nTimesteps, currentTime, setCurrentTim
 
   return (
     <div style={{ width: '100%', height: '100%', cursor: 'grab' }}>
-      <Canvas 
-        shadows 
-        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }} 
+      <Canvas
+        shadows
+        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
         style={{ background: 'transparent' }}
         onCreated={({ gl }) => { canvasRef.current = gl.domElement; }}
       >

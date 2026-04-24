@@ -117,14 +117,14 @@ const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transc
                     stroke={hoveredEvent === i ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.15)'}
                     strokeWidth={hoveredEvent === i ? 2 : 1}
                     strokeDasharray="3 3"
-                    label={{ 
-                      position: 'insideBottomLeft', 
-                      value: shortText, 
-                      fill: hoveredEvent === i ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)', 
-                      fontSize: 9, 
-                      angle: -90, 
+                    label={{
+                      position: 'insideBottomLeft',
+                      value: shortText,
+                      fill: hoveredEvent === i ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)',
+                      fontSize: 9,
+                      angle: -90,
                       offset: 15,
-                      dy: -10 
+                      dy: -10
                     }}
                   />
                 );
@@ -144,14 +144,14 @@ const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transc
           flexDirection: 'column',
           transition: 'all 0.3s ease'
         }}>
-          <div 
+          <div
             onClick={() => setIsLogExpanded(!isLogExpanded)}
-            style={{ 
-              padding: '0.75rem 1rem', 
-              borderBottom: isLogExpanded ? '1px solid rgba(255,255,255,0.05)' : 'none', 
-              background: 'rgba(255,255,255,0.02)', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
+            style={{
+              padding: '0.75rem 1rem',
+              borderBottom: isLogExpanded ? '1px solid rgba(255,255,255,0.05)' : 'none',
+              background: 'rgba(255,255,255,0.02)',
+              display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'center',
               cursor: 'pointer'
             }}
@@ -164,7 +164,7 @@ const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transc
               {isLogExpanded ? 'COLLAPSE' : 'EXPAND'}
             </button>
           </div>
-          
+
           {isLogExpanded && (
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', maxHeight: '400px' }} className="custom-scrollbar">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
@@ -184,7 +184,7 @@ const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transc
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>{formatTime(evt.start || 0)}</span>
-                      <span style={{ fontSize: '0.5rem', padding: '1px 4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>EVENT {i+1}</span>
+                      <span style={{ fontSize: '0.5rem', padding: '1px 4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>EVENT {i + 1}</span>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: hoveredEvent === i ? 'var(--text-primary)' : 'var(--text-secondary)', lineHeight: '1.4' }}>{evt.text || 'No description available'}</p>
                   </div>

@@ -61,7 +61,7 @@ function App() {
 
     try {
       console.log("📊 Starting Report Generation...");
-      
+
       // 1. Ensure we have the latest data
       const [sum, eng, rois] = await Promise.all([
         fetchABSummary(),
@@ -84,7 +84,7 @@ function App() {
         const peakA = rois.A.rois?.[0]?.peak_timestep || 0;
         const maxA = overview.A.n_timesteps || 1;
         const safePeakA = Math.max(0, Math.min(Math.floor(peakA), maxA - 1));
-        
+
         setCurrentTime(safePeakA);
         await new Promise(r => setTimeout(r, 1200)); // Wait for API + WebGL
         snaps.A = brainRef.current?.getSnapshot();
@@ -97,7 +97,7 @@ function App() {
         const peakB = rois.B.rois?.[0]?.peak_timestep || 0;
         const maxB = overview.B.n_timesteps || 1;
         const safePeakB = Math.max(0, Math.min(Math.floor(peakB), maxB - 1));
-        
+
         setCurrentTime(safePeakB);
         await new Promise(r => setTimeout(r, 1200)); // Wait for API + WebGL
         snaps.B = brainRef.current?.getSnapshot();
@@ -174,7 +174,7 @@ function App() {
         setLoading(false);
         return;
       }
-      
+
       setAwaitingUpload(false);
       const [ov, en, tr, ts, hm, dm, ab] = await Promise.all([
         fetchOverview(), fetchEngagement(), fetchTopRois(),
@@ -184,8 +184,8 @@ function App() {
       setTimeSeries(ts); setHeatmap(hm); setDemographics(dm);
       setAbSummary(ab);
       setLoading(false);
-    } catch (err) { 
-      console.error("Error loading:", err); 
+    } catch (err) {
+      console.error("Error loading:", err);
       // If we get 400 Bad Request about missing PKLs, handle it gracefully
       if (err.response?.status === 400) {
         setAwaitingUpload(true);
@@ -212,9 +212,9 @@ function App() {
 
   if (awaitingUpload) {
     return (
-      <UploadDataScreen 
-        onUploadComplete={() => loadData()} 
-        onCancel={overview ? () => setAwaitingUpload(false) : undefined} 
+      <UploadDataScreen
+        onUploadComplete={() => loadData()}
+        onCancel={overview ? () => setAwaitingUpload(false) : undefined}
       />
     );
   }
@@ -253,12 +253,12 @@ function App() {
           <span>A/B TEST MODE</span>
         </div>
         <nav className="header-nav" style={{ display: 'flex', gap: '0.75rem' }}>
-          <button 
+          <button
             onClick={handleGenerateReport}
             disabled={isGeneratingReport}
-            style={{ 
+            style={{
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.1)', 
+              border: '1px solid rgba(255,255,255,0.1)',
               color: 'rgba(255,255,255,0.7)',
               padding: '0.4rem 0.8rem',
               borderRadius: '6px',
@@ -270,17 +270,17 @@ function App() {
               transition: 'all 0.2s',
               opacity: isGeneratingReport ? 0.4 : 1
             }}
-            onMouseEnter={(e) => { if(!isGeneratingReport) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
-            onMouseLeave={(e) => { if(!isGeneratingReport) { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; } }}
+            onMouseEnter={(e) => { if (!isGeneratingReport) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
+            onMouseLeave={(e) => { if (!isGeneratingReport) { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; } }}
           >
             {isGeneratingReport ? <RotateCcw size={12} className="animate-spin" /> : <FileText size={12} />}
             {isGeneratingReport ? 'Processing...' : 'Export Strategy Report'}
           </button>
-          <button 
+          <button
             onClick={() => setAwaitingUpload(true)}
-            style={{ 
+            style={{
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.1)', 
+              border: '1px solid rgba(255,255,255,0.1)',
               color: 'rgba(255,255,255,0.7)',
               padding: '0.4rem 0.8rem',
               borderRadius: '6px',
@@ -320,15 +320,15 @@ function App() {
             </label>
 
             {/* Demographic Selector */}
-            <select 
-              className="dark-input" 
-              style={{ 
-                background: 'rgba(255,255,255,0.05)', 
-                color: '#FFF', 
-                fontSize: '0.72rem', 
-                padding: '0.45rem 0.75rem', 
-                borderRadius: 'var(--radius-pill)', 
-                border: '1px solid var(--border-color)', 
+            <select
+              className="dark-input"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                color: '#FFF',
+                fontSize: '0.72rem',
+                padding: '0.45rem 0.75rem',
+                borderRadius: 'var(--radius-pill)',
+                border: '1px solid var(--border-color)',
                 outline: 'none',
                 cursor: 'pointer'
               }}
@@ -344,11 +344,11 @@ function App() {
 
             {/* Variant toggle for brain viewer */}
             <div className="variant-toggle">
-              <button 
+              <button
                 className={`vtog ${brainVariant === 'A' ? 'active-a' : ''}`}
                 onClick={() => setBrainVariant('A')}
               >A</button>
-              <button 
+              <button
                 className={`vtog ${brainVariant === 'B' ? 'active-b' : ''}`}
                 onClick={() => setBrainVariant('B')}
               >B</button>
@@ -368,7 +368,7 @@ function App() {
                       <div className="variant-badge-a">A</div>
                     </div>
                     {videoUrlA ? (
-                      <video 
+                      <video
                         ref={vRefA}
                         src={videoUrlA}
                         onTimeUpdate={handleTimeUpdate}
@@ -394,7 +394,7 @@ function App() {
                       <div className="variant-badge-b">B</div>
                     </div>
                     {videoUrlB ? (
-                      <video 
+                      <video
                         ref={vRefB}
                         src={videoUrlB}
                         onTimeUpdate={handleTimeUpdate}
@@ -438,7 +438,7 @@ function App() {
                         const t = parseInt(e.target.value);
                         [vRefA, vRefB].forEach(r => { if (r.current) r.current.currentTime = t; });
                         setCurrentTime(t);
-                      }} 
+                      }}
                       className="minimal-range"
                     />
                   </div>
@@ -495,7 +495,7 @@ function App() {
             <div className="animate-fade-in">
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1rem' }}>
                 Comparing neural activation across <strong style={{ color: '#E85D24' }}>Variant A</strong> and{' '}
-                <strong style={{ color: '#7F77DD' }}>Variant B</strong>. 
+                <strong style={{ color: '#7F77DD' }}>Variant B</strong>.
                 The A/B test identifies which stimulus drives stronger cortical engagement across demographic cohorts.
               </p>
 
@@ -513,7 +513,7 @@ function App() {
                     </div>
                     <div>
                       <span className="ab-stat-sub">Mean</span>
-                      <span className="ab-stat-val">{(overview.A.timestep_metrics.global_mean.reduce((a,b)=>a+b,0)/overview.A.n_timesteps).toFixed(3)}</span>
+                      <span className="ab-stat-val">{(overview.A.timestep_metrics.global_mean.reduce((a, b) => a + b, 0) / overview.A.n_timesteps).toFixed(3)}</span>
                     </div>
                     <div>
                       <span className="ab-stat-sub">Top Demo</span>
@@ -521,7 +521,7 @@ function App() {
                     </div>
                     <div>
                       <span className="ab-stat-sub">Active %</span>
-                      <span className="ab-stat-val">{(overview.A.timestep_metrics.active_fraction[overview.A.peak_timestep]*100).toFixed(1)}%</span>
+                      <span className="ab-stat-val">{(overview.A.timestep_metrics.active_fraction[overview.A.peak_timestep] * 100).toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
@@ -538,7 +538,7 @@ function App() {
                     </div>
                     <div>
                       <span className="ab-stat-sub">Mean</span>
-                      <span className="ab-stat-val">{(overview.B.timestep_metrics.global_mean.reduce((a,b)=>a+b,0)/overview.B.n_timesteps).toFixed(3)}</span>
+                      <span className="ab-stat-val">{(overview.B.timestep_metrics.global_mean.reduce((a, b) => a + b, 0) / overview.B.n_timesteps).toFixed(3)}</span>
                     </div>
                     <div>
                       <span className="ab-stat-sub">Top Demo</span>
@@ -546,7 +546,7 @@ function App() {
                     </div>
                     <div>
                       <span className="ab-stat-sub">Active %</span>
-                      <span className="ab-stat-val">{(overview.B.timestep_metrics.active_fraction[overview.B.peak_timestep]*100).toFixed(1)}%</span>
+                      <span className="ab-stat-val">{(overview.B.timestep_metrics.active_fraction[overview.B.peak_timestep] * 100).toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
@@ -567,11 +567,11 @@ function App() {
               <EngagementPanel dataA={engagement.A} dataB={engagement.B} />
               {abSummary && <DimensionalLeadPanel data={abSummary} />}
               <div style={{ marginTop: '1.5rem' }}>
-                <DemoTimeSeries 
-                  dataA={timeSeries?.A?.timeseries || timeSeries?.A} 
-                  dataB={timeSeries?.B?.timeseries || timeSeries?.B} 
-                  colors={demographics.A.colors} 
-                  labels={demographics.A.labels} 
+                <DemoTimeSeries
+                  dataA={timeSeries?.A?.timeseries || timeSeries?.A}
+                  dataB={timeSeries?.B?.timeseries || timeSeries?.B}
+                  colors={demographics.A.colors}
+                  labels={demographics.A.labels}
                   transcriptA={overview.A.transcript}
                   transcriptB={overview.B.transcript}
                 />
@@ -583,15 +583,15 @@ function App() {
           {activeTab === 'scenes' && (
             <div className="animate-fade-in">
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1.75rem' }}>
-                Peak cortical response moments for each variant. Compare which stimulus content 
+                Peak cortical response moments for each variant. Compare which stimulus content
                 drives the strongest neural engagement.
               </p>
-              <ImpactScenes 
+              <ImpactScenes
                 videoUrlA={videoUrlA}
                 videoUrlB={videoUrlB}
                 overviewA={overview.A}
                 overviewB={overview.B}
-                onSeekToTimestamp={handleSeekToTimestamp} 
+                onSeekToTimestamp={handleSeekToTimestamp}
               />
             </div>
           )}
@@ -600,7 +600,7 @@ function App() {
           {activeTab === 'explore' && (
             <div className="animate-fade-in">
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1.75rem' }}>
-                Deep-dive into the most active ROIs and their stability across variants. 
+                Deep-dive into the most active ROIs and their stability across variants.
                 Compare <strong style={{ color: '#E85D24' }}>A</strong> vs <strong style={{ color: '#7F77DD' }}>B</strong> inter-subject variance patterns.
               </p>
               <TopRoisPanel dataA={topRois.A} dataB={topRois.B} />
@@ -618,10 +618,10 @@ function App() {
       </footer>
       {/* Comprehensive Strategy Report Overlay */}
       {reportData && (
-        <ReportView 
-          data={reportData} 
-          snapshots={reportSnapshots} 
-          onClose={() => setReportData(null)} 
+        <ReportView
+          data={reportData}
+          snapshots={reportSnapshots}
+          onClose={() => setReportData(null)}
         />
       )}
     </div>

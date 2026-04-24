@@ -1,13 +1,13 @@
 import React from 'react';
 import { FileText, Brain } from 'lucide-react';
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area 
+  AreaChart, Area
 } from 'recharts';
 
 const ReportView = ({ data, snapshots, onClose }) => {
   const { summary, engagement, topRois, overview } = data;
-  
+
   const dims = engagement.A.dimensions.filter(d => d !== 'overall');
 
   const chartData = dims.map(dim => ({
@@ -21,25 +21,25 @@ const ReportView = ({ data, snapshots, onClose }) => {
   // Time-Series Data Prep
   const overviewChartData = [];
   const maxTOv = Math.max(overview?.A?.n_timesteps || 0, overview?.B?.n_timesteps || 0);
-  
+
   if (overview?.A?.timestep_metrics && overview?.B?.timestep_metrics) {
     for (let i = 0; i < maxTOv; i++) {
-        overviewChartData.push({
+      overviewChartData.push({
         time: i,
         A: overview.A.timestep_metrics.global_mean?.[i] ?? null,
         B: overview.B.timestep_metrics.global_mean?.[i] ?? null,
-        });
+      });
     }
   }
 
   const asymmetryChartData = [];
   if (overview?.A?.timestep_metrics?.hemisphere_asymmetry && overview?.B?.timestep_metrics?.hemisphere_asymmetry) {
     for (let i = 0; i < maxTOv; i++) {
-        asymmetryChartData.push({
+      asymmetryChartData.push({
         time: i,
         A: overview.A.timestep_metrics.hemisphere_asymmetry[i] ?? null,
         B: overview.B.timestep_metrics.hemisphere_asymmetry[i] ?? null,
-        });
+      });
     }
   }
 
@@ -54,7 +54,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
         backgroundColor: '#fff', boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
         padding: '60px', boxSizing: 'border-box', position: 'relative'
       }}>
-        
+
         {/* Actions (Non-printing) */}
         <div style={{ position: 'absolute', top: 20, right: 30 }} className="no-print">
           <button onClick={() => window.print()} style={{
@@ -72,7 +72,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
         </div>
 
         {/* Header */}
-        <header style={{ 
+        <header style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           borderBottom: '2px solid #eee', paddingBottom: '30px', marginBottom: '40px'
         }}>
@@ -84,7 +84,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
             <p style={{ color: '#666', fontSize: '13px', margin: 0 }}>PROFESSIONAL NEURAL STRATEGY REPORT</p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontWeight: 600, fontSize: '14px', margin: 0 }}>Report ID: #RW-{Math.floor(Math.random()*9000)+1000}</p>
+            <p style={{ fontWeight: 600, fontSize: '14px', margin: 0 }}>Report ID: #RW-{Math.floor(Math.random() * 9000) + 1000}</p>
             <p style={{ color: '#999', fontSize: '12px', margin: '4px 0 0' }}>{new Date().toLocaleDateString('en-GB')}</p>
           </div>
         </header>
@@ -92,7 +92,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
         {/* Executive Summary */}
         <section style={{ marginBottom: '50px' }}>
           <h2 style={{ fontSize: '14px', fontWeight: 700, color: '#E85D24', textTransform: 'uppercase', marginBottom: '20px', letterSpacing: '1px' }}>1. Executive Summary</h2>
-          <div style={{ 
+          <div style={{
             backgroundColor: '#f8f9fa', borderRadius: '12px', padding: '30px',
             border: '1px solid #eee', display: 'flex', gap: '40px'
           }}>
@@ -101,13 +101,13 @@ const ReportView = ({ data, snapshots, onClose }) => {
                 Variant {winner} is the Neural Winner
               </h3>
               <p style={{ fontSize: '15px', lineHeight: '1.6', color: '#444' }}>
-                Our Analysis Engine V3 predicts that **Variant {winner}** will achieve higher emotional resonance 
-                and brand recall across target demographics. Variant {winner} shows **{Math.abs(Math.round((summary.B_global_mean / summary.A_global_mean - 1) * 100))}% {summary.B_global_mean > summary.A_global_mean ? 'higher' : 'lower'}** 
+                Our Analysis Engine V3 predicts that **Variant {winner}** will achieve higher emotional resonance
+                and brand recall across target demographics. Variant {winner} shows **{Math.abs(Math.round((summary.B_global_mean / summary.A_global_mean - 1) * 100))}% {summary.B_global_mean > summary.A_global_mean ? 'higher' : 'lower'}**
                 overall engagement compared to its counterpart.
               </p>
             </div>
-            <div style={{ 
-              width: '180px', display: 'flex', flexDirection: 'column', 
+            <div style={{
+              width: '180px', display: 'flex', flexDirection: 'column',
               justifyContent: 'center', alignItems: 'center',
               backgroundColor: '#fff', borderRadius: '12px', border: '2px solid #E85D24', padding: '10px'
             }}>
@@ -135,9 +135,9 @@ const ReportView = ({ data, snapshots, onClose }) => {
                 const a = summary.dimension_winners.adults[dim].A;
                 const b = summary.dimension_winners.adults[dim].B;
                 const diff = summary.dimension_winners.adults[dim].diff;
-                const pc = ((b/a - 1) * 100).toFixed(1);
+                const pc = ((b / a - 1) * 100).toFixed(1);
                 const win = summary.dimension_winners.adults[dim].winner;
-                
+
                 return (
                   <tr key={dim} style={{ borderBottom: '1px solid #eee' }}>
                     <td style={{ padding: '12px 10px', fontWeight: 600, textTransform: 'capitalize' }}>{dim}</td>
@@ -147,7 +147,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
                       {diff > 0 ? '+' : ''}{pc}%
                     </td>
                     <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: 700 }}>
-                      <span style={{ 
+                      <span style={{
                         backgroundColor: win === 'B' ? '#f0f0ff' : '#fff0f0',
                         color: win === 'B' ? '#7F77DD' : '#E85D24',
                         padding: '2px 8px', borderRadius: '4px'
@@ -167,7 +167,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
           <h2 style={{ fontSize: '14px', fontWeight: 700, color: '#E85D24', textTransform: 'uppercase', marginBottom: '20px', letterSpacing: '1px' }}>3. Neural Footprint Snapshots</h2>
           <div style={{ display: 'flex', gap: '30px' }}>
             <div style={{ flex: 1 }}>
-              <div style={{ 
+              <div style={{
                 aspectRatio: '4/3', backgroundColor: '#000', borderRadius: '12px',
                 overflow: 'hidden', border: '2px solid #E85D24', position: 'relative'
               }}>
@@ -179,7 +179,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
               </p>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ 
+              <div style={{
                 aspectRatio: '4/3', backgroundColor: '#000', borderRadius: '12px',
                 overflow: 'hidden', border: '2px solid #7F77DD', position: 'relative'
               }}>
@@ -202,10 +202,10 @@ const ReportView = ({ data, snapshots, onClose }) => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: '#f8f9fa' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                 />
+                />
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontSize: '11px' }} />
                 <Bar dataKey="A" name="Variant A" fill="#E85D24" radius={[4, 4, 0, 0]} barSize={20} />
                 <Bar dataKey="B" name="Variant B" fill="#7F77DD" radius={[4, 4, 0, 0]} barSize={20} />
@@ -222,12 +222,12 @@ const ReportView = ({ data, snapshots, onClose }) => {
               <AreaChart data={overviewChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="repScoreA" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#E85D24" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#E85D24" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#E85D24" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#E85D24" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="repScoreB" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7F77DD" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#7F77DD" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#7F77DD" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#7F77DD" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -266,15 +266,15 @@ const ReportView = ({ data, snapshots, onClose }) => {
         <section style={{ marginTop: '80px', borderTop: '1px solid #eee', paddingTop: '30px' }}>
           <h2 style={{ fontSize: '11px', fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: '15px' }}>Technical Methodology</h2>
           <p style={{ fontSize: '10px', color: '#999', lineHeight: '1.6' }}>
-            Rewire utilizes Meta's Tribe V2 inference model combined with the Rewire Analysis Engine V3 (Synthesis). 
-            Reports are based on a synthetic ensemble of 200 subject brains per stimulus. Calculations incorporate 
-            Biologically Grounded Neural Realism including AR(1) temporal dynamics, Cholesky network coherence, 
+            Rewire utilizes Meta's Tribe V2 inference model combined with the Rewire Analysis Engine V3 (Synthesis).
+            Reports are based on a synthetic ensemble of 200 subject brains per stimulus. Calculations incorporate
+            Biologically Grounded Neural Realism including AR(1) temporal dynamics, Cholesky network coherence,
             and Sigmoidal firing caps. HCP-360 Parcellation mapped to fsaverage5 cortical surface.
           </p>
         </section>
 
       </div>
-      
+
       <style>{`
         @media print {
           .no-print { display: none !important; }

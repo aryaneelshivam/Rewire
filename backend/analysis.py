@@ -28,10 +28,16 @@ HEMISPHERE_BIAS = {
 # ROI Covariance Structure (Functional Networks)
 # Regions in the same network should have correlated noise
 NETWORK_COVARIANCE = {
-    "visual":    (["V1","V2","V3","VMV3","MT","MST"], 0.75),   
-    "reward":    (["OFC","p47r","Area_47"],            0.65),
-    "salience":  (["a24pr","p32pr","IFSa"],            0.60),
-    "dmn":       (["PCC","PGi","PGp","PCV"],           0.70),
+    "visual_early":  (["V1","V2","V3"],                       0.80),
+    "visual_motion": (["MT","MST","V4t","VMV3"],              0.75),
+    "auditory":      (["A1","LBelt","PBelt"],                 0.78),
+    "language":      (["STSvp","STSdp","IFSa","IFSp","47"],  0.70),
+    "reward":        (["OFC","p47r","Area_47"],               0.65),
+    "salience":      (["a24pr","p32pr"],                      0.60),
+    "dmn":           (["PCC","PGi","PGp","PCV"],              0.70),
+    "narrative":     (["TPOJ1","TPOJ2","TPOJ3"],             0.68),
+    "motor":         (["6a","6d","FEF","8Ad"],               0.65),
+    "memory":        (["EC","PHA1"],                          0.72),
 }
 
 
@@ -139,6 +145,69 @@ DEMO_COLORS = {
     "older":  "#BA7517",
 }
 
+# =============================================================================
+# CONTENT-AWARE RULE ENGINE (V4 Enhancement)
+# =============================================================================
+
+CONTENT_METADATA_DEFAULTS = {
+    "content_type": "video_ad",
+    "genre": "general",
+    "duration_category": "medium",
+    "audio_profile": "mixed",
+    "pacing": "medium",
+    "brand_reveal_timestamp": -1,
+    "target_emotion": "neutral",
+}
+
+CONTENT_RULES = {
+    "genre_roi_modifiers": {
+        "general":       {},
+        "emotional":     {"OFC": 1.35, "p47r": 1.30, "Area_47": 1.25, "PCC": 1.20, "PGi": 1.25, "EC": 1.15, "PHA1": 1.15, "a24pr": 1.10},
+        "humor":         {"OFC": 1.40, "p47r": 1.35, "STSvp": 1.20, "STSdp": 1.20, "IFSa": 1.15, "TPOJ1": 1.25, "TPOJ2": 1.25},
+        "action":        {"MT": 1.35, "MST": 1.30, "V1": 1.15, "V2": 1.15, "V3": 1.15, "6a": 1.25, "6d": 1.25, "FEF": 1.20},
+        "informational": {"IFSa": 1.30, "IFSp": 1.30, "47": 1.25, "STSvp": 1.15, "EC": 1.20, "PHA1": 1.20, "a24pr": 1.15},
+        "horror":        {"OFC": 0.85, "a24pr": 1.40, "p32pr": 1.35, "PCC": 0.80, "V1": 1.20, "MT": 1.25},
+        "luxury":        {"OFC": 1.45, "p47r": 1.40, "PGi": 1.30, "PGp": 1.25, "VMV3": 1.20, "PCC": 1.15},
+    },
+    "pacing_noise_modifiers": {
+        "fast_cut":  {"ar1_rho": 0.45, "noise_sigma_scale": 1.3, "fatigue_boost": 0.08},
+        "medium":    {"ar1_rho": 0.60, "noise_sigma_scale": 1.0, "fatigue_boost": 0.00},
+        "slow_burn": {"ar1_rho": 0.75, "noise_sigma_scale": 0.8, "fatigue_boost": -0.05},
+    },
+    "audio_roi_boosts": {
+        "music_heavy":    {"A1": 1.25, "LBelt": 1.30, "PBelt": 1.30, "OFC": 1.10},
+        "dialogue_heavy": {"STSvp": 1.30, "STSdp": 1.25, "IFSa": 1.15, "47": 1.10},
+        "mixed":          {},
+        "silent":         {"A1": 0.70, "LBelt": 0.65, "V1": 1.15, "MT": 1.10},
+    },
+    "duration_fatigue": {
+        "short":  {"curve": "minimal",     "max_decay": 0.05},
+        "medium": {"curve": "linear",      "max_decay": 0.15},
+        "long":   {"curve": "exponential", "max_decay": 0.30},
+    },
+}
+
+GENRE_ENGAGEMENT_WEIGHTS = {
+    "general":       {"visual": 0.25, "auditory": 0.20, "reward": 0.20, "memory": 0.15, "attention": 0.05, "narrative": 0.15, "personal": 0.10, "action": 0.10},
+    "emotional":     {"visual": 0.15, "auditory": 0.15, "reward": 0.25, "memory": 0.20, "attention": 0.05, "narrative": 0.10, "personal": 0.15, "action": 0.05},
+    "action":        {"visual": 0.30, "auditory": 0.15, "reward": 0.15, "memory": 0.05, "attention": 0.10, "narrative": 0.05, "personal": 0.05, "action": 0.25},
+    "humor":         {"visual": 0.15, "auditory": 0.20, "reward": 0.30, "memory": 0.05, "attention": 0.05, "narrative": 0.25, "personal": 0.05, "action": 0.05},
+    "informational": {"visual": 0.15, "auditory": 0.20, "reward": 0.10, "memory": 0.25, "attention": 0.15, "narrative": 0.15, "personal": 0.05, "action": 0.05},
+    "horror":        {"visual": 0.25, "auditory": 0.20, "reward": 0.10, "memory": 0.10, "attention": 0.20, "narrative": 0.10, "personal": 0.10, "action": 0.15},
+    "luxury":        {"visual": 0.25, "auditory": 0.10, "reward": 0.30, "memory": 0.10, "attention": 0.05, "narrative": 0.05, "personal": 0.20, "action": 0.05},
+}
+
+DEMO_CONTENT_INTERACTIONS = {
+    ("kids", "action"):        {"MT": 1.15, "6a": 1.20, "OFC": 1.30},
+    ("kids", "emotional"):     {"OFC": 1.10, "PCC": 0.75},
+    ("genz", "humor"):         {"OFC": 1.50, "STSvp": 1.30, "TPOJ1": 1.35},
+    ("genz", "horror"):        {"a24pr": 1.25, "OFC": 1.20},
+    ("adults", "luxury"):      {"OFC": 1.40, "PGi": 1.35, "VMV3": 1.25},
+    ("adults", "emotional"):   {"PCC": 1.20, "EC": 1.15, "PGi": 1.15},
+    ("older", "emotional"):    {"PCC": 1.40, "EC": 1.30, "PGi": 1.35},
+    ("older", "informational"): {"IFSa": 1.25, "47": 1.20, "EC": 1.25},
+}
+
 
 # =============================================================================
 # MATHEMATICAL ENGINE CORE — Advanced Neural Modeling
@@ -168,54 +237,191 @@ def nonlinear_saturate(x, saturation=1.2):
     """Apply sigmoidal saturation (Logistic function) to mimic neural firing caps."""
     return 2.0 / (1.0 + np.exp(-saturation * x)) - 1.0
 
+
+def apply_content_rules(base_profile, base_params, content_metadata, demographic):
+    """Apply content-aware rule engine to modify demographic profile and params."""
+    profile = {k: v for k, v in base_profile.items()}
+    params = {k: v for k, v in base_params.items()}
+    genre = content_metadata.get("genre", "general")
+    pacing = content_metadata.get("pacing", "medium")
+    audio = content_metadata.get("audio_profile", "mixed")
+
+    # 1. Genre ROI modifiers
+    for roi, mod in CONTENT_RULES["genre_roi_modifiers"].get(genre, {}).items():
+        if roi in profile:
+            s, sig = profile[roi]
+            profile[roi] = (s * mod, sig)
+
+    # 2. Audio ROI boosts
+    for roi, mod in CONTENT_RULES["audio_roi_boosts"].get(audio, {}).items():
+        if roi in profile:
+            s, sig = profile[roi]
+            profile[roi] = (s * mod, sig)
+
+    # 3. Pacing fatigue boost
+    pacing_mods = CONTENT_RULES["pacing_noise_modifiers"].get(pacing, {})
+    params["fatigue"] = params["fatigue"] + pacing_mods.get("fatigue_boost", 0)
+
+    # 4. Demographic × Content interaction
+    interaction_key = (demographic, genre)
+    if interaction_key in DEMO_CONTENT_INTERACTIONS:
+        for roi, mod in DEMO_CONTENT_INTERACTIONS[interaction_key].items():
+            if roi in profile:
+                s, sig = profile[roi]
+                profile[roi] = (s * mod, sig)
+
+    return profile, params
+
+
+def detect_temporal_events(preds, transcript=None, metadata=None):
+    """Detect scene cuts, brand reveals, and speech events from data."""
+    events = []
+    # A. Activation-derivative peaks (scene cuts)
+    global_mean = preds.mean(axis=1)
+    derivative = np.abs(np.diff(global_mean))
+    if len(derivative) > 0:
+        threshold = np.percentile(derivative, 90)
+        for t in np.where(derivative > threshold)[0]:
+            events.append((int(t), "scene_cut", 1.2))
+
+    # B. Transcript-derived events
+    if transcript:
+        for seg in transcript:
+            t = int(seg.get("start", 0))
+            text = str(seg.get("text", "")).lower()
+            if any(w in text for w in ["brand", "logo", "reveal"]):
+                events.append((t, "brand_reveal", 1.5))
+            elif any(w in text for w in ["music", "beat", "drop"]):
+                events.append((t, "music_event", 1.3))
+
+    # C. User-specified brand reveal
+    if metadata and metadata.get("brand_reveal_timestamp", -1) >= 0:
+        events.append((metadata["brand_reveal_timestamp"], "brand_reveal", 1.8))
+
+    return sorted(events, key=lambda x: x[0])
+
+
+def build_event_envelope(T, events, base_envelope):
+    """Boost noise sigma around event timestamps."""
+    envelope = base_envelope.copy()
+    for t, etype, intensity in events:
+        window = np.exp(-0.5 * ((np.arange(T) - t) / 2.0) ** 2)
+        envelope[:, 0] += window * (intensity - 1.0) * 0.3
+    return np.clip(envelope, 0, 2.0)
+
+
+def compute_fatigue_curve(T, fatigue_rate, events, duration_cat):
+    """Nonlinear fatigue with recovery spikes at detected events."""
+    t = np.linspace(0, 1, T)
+    if duration_cat == "short":
+        curve = 1.0 - (t ** 2) * fatigue_rate * 0.5
+    elif duration_cat == "long":
+        curve = np.exp(-fatigue_rate * t * 2.0)
+    else:
+        curve = 1.0 - t * fatigue_rate
+
+    # Recovery bumps at event timestamps
+    for evt_t, etype, intensity in events:
+        frac = evt_t / max(T, 1)
+        recovery = np.exp(-3.0 * np.abs(t - frac)) * 0.1 * intensity
+        curve += recovery
+
+    return np.clip(curve, 0.5, 1.2).reshape(-1, 1)
+
+
+def split_half_reliability(preds, demographic, n_subjects=50):
+    """Run ensemble twice with different seeds and correlate for reliability."""
+    ens_a = generate_demographic_ensemble(preds, demographic, n_subjects=n_subjects, seed=42)
+    ens_b = generate_demographic_ensemble(preds, demographic, n_subjects=n_subjects, seed=99)
+    mean_a = ens_a.mean(axis=0).mean(axis=1)
+    mean_b = ens_b.mean(axis=0).mean(axis=1)
+    r = np.corrcoef(mean_a, mean_b)[0, 1]
+    return round(float(r), 4)
+
+
+def cohens_d(scores_a, scores_b):
+    """Compute Cohen's d effect size for A/B comparison."""
+    a, b = np.asarray(scores_a), np.asarray(scores_b)
+    pooled_std = np.sqrt((np.std(a)**2 + np.std(b)**2) / 2)
+    return round(float((np.mean(a) - np.mean(b)) / (pooled_std + 1e-8)), 4)
+
+
 # =============================================================================
-# ENSEMBLE GENERATOR  (Upgraded V3)
+# ENSEMBLE GENERATOR  (Upgraded V4 — Content-Aware)
 # =============================================================================
 
 def generate_demographic_ensemble(
     base_preds: np.ndarray,
     demographic: str,
+    content_context: dict = None,
+    temporal_events: list = None,
     n_subjects: int = 50,
     seed: int = 42,
 ) -> np.ndarray:
-    """Generate synthetic ensemble of brain predictions for a target demographic (V3)."""
+    """Generate synthetic ensemble of brain predictions for a target demographic (V4).
+
+    Now content-aware: accepts content_context (genre/pacing/audio modifiers)
+    and temporal_events (scene cuts, brand reveals) for event-driven modeling.
+    Falls back to V3 behaviour when content_context is None.
+    """
     assert demographic in DEMOGRAPHIC_PROFILES
-    profile = DEMOGRAPHIC_PROFILES[demographic]
-    params = DEMOGRAPHICS_PARAMS[demographic]
+
+    # Apply content rules if context provided (V4), else use raw profiles (V3)
+    if content_context:
+        profile, params = apply_content_rules(
+            DEMOGRAPHIC_PROFILES[demographic],
+            DEMOGRAPHICS_PARAMS[demographic],
+            content_context,
+            demographic,
+        )
+    else:
+        profile = DEMOGRAPHIC_PROFILES[demographic]
+        params = DEMOGRAPHICS_PARAMS[demographic]
+
     rng = np.random.default_rng(seed)
     T, V = base_preds.shape
     V_split = V // 2
     ensemble = []
 
     # 1. Activation Envelope for State-Dependent Noise
-    # Noise scales up to 1.4x at high-activation moments
     activation_envelope = base_preds.mean(axis=1, keepdims=True)  # (T,1)
     env_min, env_ptp = activation_envelope.min(), np.ptp(activation_envelope)
     norm_envelope = (activation_envelope - env_min) / (env_ptp + 1e-8)
 
-    # 2. Network-level Noise Cache
-    # Pre-generate correlated noise for each network unit
+    # 1b. Event-modulated envelope (V4 enhancement)
+    if temporal_events:
+        norm_envelope = build_event_envelope(T, temporal_events, norm_envelope)
+
+    # 2. Determine AR(1) rho from content pacing (V4)
+    ar1_rho = 0.6  # V3 default
+    if content_context:
+        pacing = content_context.get("pacing", "medium")
+        pacing_mods = CONTENT_RULES["pacing_noise_modifiers"].get(pacing, {})
+        ar1_rho = pacing_mods.get("ar1_rho", 0.6)
+
+    # 3. Network-level Noise Cache (now using expanded 10-network map)
     network_noise_units = {}
     for net_name, (rois, rho) in NETWORK_COVARIANCE.items():
-        # We'll use a standard sigma=1.0 and scale later
         network_noise_units[net_name] = correlated_roi_noise(rng, rois, _hcp_labels, T, 1.0, rho)
+
+    # 4. Fatigue curve (V4: nonlinear + event recovery)
+    duration_cat = content_context.get("duration_category", "medium") if content_context else "medium"
+    fatigue_vec = compute_fatigue_curve(T, params["fatigue"], temporal_events or [], duration_cat)
 
     for _ in range(n_subjects):
         # A. Log-Normal Global Scalar (Right-skewed individual differences)
         global_scalar = rng.lognormal(mean=0.0, sigma=0.12)
-        
+
         # B. Temporal Shift (Processing Latency)
         shift = params["latency_shift"]
         if shift != 0:
             subj = np.roll(base_preds, shift, axis=0) * global_scalar
-            # Clamp roll artifacts at boundaries
             if shift > 0: subj[:shift] = subj[shift]
             else: subj[shift:] = subj[shift-1]
         else:
             subj = base_preds * global_scalar
 
-        # C. Attention Fatigue (Linear decay over time)
-        fatigue_vec = 1.0 - (np.linspace(0, 1, T) * params["fatigue"]).reshape(-1, 1)
+        # C. Attention Fatigue (V4: nonlinear with event recovery)
         subj *= fatigue_vec
 
         # D. Add AR(1) ROI Noise with State-Dependence & Network Coherence
@@ -223,21 +429,19 @@ def generate_demographic_ensemble(
 
         # D1. Apply Network-Correlated Noise
         for net_idx, (net_name, (net_rois, _)) in enumerate(NETWORK_COVARIANCE.items()):
-            net_noise = network_noise_units[net_name] # (T, n_rois_in_net)
+            net_noise = network_noise_units[net_name]
             for i, r_name in enumerate(net_rois):
                 if r_name not in _hcp_labels: continue
                 idx = _hcp_labels[r_name]
                 scalar, sigma = profile.get(r_name, (1.0, 0.08))
-                
-                # Dynamic sigma (1.0x to 1.4x based on activation)
+
+                # Dynamic sigma (1.0x to 1.4x based on activation + events)
                 dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
-                
-                # Combine AR(1) structure with network correlation
-                # We reuse the correlated unit and apply AR(1) smoothing to it
-                roi_noise = ar1_noise(rng, (T, len(idx)), 1.0, rho=0.6)
-                # Blend: (Network correlation) + (Unique ROI variance)
+
+                # AR(1) noise with pacing-adaptive rho
+                roi_noise = ar1_noise(rng, (T, len(idx)), 1.0, rho=ar1_rho)
                 final_noise = (net_noise[:, [i]] * 0.7 + roi_noise * 0.3) * dynamic_sigma
-                
+
                 subj[:, idx] = (subj[:, idx] * scalar) + final_noise
                 processed_rois.add(r_name)
 
@@ -247,21 +451,20 @@ def generate_demographic_ensemble(
                 continue
             idx = _hcp_labels[r_name]
             dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
-            raw_noise = ar1_noise(rng, (T, len(idx)), dynamic_sigma, rho=0.6)
+            raw_noise = ar1_noise(rng, (T, len(idx)), dynamic_sigma, rho=ar1_rho)
             subj[:, idx] = (subj[:, idx] * scalar) + raw_noise
 
         # E. Hemisphere Bias (Functional Lateralization)
         for r_name, (hemi, bias) in HEMISPHERE_BIAS.items():
             if r_name in _hcp_labels:
                 indices = _hcp_labels[r_name]
-                # Filter indices by hemisphere
                 if hemi == "L": h_idx = [i for i in indices if i < V_split]
                 else: h_idx = [i for i in indices if i >= V_split]
                 if h_idx: subj[:, h_idx] *= bias
 
         # F. Nonlinear Saturation (Firing Cap)
         subj = nonlinear_saturate(subj, params["saturation"])
-        
+
         ensemble.append(subj)
 
     return np.stack(ensemble)
@@ -306,12 +509,26 @@ def compute_engagement_score(
 # FULL PIPELINE — run once, cache everything
 # =============================================================================
 
-def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -> dict:
+def run_full_analysis(
+    preds: np.ndarray,
+    content_metadata: dict = None,
+    transcript: list = None,
+    n_subjects: int = 50,
+    seed: int = 42,
+) -> dict:
     """
-    Run the entire analysis pipeline on raw predictions.
-    Returns a dict with all computed data ready for API serialization.
+    Run the entire analysis pipeline on raw predictions (V4).
+    Now accepts content_metadata and transcript for content-aware modeling.
+    Falls back to V3 behaviour when content_metadata is None.
     """
     T, V = preds.shape
+
+    # ── 0. Build content context & detect events (V4) ─────────────────────
+    content_context = None
+    temporal_events = []
+    if content_metadata:
+        content_context = {**CONTENT_METADATA_DEFAULTS, **content_metadata}
+        temporal_events = detect_temporal_events(preds, transcript, content_context)
 
     # ── 1. Timestep metrics (Cell 12) ──────────────────────────────────────
     left_preds = preds[:, : V // 2]
@@ -362,12 +579,14 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
         },
     }
 
-    # ── 4. Demographic ensembles (Cells 5-6) ──────────────────────────────
+    # ── 4. Demographic ensembles (V4: content-aware) ──────────────────────
     ensembles = {}
     for demo in DEMO_ORDER:
         ensembles[demo] = generate_demographic_ensemble(
             base_preds=preds,
             demographic=demo,
+            content_context=content_context,
+            temporal_events=temporal_events,
             n_subjects=n_subjects,
             seed=seed,
         )
@@ -383,10 +602,21 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
             for t in range(mean_brain.shape[0])
         ])
 
-    # ── 6. Engagement scores (Cell 7) ─────────────────────────────────────
+    # ── 6. Engagement scores (V4: genre-adaptive weights) ─────────────────
+    genre = content_context.get("genre", "general") if content_context else "general"
+    genre_weights = GENRE_ENGAGEMENT_WEIGHTS.get(genre, GENRE_ENGAGEMENT_WEIGHTS["general"])
+    # Convert genre_weights dict to ENGAGEMENT_WEIGHTS format for compute_engagement_score
+    active_weights = {}
+    for dim_name, w in genre_weights.items():
+        if dim_name in ENGAGEMENT_WEIGHTS:
+            rois, _ = ENGAGEMENT_WEIGHTS[dim_name]
+            active_weights[dim_name] = (rois, w)
+        else:
+            active_weights[dim_name] = (ENGAGEMENT_WEIGHTS.get(dim_name, ([], 0))[0], w)
+
     engagement_scores = {}
     for demo, roi_mat in demo_roi_matrices.items():
-        engagement_scores[demo] = compute_engagement_score(roi_mat)
+        engagement_scores[demo] = compute_engagement_score(roi_mat, weights=active_weights)
 
     best_demo = max(engagement_scores, key=lambda d: engagement_scores[d]["overall"])
 
@@ -451,6 +681,19 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
             "mean_activation": round(float(mean_brain[demo_peak_t].mean()), 4),
         }
 
+    # ── 10. Content profile metadata (V4) ─────────────────────────────────
+    content_profile = {
+        "engine_version": "V4",
+        "content_aware": content_context is not None,
+        "genre": genre,
+        "n_temporal_events": len(temporal_events),
+        "temporal_events": [
+            {"timestep": t, "type": etype, "intensity": intensity}
+            for t, etype, intensity in temporal_events
+        ],
+        "active_engagement_weights": {k: round(v, 3) for k, v in genre_weights.items()},
+    }
+
     return {
         "n_timesteps": T,
         "n_vertices": V,
@@ -466,4 +709,5 @@ def run_full_analysis(preds: np.ndarray, n_subjects: int = 50, seed: int = 42) -
         "preds": preds,  # keep raw for brain mesh endpoint
         "demo_labels": DEMO_LABELS,
         "demo_colors": DEMO_COLORS,
+        "content_profile": content_profile,
     }

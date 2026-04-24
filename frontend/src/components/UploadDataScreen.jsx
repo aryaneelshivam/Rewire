@@ -1,12 +1,190 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle2, Loader2, Link2, Download } from 'lucide-react';
+import { Upload, CheckCircle2, Loader2, Link2, Download, ChevronDown, Sparkles } from 'lucide-react';
 import { uploadPredictions, fetchStatus } from '../api';
+
+const GENRE_OPTIONS = [
+  { value: 'general',       label: 'General',       icon: '📺' },
+  { value: 'emotional',     label: 'Emotional',     icon: '💔' },
+  { value: 'humor',         label: 'Humor',         icon: '😂' },
+  { value: 'action',        label: 'Action',        icon: '💥' },
+  { value: 'informational', label: 'Informational', icon: '📊' },
+  { value: 'horror',        label: 'Horror',        icon: '👻' },
+  { value: 'luxury',        label: 'Luxury',        icon: '✨' },
+];
+
+const PACING_OPTIONS = [
+  { value: 'fast_cut',  label: 'Fast Cut (<2s avg)' },
+  { value: 'medium',    label: 'Medium' },
+  { value: 'slow_burn', label: 'Slow Burn (>5s avg)' },
+];
+
+const AUDIO_OPTIONS = [
+  { value: 'music_heavy',    label: 'Music Heavy' },
+  { value: 'dialogue_heavy', label: 'Dialogue Heavy' },
+  { value: 'mixed',          label: 'Mixed' },
+  { value: 'silent',         label: 'Silent / Ambient' },
+];
+
+const CONTENT_TYPE_OPTIONS = [
+  { value: 'video_ad',    label: 'Video Ad' },
+  { value: 'music_video', label: 'Music Video' },
+  { value: 'trailer',     label: 'Trailer' },
+  { value: 'short_form',  label: 'Short Form' },
+  { value: 'documentary', label: 'Documentary' },
+];
+
+/* ─── Styled Select ─── */
+const StyledSelect = ({ value, onChange, options, label, color }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+    <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      {label}
+    </span>
+    <div style={{ position: 'relative' }}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: '100%',
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          background: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${color ? `${color}30` : 'rgba(255,255,255,0.08)'}`,
+          borderRadius: '6px',
+          color: '#fff',
+          padding: '0.45rem 1.8rem 0.45rem 0.6rem',
+          fontSize: '0.72rem',
+          fontWeight: 500,
+          fontFamily: 'Inter, sans-serif',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          outline: 'none',
+        }}
+        onFocus={e => e.currentTarget.style.borderColor = color || 'rgba(255,255,255,0.25)'}
+        onBlur={e => e.currentTarget.style.borderColor = color ? `${color}30` : 'rgba(255,255,255,0.08)'}
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a', color: '#fff' }}>
+            {opt.icon ? `${opt.icon} ${opt.label}` : opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown size={12} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-tertiary)' }} />
+    </div>
+  </div>
+);
+
+/* ─── Number Input (brand reveal) ─── */
+const StyledNumberInput = ({ value, onChange, label, color, placeholder }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+    <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      {label}
+    </span>
+    <input
+      type="number"
+      min="-1"
+      value={value}
+      onChange={e => onChange(parseInt(e.target.value) || -1)}
+      placeholder={placeholder}
+      style={{
+        width: '100%',
+        background: 'rgba(255,255,255,0.04)',
+        border: `1px solid ${color ? `${color}30` : 'rgba(255,255,255,0.08)'}`,
+        borderRadius: '6px',
+        color: '#fff',
+        padding: '0.45rem 0.6rem',
+        fontSize: '0.72rem',
+        fontWeight: 500,
+        fontFamily: 'Inter, sans-serif',
+        outline: 'none',
+        transition: 'all 0.2s ease',
+      }}
+      onFocus={e => e.currentTarget.style.borderColor = color || 'rgba(255,255,255,0.25)'}
+      onBlur={e => e.currentTarget.style.borderColor = color ? `${color}30` : 'rgba(255,255,255,0.08)'}
+    />
+  </div>
+);
+
+/* ─── Metadata Panel for a single variant ─── */
+const MetadataPanel = ({ variant, color, metadata, setMetadata }) => (
+  <div style={{
+    padding: '0.75rem',
+    borderRadius: '8px',
+    border: `1px solid ${color}18`,
+    background: `${color}06`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.1rem' }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      <span style={{ fontSize: '0.65rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Variant {variant} Profile
+      </span>
+    </div>
+    
+    <StyledSelect
+      label="Genre"
+      value={metadata.genre}
+      onChange={v => setMetadata({ ...metadata, genre: v })}
+      options={GENRE_OPTIONS}
+      color={color}
+    />
+    <StyledSelect
+      label="Content Type"
+      value={metadata.content_type}
+      onChange={v => setMetadata({ ...metadata, content_type: v })}
+      options={CONTENT_TYPE_OPTIONS}
+      color={color}
+    />
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+      <StyledSelect
+        label="Pacing"
+        value={metadata.pacing}
+        onChange={v => setMetadata({ ...metadata, pacing: v })}
+        options={PACING_OPTIONS}
+        color={color}
+      />
+      <StyledSelect
+        label="Audio"
+        value={metadata.audio_profile}
+        onChange={v => setMetadata({ ...metadata, audio_profile: v })}
+        options={AUDIO_OPTIONS}
+        color={color}
+      />
+    </div>
+    <StyledNumberInput
+      label="Brand Reveal (second)"
+      value={metadata.brand_reveal_timestamp}
+      onChange={v => setMetadata({ ...metadata, brand_reveal_timestamp: v })}
+      color={color}
+      placeholder="-1 = auto"
+    />
+  </div>
+);
+
 
 const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
   const [fileA, setFileA] = useState(null);
   const [fileB, setFileB] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [showMetadata, setShowMetadata] = useState(false);
+
+  // V4: Content metadata state
+  const [metaA, setMetaA] = useState({
+    genre: 'general',
+    content_type: 'video_ad',
+    pacing: 'medium',
+    audio_profile: 'mixed',
+    brand_reveal_timestamp: -1,
+  });
+  const [metaB, setMetaB] = useState({
+    genre: 'general',
+    content_type: 'video_ad',
+    pacing: 'medium',
+    audio_profile: 'mixed',
+    brand_reveal_timestamp: -1,
+  });
 
   const handleUpload = async () => {
     if (!fileA || !fileB) return;
@@ -15,7 +193,7 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
     setError(null);
 
     try {
-      await uploadPredictions(fileA, fileB);
+      await uploadPredictions(fileA, fileB, metaA, metaB);
       const status = await fetchStatus();
       if (status.loaded) {
         onUploadComplete();
@@ -77,15 +255,16 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
   );
 
   return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', color: 'white' }}>
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', color: 'white', overflowY: 'auto' }}>
       
       <div style={{ 
-        maxWidth: '440px', 
+        maxWidth: showMetadata ? '560px' : '440px', 
         width: '100%', 
         display: 'flex', 
         flexDirection: 'column', 
         alignItems: 'center',
-        padding: '2rem'
+        padding: '2rem',
+        transition: 'max-width 0.3s ease',
       }}>
         
         {/* Minimal Hero Logo */}
@@ -103,11 +282,55 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
           </span>
         </div>
 
-        {/* Inputs */}
-        <div style={{ display: 'flex', gap: '1rem', width: '100%', marginBottom: '1.5rem' }}>
+        {/* Upload Slots */}
+        <div style={{ display: 'flex', gap: '1rem', width: '100%', marginBottom: '1rem' }}>
           <UploadSlot variant="A" file={fileA} setFile={setFileA} color="#E85D24" />
           <UploadSlot variant="B" file={fileB} setFile={setFileB} color="#7F77DD" />
         </div>
+
+        {/* V4: Content Metadata Toggle */}
+        <button
+          onClick={() => setShowMetadata(!showMetadata)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.4rem',
+            padding: '0.5rem',
+            background: showMetadata ? 'rgba(255,255,255,0.04)' : 'transparent',
+            border: `1px solid ${showMetadata ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}`,
+            borderRadius: '8px',
+            color: showMetadata ? '#fff' : 'var(--text-tertiary)',
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            fontFamily: 'Inter, sans-serif',
+            cursor: 'pointer',
+            transition: 'all 0.25s ease',
+            marginBottom: showMetadata ? '1rem' : '0.75rem',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; }}
+          onMouseLeave={e => { if (!showMetadata) { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; } }}
+        >
+          <Sparkles size={12} />
+          V4 Content Profile {showMetadata ? '(Active)' : '— Enhance Accuracy'}
+          <ChevronDown size={12} style={{ transform: showMetadata ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.25s ease' }} />
+        </button>
+
+        {/* V4: Metadata Panels */}
+        {showMetadata && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '0.75rem',
+            width: '100%',
+            marginBottom: '1rem',
+            animation: 'fadeIn 0.3s ease forwards',
+          }}>
+            <MetadataPanel variant="A" color="#E85D24" metadata={metaA} setMetadata={setMetaA} />
+            <MetadataPanel variant="B" color="#7F77DD" metadata={metaB} setMetadata={setMetaB} />
+          </div>
+        )}
 
         {/* Action / Error */}
         <div style={{ width: '100%', height: '45px', position: 'relative' }}>
@@ -159,18 +382,35 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
                 {isUploading ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Analyzing
+                    Analyzing{showMetadata ? ' (V4 Engine)' : ''}
                   </>
                 ) : (
-                  'Run Analysis Engine'
+                  showMetadata ? 'Run V4 Content-Aware Analysis' : 'Run Analysis Engine'
                 )}
               </button>
             </div>
           )}
         </div>
         
+        {/* Info badge when metadata is active */}
+        {showMetadata && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.5rem 0.75rem',
+            borderRadius: '6px',
+            background: 'rgba(127, 119, 221, 0.06)',
+            border: '1px solid rgba(127, 119, 221, 0.12)',
+            fontSize: '0.62rem',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5,
+            textAlign: 'center',
+          }}>
+            🧠 V4 Engine applies <strong style={{ color: '#7F77DD' }}>genre-specific ROI modulation</strong>, <strong style={{ color: '#E85D24' }}>pacing-adaptive noise</strong>, and <strong style={{ color: '#1D9E75' }}>event-driven fatigue recovery</strong> for more accurate 200-brain simulation.
+          </div>
+        )}
+
         {/* Download Samples Link */}
-        <div style={{ marginTop: '2rem' }}>
+        <div style={{ marginTop: '1.5rem' }}>
           <a
             href="/samples.zip"
             download="samples.zip"
