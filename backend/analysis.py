@@ -6,6 +6,8 @@ All computation is pure numpy/scipy — no GPU required.
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import fftconvolve
+from scipy.stats import gamma as gamma_dist
 from tribev2.utils import get_hcp_labels, summarize_by_roi
 
 
@@ -238,6 +240,87 @@ def nonlinear_saturate(x, saturation=1.2):
     return 2.0 / (1.0 + np.exp(-saturation * x)) - 1.0
 
 
+def canonical_hrf(tr=1.0, length=30, peak_delay=6.0):
+    """Double-gamma canonical HRF (SPM-style)."""
+    t = np.arange(0, length, tr)
+    h = gamma_dist.pdf(t, peak_delay) - 0.35 * gamma_dist.pdf(t, 16)
+    h_max = h.max()
+    return h / (h_max + 1e-8)
+
+
+def apply_hrf(signal, tr=1.0, peak_delay_jitter=0.0):
+    """Convolve each vertex timeseries with a (jittered) canonical HRF.
+    Introduces hemodynamic temporal blurring (~5-6s delay) matching real BOLD.
+    """
+    delay = max(4.0, 6.0 + peak_delay_jitter)
+    hrf = canonical_hrf(tr=tr, peak_delay=delay)
+    hrf /= hrf.sum()  # normalize to preserve amplitude
+    T = signal.shape[0]
+    return fftconvolve(signal, hrf.reshape(-1, 1), mode='full', axes=0)[:T]
+
+
+def pink_noise_1f(rng, shape, alpha=1.0):
+    """Generate 1/f^alpha noise via spectral shaping.
+    Produces long-range temporal dependencies matching real BOLD power spectra.
+    """
+    T, V = shape
+    white = rng.standard_normal((T, V))
+    freqs = np.fft.rfftfreq(T, d=1.0)
+    freqs[0] = 1.0  # avoid div by zero
+    power_filter = 1.0 / (freqs ** (alpha / 2.0))
+    power_filter[0] = 0  # remove DC component
+    ft = np.fft.rfft(white, axis=0)
+    ft *= power_filter[:, np.newaxis]
+    pink = np.fft.irfft(ft, n=T, axis=0)
+    pink /= (pink.std(axis=0, keepdims=True) + 1e-8)
+    return pink
+
+
+def generate_subject_profile(rng, profile, n_latent=5):
+    """Generate multivariate individual differences via latent factor model.
+    Instead of a single global_scalar, each subject gets per-ROI variation
+    driven by latent factors (e.g., 'general amplitude', 'reward vs cognitive').
+    Returns adjusted profile dict + '_global_scalar' key.
+    """
+    roi_names = list(profile.keys())
+    n_rois = len(roi_names)
+
+    # Latent factors: factor 0 = global amplitude, factors 1..N = network-specific
+    latent = rng.normal(0, 1, n_latent)
+
+    # Global amplitude (log-normal, replaces old scalar)
+    global_scalar = float(np.exp(0.12 * latent[0]))
+
+    # Per-ROI offsets from remaining latent factors
+    loadings = rng.normal(0, 0.08, (n_rois, n_latent - 1))
+    subject_offsets = loadings @ latent[1:]  # (n_rois,)
+
+    adjusted = {"_global_scalar": global_scalar}
+    for i, roi in enumerate(roi_names):
+        base_scalar, sigma = profile[roi]
+        adjusted[roi] = (
+            base_scalar * np.exp(subject_offsets[i]),
+            sigma * (1.0 + rng.normal(0, 0.05)),  # slight sigma variability
+        )
+    return adjusted
+
+
+def dynamic_network_covariance(T, base_rho, events, window_size=10):
+    """Generate time-varying coupling weight for a functional network.
+    Events temporarily increase within-network synchronization.
+    """
+    rho_series = np.full(T, base_rho)
+    for t_evt, etype, intensity in events:
+        window = np.exp(-0.5 * ((np.arange(T) - t_evt) / window_size) ** 2)
+        if etype == "scene_cut":
+            rho_series += window * 0.15 * intensity
+        elif etype == "brand_reveal":
+            rho_series += window * 0.20 * intensity
+        else:
+            rho_series += window * 0.10 * intensity
+    return np.clip(rho_series, 0.1, 0.95)
+
+
 def apply_content_rules(base_profile, base_params, content_metadata, demographic):
     """Apply content-aware rule engine to modify demographic profile and params."""
     profile = {k: v for k, v in base_profile.items()}
@@ -399,18 +482,21 @@ def generate_demographic_ensemble(
         pacing_mods = CONTENT_RULES["pacing_noise_modifiers"].get(pacing, {})
         ar1_rho = pacing_mods.get("ar1_rho", 0.6)
 
-    # 3. Network-level Noise Cache (now using expanded 10-network map)
-    network_noise_units = {}
-    for net_name, (rois, rho) in NETWORK_COVARIANCE.items():
-        network_noise_units[net_name] = correlated_roi_noise(rng, rois, _hcp_labels, T, 1.0, rho)
+    # 3. Dynamic Functional Connectivity coupling (V5 enhancement)
+    dynamic_coupling = {}
+    for net_name, (rois, base_rho) in NETWORK_COVARIANCE.items():
+        dynamic_coupling[net_name] = dynamic_network_covariance(
+            T, base_rho, temporal_events or [], window_size=10
+        ).reshape(-1, 1)
 
     # 4. Fatigue curve (V4: nonlinear + event recovery)
     duration_cat = content_context.get("duration_category", "medium") if content_context else "medium"
     fatigue_vec = compute_fatigue_curve(T, params["fatigue"], temporal_events or [], duration_cat)
 
     for _ in range(n_subjects):
-        # A. Log-Normal Global Scalar (Right-skewed individual differences)
-        global_scalar = rng.lognormal(mean=0.0, sigma=0.12)
+        # A. Multivariate Subject Profile (V5: latent factor individual diffs)
+        subj_profile = generate_subject_profile(rng, profile)
+        global_scalar = subj_profile.pop("_global_scalar")
 
         # B. Temporal Shift (Processing Latency)
         shift = params["latency_shift"]
@@ -421,37 +507,50 @@ def generate_demographic_ensemble(
         else:
             subj = base_preds * global_scalar
 
+        # B2. HRF Convolution (V5: hemodynamic temporal blurring)
+        subj = apply_hrf(subj, tr=1.0, peak_delay_jitter=rng.normal(0, 0.5))
+
         # C. Attention Fatigue (V4: nonlinear with event recovery)
         subj *= fatigue_vec
 
-        # D. Add AR(1) ROI Noise with State-Dependence & Network Coherence
+        # D. Add 1/f + AR(1) Blended Noise with Dynamic FC (V5)
         processed_rois = set()
 
-        # D1. Apply Network-Correlated Noise
+        # D1. Apply Network-Correlated Noise (per-subject, dynamic coupling)
         for net_idx, (net_name, (net_rois, _)) in enumerate(NETWORK_COVARIANCE.items()):
-            net_noise = network_noise_units[net_name]
+            # Per-subject network noise (not shared across subjects)
+            net_noise = correlated_roi_noise(rng, net_rois, _hcp_labels, T, 1.0, 0.8)
+            coupling_t = dynamic_coupling[net_name]  # (T, 1) time-varying
+
             for i, r_name in enumerate(net_rois):
                 if r_name not in _hcp_labels: continue
                 idx = _hcp_labels[r_name]
-                scalar, sigma = profile.get(r_name, (1.0, 0.08))
+                scalar, sigma = subj_profile.get(r_name, (1.0, 0.08))
 
                 # Dynamic sigma (1.0x to 1.4x based on activation + events)
                 dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
 
-                # AR(1) noise with pacing-adaptive rho
-                roi_noise = ar1_noise(rng, (T, len(idx)), 1.0, rho=ar1_rho)
-                final_noise = (net_noise[:, [i]] * 0.7 + roi_noise * 0.3) * dynamic_sigma
+                # Blended 1/f pink + AR(1) noise (V5)
+                pink = pink_noise_1f(rng, (T, len(idx)))
+                ar1 = ar1_noise(rng, (T, len(idx)), 1.0, rho=ar1_rho)
+                roi_noise = 0.6 * pink + 0.4 * ar1
+
+                # Dynamic FC: time-varying network vs independent blend
+                final_noise = (net_noise[:, [i]] * coupling_t + roi_noise * (1 - coupling_t)) * dynamic_sigma
 
                 subj[:, idx] = (subj[:, idx] * scalar) + final_noise
                 processed_rois.add(r_name)
 
-        # D2. Apply Remaining Independent ROI Noise
-        for r_name, (scalar, sigma) in profile.items():
-            if r_name in processed_rois or r_name not in _hcp_labels:
+        # D2. Apply Remaining Independent ROI Noise (1/f + AR(1) blend)
+        for r_name, val in subj_profile.items():
+            if r_name.startswith("_") or r_name in processed_rois or r_name not in _hcp_labels:
                 continue
+            scalar, sigma = val
             idx = _hcp_labels[r_name]
             dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
-            raw_noise = ar1_noise(rng, (T, len(idx)), dynamic_sigma, rho=ar1_rho)
+            pink = pink_noise_1f(rng, (T, len(idx)))
+            ar1 = ar1_noise(rng, (T, len(idx)), 1.0, rho=ar1_rho)
+            raw_noise = (0.6 * pink + 0.4 * ar1) * dynamic_sigma
             subj[:, idx] = (subj[:, idx] * scalar) + raw_noise
 
         # E. Hemisphere Bias (Functional Lateralization)
