@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Ribbit
+ribbit/*.json
+ribbit/modules/

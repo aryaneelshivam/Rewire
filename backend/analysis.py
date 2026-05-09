@@ -1,5 +1,5 @@
 """
-NeuraPulse Analysis Engine
+RewireAnalysis Engine
 Ported from triberewire6_updated.py (Cells 5-12)
 All computation is pure numpy/scipy — no GPU required.
 """

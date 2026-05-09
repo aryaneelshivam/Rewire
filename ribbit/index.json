@@ -1,0 +1,1111 @@
+{
+  "meta": {
+    "generated": "2026-05-08T12:44:24.721Z",
+    "version": "1.1.0",
+    "files": 21,
+    "nodes": 58,
+    "edges": 75,
+    "parseTime": 172,
+    "incremental": false
+  },
+  "files": {
+    "ribbit.config.js": {
+      "exports": [
+        "default"
+      ],
+      "imports": [],
+      "language": "javascript",
+      "centrality": 0,
+      "hash": "6940351443125439352",
+      "lastModified": 1778244264,
+      "size": 378
+    },
+    "frontend/eslint.config.js": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "@eslint/js",
+        "globals",
+        "eslint-plugin-react-hooks",
+        "eslint-plugin-react-refresh",
+        "eslint/config"
+      ],
+      "language": "javascript",
+      "centrality": 0,
+      "hash": "9143834393123448997",
+      "lastModified": 1775120577,
+      "size": 758
+    },
+    "frontend/ribbit.config.js": {
+      "exports": [
+        "default"
+      ],
+      "imports": [],
+      "language": "javascript",
+      "centrality": 0,
+      "hash": "6940351443125439352",
+      "lastModified": 1778244224,
+      "size": 378
+    },
+    "frontend/src/main.jsx": {
+      "exports": [],
+      "imports": [
+        "react",
+        "react-dom/client",
+        "frontend/src/index.css",
+        "frontend/src/App.jsx"
+      ],
+      "language": "javascript",
+      "centrality": 0,
+      "hash": "1974764602437128819",
+      "lastModified": 1775120577,
+      "size": 229
+    },
+    "frontend/src/components/ABSummaryPanel.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "18247623972785180224",
+      "lastModified": 1775321249,
+      "size": 4884
+    },
+    "frontend/src/components/AsymmetryPanel.jsx": {
+      "exports": [
+        "AsymmetryPanel"
+      ],
+      "imports": [
+        "react",
+        "recharts"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "12510684923031933062",
+      "lastModified": 1775319541,
+      "size": 3880
+    },
+    "frontend/src/components/EngagementPanel.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "recharts"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "18099069104357570416",
+      "lastModified": 1775319475,
+      "size": 3855
+    },
+    "frontend/src/components/HeadSilhouette.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "9024243612506073440",
+      "lastModified": 1775121914,
+      "size": 1287
+    },
+    "frontend/src/components/ImpactScenes.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "9414848407633175742",
+      "lastModified": 1775319622,
+      "size": 7438
+    },
+    "frontend/src/components/BrainViewer3D.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "@react-three/fiber",
+        "@react-three/drei",
+        "three",
+        "frontend/src/api",
+        "lucide-react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "4890253851589987530",
+      "lastModified": 1777054995,
+      "size": 4773
+    },
+    "frontend/src/components/DemoTimeSeries.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "recharts"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "14137521149047910006",
+      "lastModified": 1777054995,
+      "size": 10000
+    },
+    "frontend/src/components/DimensionalLeadPanel.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "9096940058256469378",
+      "lastModified": 1775321545,
+      "size": 8864
+    },
+    "frontend/src/components/LivePulsePanel.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "1052475262709954846",
+      "lastModified": 1775319477,
+      "size": 5111
+    },
+    "frontend/src/components/OverviewPanel.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "recharts"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "9243466595898097453",
+      "lastModified": 1775319455,
+      "size": 6109
+    },
+    "frontend/src/components/ReportView.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react",
+        "recharts"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "15182716091546155981",
+      "lastModified": 1777054995,
+      "size": 16923
+    },
+    "frontend/src/components/TopRoisPanel.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "recharts"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "8789077136008252587",
+      "lastModified": 1775319582,
+      "size": 5053
+    },
+    "frontend/src/components/UploadDataScreen.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react",
+        "frontend/src/api"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "740291904162846212",
+      "lastModified": 1777053616,
+      "size": 16667
+    },
+    "frontend/src/components/VarianceHeatmap.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "14864897770939095727",
+      "lastModified": 1775320814,
+      "size": 14564
+    },
+    "frontend/vite.config.js": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "vite",
+        "@vitejs/plugin-react"
+      ],
+      "language": "javascript",
+      "centrality": 0,
+      "hash": "2102488470017106063",
+      "lastModified": 1775120577,
+      "size": 161
+    },
+    "frontend/src/api.js": {
+      "exports": [
+        "fetchOverview",
+        "fetchTopRois",
+        "fetchEngagement",
+        "fetchTimeSeries",
+        "fetchHeatmap",
+        "fetchBrainMesh",
+        "fetchBrainActivation",
+        "fetchDemographics",
+        "fetchABSummary",
+        "fetchStatus",
+        "uploadPredictions",
+        "fetchContentProfile"
+      ],
+      "imports": [
+        "axios"
+      ],
+      "language": "javascript",
+      "centrality": 1,
+      "hash": "1357724234940749805",
+      "lastModified": 1777053540,
+      "size": 2874
+    },
+    "frontend/src/App.jsx": {
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "react",
+        "frontend/src/api",
+        "frontend/src/components/UploadDataScreen",
+        "frontend/src/components/OverviewPanel",
+        "frontend/src/components/EngagementPanel",
+        "frontend/src/components/TopRoisPanel",
+        "frontend/src/components/DemoTimeSeries",
+        "frontend/src/components/VarianceHeatmap",
+        "frontend/src/components/BrainViewer3D",
+        "frontend/src/components/HeadSilhouette",
+        "frontend/src/components/AsymmetryPanel",
+        "frontend/src/components/ImpactScenes",
+        "frontend/src/components/LivePulsePanel",
+        "frontend/src/components/ABSummaryPanel",
+        "frontend/src/components/DimensionalLeadPanel",
+        "lucide-react",
+        "frontend/src/components/ReportView"
+      ],
+      "language": "javascript",
+      "centrality": 0.3333,
+      "hash": "12761310852176402623",
+      "lastModified": 1777054995,
+      "size": 26376
+    }
+  },
+  "symbols": {
+    "ABSummaryPanel": {
+      "file": "frontend/src/components/ABSummaryPanel.jsx",
+      "type": "function",
+      "calls": [
+        "Math.abs",
+        "Object.values(dimension_winners).forEach",
+        "Object.values",
+        "Object.values(dims).forEach",
+        "Math.max",
+        "A_global_mean.toFixed",
+        "B_global_mean.toFixed",
+        "meanDiff.toFixed",
+        "A_peak_activation.toFixed",
+        "B_peak_activation.toFixed",
+        "peakDiff.toFixed"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "AsymmetryPanel": {
+      "file": "frontend/src/components/AsymmetryPanel.jsx",
+      "type": "function",
+      "calls": [
+        "Math.max",
+        "chartData.push",
+        "payload.map",
+        "Math.abs(entry.value).toFixed",
+        "Math.abs"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "EngagementPanel": {
+      "file": "frontend/src/components/EngagementPanel.jsx",
+      "type": "function",
+      "calls": [
+        "dataA.dimensions.filter",
+        "demos.map",
+        "dims.map",
+        "dim.charAt(0).toUpperCase",
+        "dim.charAt",
+        "dim.slice",
+        "demoWinners.map",
+        "Math.max(dw.aScore, dw.bScore).toFixed",
+        "Math.max",
+        "chartSections.map"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "HeadSilhouette": {
+      "file": "frontend/src/components/HeadSilhouette.jsx",
+      "type": "function",
+      "calls": [],
+      "calledBy": [],
+      "imports": []
+    },
+    "ImpactScenes": {
+      "file": "frontend/src/components/ImpactScenes.jsx",
+      "type": "function",
+      "calls": [
+        "useState",
+        "metrics.map",
+        "[...allPeaks].sort",
+        "filteredPeaks.some",
+        "Math.abs",
+        "filteredPeaks.push",
+        "filteredPeaks.sort",
+        "React.useMemo",
+        "getTopPeaks",
+        "setIsProcessing",
+        "document.createElement",
+        "canvas.getContext",
+        "video.removeEventListener",
+        "resolve",
+        "video.addEventListener",
+        "setTimeout",
+        "ctx.drawImage",
+        "newSnapshots.push",
+        "canvas.toDataURL",
+        "setSnapshots",
+        "useEffect",
+        "captureSnapshots",
+        "variant.toLowerCase",
+        "snapshots.map",
+        "onSeekToTimestamp",
+        "Math.floor",
+        "s.activation.toFixed",
+        "renderColumn"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "BrainMesh": {
+      "file": "frontend/src/components/BrainViewer3D.jsx",
+      "type": "function",
+      "calls": [
+        "useRef",
+        "useMemo",
+        "vertices.flat",
+        "faces.flat",
+        "geo.setAttribute",
+        "geo.setIndex",
+        "geo.computeVertexNormals",
+        "useEffect",
+        "Math.max",
+        "Math.min",
+        "lut.setRGB",
+        "geometry.setAttribute"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "BrainViewer3D": {
+      "file": "frontend/src/components/BrainViewer3D.jsx",
+      "type": "constant",
+      "calls": [
+        "React.forwardRef",
+        "useState",
+        "useRef",
+        "React.useImperativeHandle",
+        "canvasRef.current.toDataURL",
+        "useEffect",
+        "fetchBrainMesh().then",
+        "fetchBrainMesh",
+        "setMeshData",
+        "setLoading",
+        "fetchBrainActivation(currentTime, demographic, variant).then",
+        "fetchBrainActivation",
+        "setActivation"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "DemoTimeSeries": {
+      "file": "frontend/src/components/DemoTimeSeries.jsx",
+      "type": "function",
+      "calls": [
+        "useState",
+        "Math.max",
+        "chartData.push",
+        "Math.floor",
+        "secs.toString().padStart",
+        "secs.toString",
+        "demos.map",
+        "setActiveDemographic",
+        "d.label.toUpperCase",
+        "groups.map",
+        "setActiveGroup",
+        "g.label.toUpperCase",
+        "transcript.map",
+        "evt.text.substring",
+        "setIsLogExpanded",
+        "setHoveredEvent",
+        "formatTime",
+        "groups.find"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "DimensionalLeadPanel": {
+      "file": "frontend/src/components/DimensionalLeadPanel.jsx",
+      "type": "function",
+      "calls": [
+        "useState",
+        "Object.keys",
+        "dims.forEach",
+        "demos.forEach",
+        "Math.max",
+        "Math.min",
+        "setIsExpanded",
+        "dims.filter(d => dimensionAggregates[d]).map",
+        "dims.filter",
+        "d.avgA.toFixed",
+        "d.avgB.toFixed",
+        "d.pctLead.toFixed"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "LivePulsePanel": {
+      "file": "frontend/src/components/LivePulsePanel.jsx",
+      "type": "function",
+      "calls": [
+        "Math.min",
+        "Math.max",
+        "useMemo",
+        "mA.global_mean.slice",
+        "Array(15 - slice.length).fill",
+        "Array",
+        "mB.global_mean.slice",
+        "sparkA.map((val, i) => `${i * 10},${40 - (val / maxInt * 35)}`).join",
+        "sparkA.map",
+        "sparkB.map((val, i) => `${i * 10},${40 - (val / maxInt * 35)}`).join",
+        "sparkB.map"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "OverviewPanel": {
+      "file": "frontend/src/components/OverviewPanel.jsx",
+      "type": "function",
+      "calls": [
+        "Math.max",
+        "chartData.push",
+        "payload.map",
+        "entry.value?.toFixed",
+        "dataA.timestep_metrics.hemisphere_asymmetry[dataA.peak_timestep].toFixed",
+        "dataB.timestep_metrics.hemisphere_asymmetry[dataB.peak_timestep].toFixed"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "ReportView": {
+      "file": "frontend/src/components/ReportView.jsx",
+      "type": "function",
+      "calls": [
+        "engagement.A.dimensions.filter",
+        "dims.map",
+        "dim.charAt(0).toUpperCase",
+        "dim.charAt",
+        "dim.slice",
+        "Math.max",
+        "overviewChartData.push",
+        "asymmetryChartData.push",
+        "window.print",
+        "Math.floor",
+        "Math.random",
+        "new Date().toLocaleDateString",
+        "Math.abs",
+        "Math.round",
+        "a.toFixed",
+        "b.toFixed"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "TopRoisPanel": {
+      "file": "frontend/src/components/TopRoisPanel.jsx",
+      "type": "function",
+      "calls": [
+        "dataA.rois.forEach",
+        "dataB.rois.forEach",
+        "Object.values(roiMap)\n    .map(r => ({ ...r, peakA: r.peakA || 0, peakB: r.peakB || 0 }))\n    .sort((a, b) => Math.max(b.peakA, b.peakB) - Math.max(a.peakA, a.peakB))\n    .slice",
+        "Object.values(roiMap)\n    .map(r => ({ ...r, peakA: r.peakA || 0, peakB: r.peakB || 0 }))\n    .sort",
+        "Object.values(roiMap)\n    .map",
+        "Object.values",
+        "Math.max",
+        "payload.map",
+        "entry.value.toFixed",
+        "Object.entries(regionDefinitions).map",
+        "Object.entries"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "GENRE_OPTIONS": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "constant",
+      "calls": [],
+      "calledBy": [],
+      "imports": []
+    },
+    "PACING_OPTIONS": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "constant",
+      "calls": [],
+      "calledBy": [],
+      "imports": []
+    },
+    "AUDIO_OPTIONS": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "constant",
+      "calls": [],
+      "calledBy": [],
+      "imports": []
+    },
+    "CONTENT_TYPE_OPTIONS": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "constant",
+      "calls": [],
+      "calledBy": [],
+      "imports": []
+    },
+    "StyledSelect": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "function",
+      "calls": [
+        "onChange",
+        "options.map"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "StyledNumberInput": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "function",
+      "calls": [
+        "onChange",
+        "parseInt"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "MetadataPanel": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "function",
+      "calls": [
+        "setMetadata"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "UploadDataScreen": {
+      "file": "frontend/src/components/UploadDataScreen.jsx",
+      "type": "function",
+      "calls": [
+        "useState",
+        "setIsUploading",
+        "setError",
+        "uploadPredictions",
+        "fetchStatus",
+        "onUploadComplete",
+        "console.error",
+        "setFile",
+        "setShowMetadata"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "VarianceHeatmap": {
+      "file": "frontend/src/components/VarianceHeatmap.jsx",
+      "type": "function",
+      "calls": [
+        "useState",
+        "Math.max",
+        "dataA.values.flat",
+        "dataB.values.flat",
+        "useMemo",
+        "dataA.demographics.map",
+        "roiLabels.map",
+        "diffMatrix.flat().map",
+        "diffMatrix.flat",
+        "Math.round",
+        "Math.abs",
+        "getHeatColorA",
+        "getHeatColorB",
+        "getDiffColor",
+        "modes.map",
+        "setActiveVariant",
+        "getCellValue",
+        "setHoveredCell",
+        "getCellColor",
+        "dataA.values[dIdx].reduce",
+        "dataB.values[dIdx].reduce",
+        "avgA.toFixed",
+        "avgB.toFixed"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "API_BASE_URL": {
+      "file": "frontend/src/api.js",
+      "type": "constant",
+      "calls": [],
+      "calledBy": [],
+      "imports": []
+    },
+    "api": {
+      "file": "frontend/src/api.js",
+      "type": "constant",
+      "calls": [
+        "axios.create"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "fetchOverview": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchTopRois": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchEngagement": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchTimeSeries": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchHeatmap": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchBrainMesh": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "BrainViewer3D"
+      ],
+      "imports": []
+    },
+    "fetchBrainActivation": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "BrainViewer3D"
+      ],
+      "imports": []
+    },
+    "fetchDemographics": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchABSummary": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "App"
+      ],
+      "imports": []
+    },
+    "fetchStatus": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [
+        "UploadDataScreen",
+        "App"
+      ],
+      "imports": []
+    },
+    "uploadPredictions": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "formData.append",
+        "api.post"
+      ],
+      "calledBy": [
+        "UploadDataScreen"
+      ],
+      "imports": []
+    },
+    "fetchContentProfile": {
+      "file": "frontend/src/api.js",
+      "type": "function",
+      "calls": [
+        "api.get"
+      ],
+      "calledBy": [],
+      "imports": []
+    },
+    "App": {
+      "file": "frontend/src/App.jsx",
+      "type": "function",
+      "calls": [
+        "useState",
+        "useRef",
+        "setIsGeneratingReport",
+        "console.log",
+        "Promise.all",
+        "fetchABSummary",
+        "fetchEngagement",
+        "fetchTopRois",
+        "setActiveTab",
+        "setBrainVariant",
+        "Math.max",
+        "Math.min",
+        "Math.floor",
+        "setCurrentTime",
+        "setTimeout",
+        "brainRef.current?.getSnapshot",
+        "console.warn",
+        "setReportSnapshots",
+        "setReportData",
+        "console.error",
+        "alert",
+        "URL.createObjectURL",
+        "setVideoUrlA",
+        "setVideoUrlB",
+        "setIsPlaying",
+        "[vRefA, vRefB].filter",
+        "refs.forEach",
+        "r.current.pause",
+        "r.current.play",
+        "[vRefA, vRefB].forEach",
+        "handleSeekToTimestamp",
+        "setLoading",
+        "fetchStatus",
+        "setAwaitingUpload",
+        "fetchOverview",
+        "fetchTimeSeries",
+        "fetchHeatmap",
+        "fetchDemographics",
+        "setOverview",
+        "setEngagement",
+        "setTopRois",
+        "setTimeSeries",
+        "setHeatmap",
+        "setDemographics",
+        "setAbSummary",
+        "useEffect",
+        "loadData",
+        "setInterval",
+        "clearInterval",
+        "handleFileChange",
+        "setBrainDemographic",
+        "parseInt",
+        "tabs.map",
+        "overview.A.timestep_metrics.global_max[overview.A.peak_timestep].toFixed",
+        "overview.A.timestep_metrics.global_mean.reduce",
+        "overview.B.timestep_metrics.global_max[overview.B.peak_timestep].toFixed",
+        "overview.B.timestep_metrics.global_mean.reduce"
+      ],
+      "calledBy": [],
+      "imports": []
+    }
+  },
+  "relationships": {
+    "ribbit.config.js": {
+      "dependsOn": [],
+      "dependedOnBy": []
+    },
+    "frontend/eslint.config.js": {
+      "dependsOn": [
+        "@eslint/js",
+        "globals",
+        "eslint-plugin-react-hooks",
+        "eslint-plugin-react-refresh",
+        "eslint/config"
+      ],
+      "dependedOnBy": []
+    },
+    "frontend/ribbit.config.js": {
+      "dependsOn": [],
+      "dependedOnBy": []
+    },
+    "frontend/src/main.jsx": {
+      "dependsOn": [
+        "react",
+        "react-dom/client",
+        "frontend/src/index.css",
+        "frontend/src/App.jsx"
+      ],
+      "dependedOnBy": []
+    },
+    "frontend/src/components/ABSummaryPanel.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/AsymmetryPanel.jsx": {
+      "dependsOn": [
+        "react",
+        "recharts"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/EngagementPanel.jsx": {
+      "dependsOn": [
+        "react",
+        "recharts"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/HeadSilhouette.jsx": {
+      "dependsOn": [
+        "react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/ImpactScenes.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/BrainViewer3D.jsx": {
+      "dependsOn": [
+        "react",
+        "@react-three/fiber",
+        "@react-three/drei",
+        "three",
+        "frontend/src/api.js",
+        "lucide-react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/DemoTimeSeries.jsx": {
+      "dependsOn": [
+        "react",
+        "recharts"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/DimensionalLeadPanel.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/LivePulsePanel.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/OverviewPanel.jsx": {
+      "dependsOn": [
+        "react",
+        "recharts"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/ReportView.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react",
+        "recharts"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/TopRoisPanel.jsx": {
+      "dependsOn": [
+        "react",
+        "recharts"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/UploadDataScreen.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react",
+        "frontend/src/api.js"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/components/VarianceHeatmap.jsx": {
+      "dependsOn": [
+        "react",
+        "lucide-react"
+      ],
+      "dependedOnBy": [
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/vite.config.js": {
+      "dependsOn": [
+        "vite",
+        "@vitejs/plugin-react"
+      ],
+      "dependedOnBy": []
+    },
+    "frontend/src/api.js": {
+      "dependsOn": [
+        "axios"
+      ],
+      "dependedOnBy": [
+        "frontend/src/components/BrainViewer3D.jsx",
+        "frontend/src/components/UploadDataScreen.jsx",
+        "frontend/src/App.jsx"
+      ]
+    },
+    "frontend/src/App.jsx": {
+      "dependsOn": [
+        "react",
+        "frontend/src/api.js",
+        "frontend/src/components/UploadDataScreen.jsx",
+        "frontend/src/components/OverviewPanel.jsx",
+        "frontend/src/components/EngagementPanel.jsx",
+        "frontend/src/components/TopRoisPanel.jsx",
+        "frontend/src/components/DemoTimeSeries.jsx",
+        "frontend/src/components/VarianceHeatmap.jsx",
+        "frontend/src/components/BrainViewer3D.jsx",
+        "frontend/src/components/HeadSilhouette.jsx",
+        "frontend/src/components/AsymmetryPanel.jsx",
+        "frontend/src/components/ImpactScenes.jsx",
+        "frontend/src/components/LivePulsePanel.jsx",
+        "frontend/src/components/ABSummaryPanel.jsx",
+        "frontend/src/components/DimensionalLeadPanel.jsx",
+        "lucide-react",
+        "frontend/src/components/ReportView.jsx"
+      ],
+      "dependedOnBy": [
+        "frontend/src/main.jsx"
+      ]
+    }
+  }
+}
