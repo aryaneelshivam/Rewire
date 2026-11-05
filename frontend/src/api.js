@@ -85,4 +85,9 @@ export const fetchContentProfile = async () => {
   return response.data;
 };
 
+export const loadSampleData = async () => {
+  const response = await api.post('/load-sample-data');
+  return response.data;
+};
+
 export default api;

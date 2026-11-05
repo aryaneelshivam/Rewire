@@ -48,10 +48,34 @@ def _clean_transcript(data):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load both pkl files and run analysis on startup."""
+    """Load both pkl files and run analysis on startup if available."""
     global _cache_A, _cache_B
 
-    print("🟡  Backend started. Awaiting PKL upload files from frontend...")
+    base_dir = Path(__file__).resolve().parent.parent
+    path_a = base_dir / "brand_A_predictions.pkl"
+    path_b = base_dir / "brand_B_predictions.pkl"
+
+    if path_a.exists() and path_b.exists():
+        try:
+            print("🧠  Auto-loading default Brand A & B sample predictions...")
+            data_a = joblib.load(str(path_a))
+            preds_a = data_a["preds"]
+            transcript_a = _clean_transcript(data_a)
+            _cache_A = run_full_analysis(preds_a, transcript=transcript_a, n_subjects=50, seed=42)
+            _cache_A["transcript"] = transcript_a
+
+            data_b = joblib.load(str(path_b))
+            preds_b = data_b["preds"]
+            transcript_b = _clean_transcript(data_b)
+            _cache_B = run_full_analysis(preds_b, transcript=transcript_b, n_subjects=50, seed=43)
+            _cache_B["transcript"] = transcript_b
+            print("✅  Auto-load complete! Both variants cached.")
+        except Exception as e:
+            print(f"⚠️  Auto-load skipped: {e}")
+            print("🟡  Backend started. Awaiting PKL upload files from frontend...")
+    else:
+        print("🟡  Backend started. Awaiting PKL upload files from frontend...")
+
     yield
     _cache_A.clear()
     _cache_B.clear()
@@ -141,6 +165,31 @@ async def upload_predictions(
     _cache_B["transcript"] = transcript_b
     
     return {"status": "success", "message": "Files analyzed (V4 content-aware engine).", "content_A": meta_a, "content_B": meta_b}
+
+
+@app.post("/api/load-sample-data")
+async def load_sample_data():
+    """Quick-load default Brand A and Brand B samples from workspace."""
+    global _cache_A, _cache_B
+    base_dir = Path(__file__).resolve().parent.parent
+    path_a = base_dir / "brand_A_predictions.pkl"
+    path_b = base_dir / "brand_B_predictions.pkl"
+    if not path_a.exists() or not path_b.exists():
+        raise HTTPException(status_code=404, detail="Default sample PKL files not found on disk.")
+    
+    data_a = joblib.load(str(path_a))
+    preds_a = data_a["preds"]
+    transcript_a = _clean_transcript(data_a)
+    _cache_A = run_full_analysis(preds_a, transcript=transcript_a, n_subjects=50, seed=42)
+    _cache_A["transcript"] = transcript_a
+
+    data_b = joblib.load(str(path_b))
+    preds_b = data_b["preds"]
+    transcript_b = _clean_transcript(data_b)
+    _cache_B = run_full_analysis(preds_b, transcript=transcript_b, n_subjects=50, seed=43)
+    _cache_B["transcript"] = transcript_b
+    return {"status": "success", "message": "Sample files loaded"}
+
 
 @app.get("/api/overview")
 def get_overview():

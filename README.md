@@ -1,5 +1,7 @@
 # Rewire: Neural Intelligence & Neuromarketing Analytics 🧠🚀
 
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/aryaneelshivam/Rewire)
+
 **Rewire** is a professional-grade neuromarketing platform that eliminates guesswork in creative A/B testing. By leveraging state-of-the-art deep learning (Meta's Tribe v2) and biologically-grounded demographic synthesis, Rewire predicts exactly how human brains respond to video content—before you spend a single rupee on ad placements.
 
 ![Rewire Demo](./demovideorewire.mp4)

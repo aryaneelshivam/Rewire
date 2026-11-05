@@ -16,15 +16,15 @@ import ImpactScenes from './components/ImpactScenes';
 import LivePulsePanel from './components/LivePulsePanel';
 import ABSummaryPanel from './components/ABSummaryPanel';
 import DimensionalLeadPanel from './components/DimensionalLeadPanel';
-import { Brain, Sparkles, ExternalLink, Play, Pause, Upload, Video, Zap, SkipBack, SkipForward, FlaskConical, ArrowLeftRight, FileText, Download, RotateCcw } from 'lucide-react';
+import { 
+  Brain, Sparkles, Play, Pause, Upload, Video, SkipBack, 
+  SkipForward, ArrowLeftRight, FileText, RotateCcw, Search, Terminal
+} from 'lucide-react';
 import ReportView from './components/ReportView';
-
-
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [awaitingUpload, setAwaitingUpload] = useState(false);
-  // All data now has .A and .B sub-objects
   const [overview, setOverview] = useState(null);
   const [engagement, setEngagement] = useState(null);
   const [topRois, setTopRois] = useState(null);
@@ -36,9 +36,10 @@ function App() {
   const [activeTab, setActiveTab] = useState('browse');
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [autoRotate, setAutoRotate] = useState(true);
+  const [autoRotate] = useState(true);
   const [brainDemographic, setBrainDemographic] = useState('baseline');
   const [brainVariant, setBrainVariant] = useState('A');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Dual video support
   const [videoUrlA, setVideoUrlA] = useState(null);
@@ -55,14 +56,8 @@ function App() {
   const handleGenerateReport = async () => {
     if (isGeneratingReport) return;
     setIsGeneratingReport(true);
-    const prevTab = activeTab;
-    const prevVariant = brainVariant;
-    const prevTime = currentTime;
 
     try {
-      console.log("📊 Starting Report Generation...");
-
-      // 1. Ensure we have the latest data
       const [sum, eng, rois] = await Promise.all([
         fetchABSummary(),
         fetchEngagement(),
@@ -73,81 +68,76 @@ function App() {
         throw new Error("Neural data is still loading or incomplete.");
       }
 
-      // 2. Automated Capture Sequence
       setActiveTab('explore');
       const snaps = { A: null, B: null };
 
       // Snapshot A
       try {
-        console.log("📸 Capturing Variant A...");
         setBrainVariant('A');
         const peakA = rois.A.rois?.[0]?.peak_timestep || 0;
         const maxA = overview.A.n_timesteps || 1;
         const safePeakA = Math.max(0, Math.min(Math.floor(peakA), maxA - 1));
-
         setCurrentTime(safePeakA);
-        await new Promise(r => setTimeout(r, 1200)); // Wait for API + WebGL
+        await new Promise(r => setTimeout(r, 1200));
         snaps.A = brainRef.current?.getSnapshot();
       } catch (e) { console.warn("A Snapshot failed", e); }
 
       // Snapshot B
       try {
-        console.log("📸 Capturing Variant B...");
         setBrainVariant('B');
         const peakB = rois.B.rois?.[0]?.peak_timestep || 0;
         const maxB = overview.B.n_timesteps || 1;
         const safePeakB = Math.max(0, Math.min(Math.floor(peakB), maxB - 1));
-
         setCurrentTime(safePeakB);
-        await new Promise(r => setTimeout(r, 1200)); // Wait for API + WebGL
+        await new Promise(r => setTimeout(r, 1200));
         snaps.B = brainRef.current?.getSnapshot();
       } catch (e) { console.warn("B Snapshot failed", e); }
 
-      console.log("✅ Report Ready!");
       setReportSnapshots(snaps);
-      setReportData({ summary: sum, engagement: eng, topRois: rois, overview: overview });
+      setReportData({
+        summary: sum,
+        engagement: eng,
+        topRois: rois,
+        overview: overview,
+        demographics: demographics,
+        videoUrlA,
+        videoUrlB
+      });
     } catch (err) {
-      console.error("❌ Report Generation Error:", err);
-      alert(err.message || "Failed to generate report. Please try again.");
+      console.error("Report generation failed:", err);
+      alert(`Report generation failed: ${err.message}`);
     } finally {
-      // Restore state
-      setActiveTab(prevTab);
-      setBrainVariant(prevVariant);
-      setCurrentTime(prevTime);
       setIsGeneratingReport(false);
     }
   };
 
   const handleFileChange = (variant) => (e) => {
     const file = e.target.files[0];
-    if (file && file.type === 'video/mp4') {
-      const url = URL.createObjectURL(file);
-      if (variant === 'A') setVideoUrlA(url);
-      else setVideoUrlB(url);
-      setIsPlaying(false);
-      setCurrentTime(0);
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    if (variant === 'A') {
+      setVideoUrlA(url);
+    } else {
+      setVideoUrlB(url);
     }
   };
 
-  const handleTimeUpdate = () => {
-    // Use whichever video ref is active as the time source
-    const ref = vRefA.current || vRefB.current;
-    if (ref) {
-      const maxT = Math.max(overview?.A?.n_timesteps || 1, overview?.B?.n_timesteps || 1);
-      const t = Math.floor(ref.currentTime);
-      if (t < maxT) {
-        setCurrentTime(t);
-      }
+  const handleTimeUpdate = (e) => {
+    const t = Math.floor(e.target.currentTime);
+    setCurrentTime(t);
+    const otherRef = e.target === vRefA.current ? vRefB : vRefA;
+    if (otherRef.current && Math.abs(otherRef.current.currentTime - e.target.currentTime) > 0.5) {
+      otherRef.current.currentTime = e.target.currentTime;
     }
   };
 
   const togglePlayback = () => {
-    const refs = [vRefA, vRefB].filter(r => r.current);
-    if (isPlaying) {
-      refs.forEach(r => r.current.pause());
-    } else {
-      refs.forEach(r => r.current.play());
-    }
+    [vRefA, vRefB].forEach(r => {
+      if (r.current) {
+        if (isPlaying) r.current.pause();
+        else r.current.play();
+      }
+    });
     setIsPlaying(!isPlaying);
   };
 
@@ -186,7 +176,6 @@ function App() {
       setLoading(false);
     } catch (err) {
       console.error("Error loading:", err);
-      // If we get 400 Bad Request about missing PKLs, handle it gracefully
       if (err.response?.status === 400) {
         setAwaitingUpload(true);
       }
@@ -221,11 +210,11 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#000', color: 'white' }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--canvas)', color: 'var(--ink)' }}>
         <div style={{ textAlign: 'center' }}>
-          <Brain size={44} className="animate-pulse" style={{ color: '#E85D24', marginBottom: '1rem' }} />
-          <h2 style={{ fontFamily: 'Outfit', fontSize: '1.4rem' }}>Rewire</h2>
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.8rem', marginTop: '0.5rem' }}>Loading A/B Test Engine...</p>
+          <Brain size={36} className="animate-pulse" style={{ color: 'var(--variant-a)', marginBottom: '16px' }} />
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 600 }}>Rewire</h2>
+          <p style={{ color: 'var(--body)', fontSize: '13px', marginTop: '6px' }}>Loading A/B Neural Intelligence Engine...</p>
         </div>
       </div>
     );
@@ -242,96 +231,88 @@ function App() {
 
   return (
     <div className="app-root">
-      {/* ===== HEADER ===== */}
+      {/* ===== OLLAMA PRIMARY NAV ===== */}
       <header className="app-header">
         <div className="header-brand">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
+            <path d="M9 21h6" />
+          </svg>
           <h1>Rewire</h1>
-          <span>A/B Neural Intelligence</span>
+          <span className="header-subtitle">v2.0 · Meta Tribe fMRI</span>
+          
+          {/* Scientific Telemetry Status Strip */}
+          <div className="telemetry-strip header-telemetry">
+            <span className="sci-dot live" />
+            <span style={{ fontWeight: 600 }}>Tribe v2 Engine</span>
+            <span style={{ color: 'var(--mute)' }}>·</span>
+            <span>200 Brains</span>
+            <span style={{ color: 'var(--mute)' }}>·</span>
+            <span>20,484 v</span>
+          </div>
+
         </div>
-        <div className="ab-mode-badge">
-          <FlaskConical size={14} />
-          <span>A/B TEST MODE</span>
+
+        {/* Center Search Pill */}
+        <div className="search-pill">
+          <Search size={14} color="var(--mute)" />
+          <input
+            type="text"
+            placeholder="Search ROIs, scenes, neural metrics..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
         </div>
-        <nav className="header-nav" style={{ display: 'flex', gap: '0.75rem' }}>
+
+        {/* Right CTA Pills */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={() => setAwaitingUpload(true)}
+            className="button-secondary"
+            style={{ height: '36px', fontSize: '13px', padding: '0 16px' }}
+          >
+            <Upload size={13} />
+            Change PKL
+          </button>
+          
           <button
             onClick={handleGenerateReport}
             disabled={isGeneratingReport}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'rgba(255,255,255,0.7)',
-              padding: '0.4rem 0.8rem',
-              borderRadius: '6px',
-              fontSize: '0.8rem',
-              cursor: isGeneratingReport ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              transition: 'all 0.2s',
-              opacity: isGeneratingReport ? 0.4 : 1
-            }}
-            onMouseEnter={(e) => { if (!isGeneratingReport) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
-            onMouseLeave={(e) => { if (!isGeneratingReport) { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; } }}
+            className="button-primary"
+            style={{ height: '36px', fontSize: '13px', padding: '0 18px', opacity: isGeneratingReport ? 0.6 : 1 }}
           >
-            {isGeneratingReport ? <RotateCcw size={12} className="animate-spin" /> : <FileText size={12} />}
-            {isGeneratingReport ? 'Processing...' : 'Export Strategy Report'}
+            {isGeneratingReport ? <RotateCcw size={13} className="animate-spin" /> : <FileText size={13} />}
+            {isGeneratingReport ? 'Synthesizing Dossier...' : 'Export Strategy Dossier'}
           </button>
-          <button
-            onClick={() => setAwaitingUpload(true)}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'rgba(255,255,255,0.7)',
-              padding: '0.4rem 0.8rem',
-              borderRadius: '6px',
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
-          >
-            <Upload size={12} />
-            Change PKL Data
-          </button>
-        </nav>
+        </div>
       </header>
 
       {/* ===== MAIN TWO-PANEL LAYOUT ===== */}
       <main className="app-main">
-        {/* LEFT: Brain Visualization */}
+        {/* LEFT: Brain Visualization & Stimulus Video */}
         <div className="brain-panel">
-          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="show-guide-btn">
-              <Sparkles size={13} /> Show Guide
+          
+          {/* Top Control Bar in Left Panel */}
+          <div className="brain-toolbar">
+            <button className="show-guide-btn" onClick={() => setActiveTab('browse')}>
+              <Sparkles size={13} /> Guide
             </button>
 
-            {/* Upload buttons for BOTH videos */}
+            {/* Video A upload */}
             <label className="upload-btn variant-a">
               <Upload size={13} /> Video A
               <input type="file" accept="video/mp4" onChange={handleFileChange('A')} style={{ display: 'none' }} />
             </label>
+
+            {/* Video B upload */}
             <label className="upload-btn variant-b">
               <Upload size={13} /> Video B
               <input type="file" accept="video/mp4" onChange={handleFileChange('B')} style={{ display: 'none' }} />
             </label>
 
-            {/* Demographic Selector */}
+            {/* Demographic Selector Dropdown */}
             <select
               className="dark-input"
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                color: '#FFF',
-                fontSize: '0.72rem',
-                padding: '0.45rem 0.75rem',
-                borderRadius: 'var(--radius-pill)',
-                border: '1px solid var(--border-color)',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
               value={brainDemographic}
               onChange={e => setBrainDemographic(e.target.value)}
             >
@@ -342,7 +323,7 @@ function App() {
               <option value="older">Older Ensemble</option>
             </select>
 
-            {/* Variant toggle for brain viewer */}
+            {/* Variant toggle for 3D brain */}
             <div className="variant-toggle">
               <button
                 className={`vtog ${brainVariant === 'A' ? 'active-a' : ''}`}
@@ -357,15 +338,17 @@ function App() {
 
           {/* Dual Video Players */}
           {hasVideo && (
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: '20px' }}>
               <div className="dual-video-row">
                 {/* Video A */}
                 <div className="video-slot">
-                  <div className="video-container glass-card" style={{ marginBottom: 0 }}>
+                  <div className="video-container">
                     <div className="video-header">
-                      <Video size={14} color="#E85D24" />
-                      <span>Variant A</span>
-                      <div className="variant-badge-a">A</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Video size={13} />
+                        <span>Variant A</span>
+                      </div>
+                      <span className="variant-badge-a">A</span>
                     </div>
                     {videoUrlA ? (
                       <video
@@ -378,7 +361,7 @@ function App() {
                       />
                     ) : (
                       <div className="video-placeholder">
-                        <Upload size={20} style={{ opacity: 0.3 }} />
+                        <Upload size={18} color="var(--mute)" />
                         <span>Upload Video A</span>
                       </div>
                     )}
@@ -387,11 +370,13 @@ function App() {
 
                 {/* Video B */}
                 <div className="video-slot">
-                  <div className="video-container glass-card" style={{ marginBottom: 0 }}>
+                  <div className="video-container">
                     <div className="video-header">
-                      <Video size={14} color="#7F77DD" />
-                      <span>Variant B</span>
-                      <div className="variant-badge-b">B</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Video size={13} />
+                        <span>Variant B</span>
+                      </div>
+                      <span className="variant-badge-b">B</span>
                     </div>
                     {videoUrlB ? (
                       <video
@@ -404,7 +389,7 @@ function App() {
                       />
                     ) : (
                       <div className="video-placeholder">
-                        <Upload size={20} style={{ opacity: 0.3 }} />
+                        <Upload size={18} color="var(--mute)" />
                         <span>Upload Video B</span>
                       </div>
                     )}
@@ -418,21 +403,21 @@ function App() {
               </div>
 
               {/* Shared Timeline Scrubber */}
-              <div className="timeline-slider minimal" style={{ marginTop: '0.5rem', padding: '0.4rem 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="timeline-slider minimal" style={{ marginTop: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <button className="play-btn-minimal" onClick={skipBackward} title="Back 10s">
-                      <SkipBack size={12} fill="currentColor" />
+                      <SkipBack size={14} />
                     </button>
                     <button className="play-btn-minimal" onClick={togglePlayback}>
-                      {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                      {isPlaying ? <Pause size={14} /> : <Play size={14} />}
                     </button>
                     <button className="play-btn-minimal" onClick={skipForward} title="Forward 10s">
-                      <SkipForward size={12} fill="currentColor" />
+                      <SkipForward size={14} />
                     </button>
                   </div>
 
-                  <div style={{ flex: 1, position: 'relative', height: '12px', display: 'flex', alignItems: 'center' }}>
+                  <div style={{ flex: 1, position: 'relative', height: '14px', display: 'flex', alignItems: 'center' }}>
                     <input type="range" min="0" max={maxTimesteps - 1} value={currentTime}
                       onChange={e => {
                         const t = parseInt(e.target.value);
@@ -443,27 +428,27 @@ function App() {
                     />
                   </div>
 
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', minWidth: '45px', textAlign: 'right', fontFamily: 'monospace' }}>
-                    {currentTime + 1}/{maxTimesteps}
+                  <span style={{ fontSize: '11px', color: 'var(--mute)', minWidth: '50px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                    {currentTime + 1}/{maxTimesteps}s
                   </span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Activity gradient */}
-          <div className="activity-bar">
-            <span>Low</span>
-            <div className="gradient"></div>
-            <span>High</span>
-          </div>
-          <div style={{ textAlign: 'center', marginTop: '0.15rem', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
-              Activity — Variant {brainVariant}
+          {/* Activity Scale */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div className="sci-colorbar">
+              <span>Sub-threshold</span>
+              <div className="sci-colorbar-gradient" />
+              <span>Peak z</span>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--charcoal)', fontFamily: 'var(--font-mono)' }}>
+              Viewing Variant <strong>{brainVariant}</strong> ({brainDemographic})
             </span>
           </div>
 
-          {/* Brain viewport */}
+          {/* 3D Brain Viewport Container */}
           <div className="brain-viewport">
             <HeadSilhouette />
             <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
@@ -481,92 +466,124 @@ function App() {
           </div>
         </div>
 
-        {/* RIGHT: Content Panel */}
+        {/* RIGHT: Content & Neuromarketing Metrics */}
         <div className="content-panel">
+          {/* Tab Navigation (Pills) */}
           <div className="tab-bar">
             {tabs.map(tab => (
-              <button key={tab.id} className={`pill-btn ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}>{tab.label}</button>
+              <button 
+                key={tab.id} 
+                className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
             ))}
           </div>
 
-          {/* A/B OVERVIEW */}
+          {/* A/B OVERVIEW TAB */}
           {activeTab === 'browse' && (
-            <div className="animate-fade-in">
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1rem' }}>
-                Comparing neural activation across <strong style={{ color: '#E85D24' }}>Variant A</strong> and{' '}
-                <strong style={{ color: '#7F77DD' }}>Variant B</strong>.
-                The A/B test identifies which stimulus drives stronger cortical engagement across demographic cohorts.
+            <div>
+              <p style={{ color: 'var(--body)', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
+                Comparing predicted cortical activation across <strong style={{ color: 'var(--variant-a)' }}>Variant A</strong> and{' '}
+                <strong style={{ color: 'var(--variant-b)' }}>Variant B</strong>.
+                Identifies which creative version generates higher audience recall and emotional resonance.
               </p>
 
-              {/* A/B Quick Wins */}
+              {/* Single Inverted 'Max' Tier Card for Verdict */}
               {abSummary && <ABSummaryPanel data={abSummary} />}
 
-              {/* Side-by-side stat cards */}
+              {/* Side-by-side Flat Stat Cards */}
               <div className="ab-stat-row">
-                <div className="ab-stat-card variant-a-card">
-                  <div className="ab-stat-label">Variant A</div>
+                {/* Variant A Card */}
+                <div className="ab-stat-card variant-a">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>Variant A</span>
+                    <span className="variant-badge-a">A</span>
+                  </div>
                   <div className="ab-stat-grid">
                     <div>
-                      <span className="ab-stat-sub">Peak</span>
-                      <span className="ab-stat-val">{overview.A.timestep_metrics.global_max[overview.A.peak_timestep].toFixed(3)}</span>
+                      <span className="ab-stat-sub">Peak BOLD</span>
+                      <span className="ab-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {overview.A.timestep_metrics.global_max[overview.A.peak_timestep].toFixed(3)}
+                      </span>
                     </div>
                     <div>
-                      <span className="ab-stat-sub">Mean</span>
-                      <span className="ab-stat-val">{(overview.A.timestep_metrics.global_mean.reduce((a, b) => a + b, 0) / overview.A.n_timesteps).toFixed(3)}</span>
+                      <span className="ab-stat-sub">Global Mean</span>
+                      <span className="ab-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {(overview.A.timestep_metrics.global_mean.reduce((a, b) => a + b, 0) / overview.A.n_timesteps).toFixed(3)}
+                      </span>
                     </div>
                     <div>
-                      <span className="ab-stat-sub">Top Demo</span>
-                      <span className="ab-stat-val">{demographics.A.labels[engagement.A.best_demographic]}</span>
+                      <span className="ab-stat-sub">Top Audience</span>
+                      <span className="ab-stat-val">
+                        {demographics.A.labels[engagement.A.best_demographic]}
+                      </span>
                     </div>
                     <div>
-                      <span className="ab-stat-sub">Active %</span>
-                      <span className="ab-stat-val">{(overview.A.timestep_metrics.active_fraction[overview.A.peak_timestep] * 100).toFixed(1)}%</span>
+                      <span className="ab-stat-sub">Active Fraction</span>
+                      <span className="ab-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {(overview.A.timestep_metrics.active_fraction[overview.A.peak_timestep] * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
+
+                {/* VS Divider */}
                 <div className="ab-vs-divider">
-                  <ArrowLeftRight size={16} />
-                  <span>VS</span>
+                  <ArrowLeftRight size={14} color="var(--mute)" />
+                  <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--mute)' }}>VS</span>
                 </div>
-                <div className="ab-stat-card variant-b-card">
-                  <div className="ab-stat-label">Variant B</div>
+
+                {/* Variant B Card */}
+                <div className="ab-stat-card variant-b">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--charcoal)' }}>Variant B</span>
+                    <span className="variant-badge-b">B</span>
+                  </div>
                   <div className="ab-stat-grid">
                     <div>
-                      <span className="ab-stat-sub">Peak</span>
-                      <span className="ab-stat-val">{overview.B.timestep_metrics.global_max[overview.B.peak_timestep].toFixed(3)}</span>
+                      <span className="ab-stat-sub">Peak BOLD</span>
+                      <span className="ab-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {overview.B.timestep_metrics.global_max[overview.B.peak_timestep].toFixed(3)}
+                      </span>
                     </div>
                     <div>
-                      <span className="ab-stat-sub">Mean</span>
-                      <span className="ab-stat-val">{(overview.B.timestep_metrics.global_mean.reduce((a, b) => a + b, 0) / overview.B.n_timesteps).toFixed(3)}</span>
+                      <span className="ab-stat-sub">Global Mean</span>
+                      <span className="ab-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {(overview.B.timestep_metrics.global_mean.reduce((a, b) => a + b, 0) / overview.B.n_timesteps).toFixed(3)}
+                      </span>
                     </div>
                     <div>
-                      <span className="ab-stat-sub">Top Demo</span>
-                      <span className="ab-stat-val">{demographics.B.labels[engagement.B.best_demographic]}</span>
+                      <span className="ab-stat-sub">Top Audience</span>
+                      <span className="ab-stat-val">
+                        {demographics.B.labels[engagement.B.best_demographic]}
+                      </span>
                     </div>
                     <div>
-                      <span className="ab-stat-sub">Active %</span>
-                      <span className="ab-stat-val">{(overview.B.timestep_metrics.active_fraction[overview.B.peak_timestep] * 100).toFixed(1)}%</span>
+                      <span className="ab-stat-sub">Active Fraction</span>
+                      <span className="ab-stat-val" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {(overview.B.timestep_metrics.active_fraction[overview.B.peak_timestep] * 100).toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <OverviewPanel dataA={overview.A} dataB={overview.B} />
+              <OverviewPanel dataA={overview.A} dataB={overview.B} onSeekToTimestamp={handleSeekToTimestamp} />
               <AsymmetryPanel dataA={overview.A} dataB={overview.B} />
             </div>
           )}
 
-          {/* DEMOGRAPHIC DYNAMICS */}
+          {/* DEMOGRAPHIC DYNAMICS TAB */}
           {activeTab === 'compare' && (
-            <div className="animate-fade-in">
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1.75rem' }}>
-                Comparing how different demographic cohorts respond to <strong style={{ color: '#E85D24' }}>A</strong> vs <strong style={{ color: '#7F77DD' }}>B</strong> across cognitive dimensions.
-                Identify which variant wins for each target audience.
+            <div>
+              <p style={{ color: 'var(--body)', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
+                Cohort-level analysis comparing how demographic cohorts respond to <strong style={{ color: 'var(--variant-a)' }}>Variant A</strong> vs <strong style={{ color: 'var(--variant-b)' }}>Variant B</strong> across 8 functional cognitive dimensions.
               </p>
               <EngagementPanel dataA={engagement.A} dataB={engagement.B} />
               {abSummary && <DimensionalLeadPanel data={abSummary} />}
-              <div style={{ marginTop: '1.5rem' }}>
+              <div style={{ marginTop: '20px' }}>
                 <DemoTimeSeries
                   dataA={timeSeries?.A?.timeseries || timeSeries?.A}
                   dataB={timeSeries?.B?.timeseries || timeSeries?.B}
@@ -579,12 +596,11 @@ function App() {
             </div>
           )}
 
-          {/* HIGH IMPACT SCENES */}
+          {/* HIGH IMPACT SCENES TAB */}
           {activeTab === 'scenes' && (
-            <div className="animate-fade-in">
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1.75rem' }}>
-                Peak cortical response moments for each variant. Compare which stimulus content
-                drives the strongest neural engagement.
+            <div>
+              <p style={{ color: 'var(--body)', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
+                Keyframe extraction and cortical intensity benchmarking for both stimuli.
               </p>
               <ImpactScenes
                 videoUrlA={videoUrlA}
@@ -596,26 +612,36 @@ function App() {
             </div>
           )}
 
-          {/* REGIONAL VARIANCE */}
+          {/* REGIONAL VARIANCE TAB */}
           {activeTab === 'explore' && (
-            <div className="animate-fade-in">
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7, marginBottom: '1.75rem' }}>
-                Deep-dive into the most active ROIs and their stability across variants.
-                Compare <strong style={{ color: '#E85D24' }}>A</strong> vs <strong style={{ color: '#7F77DD' }}>B</strong> inter-subject variance patterns.
+            <div>
+              <p style={{ color: 'var(--body)', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
+                Deep-dive into cortical regions of interest (ROIs) and inter-subject variance stability across 200 synthesized brains.
               </p>
               <TopRoisPanel dataA={topRois.A} dataB={topRois.B} />
-              <div style={{ marginTop: '1.5rem' }}>
+              <div style={{ marginTop: '20px' }}>
                 <VarianceHeatmap dataA={heatmap.A} dataB={heatmap.B} />
               </div>
             </div>
           )}
-
         </div>
       </main>
 
-      <footer className="app-footer">
-        <p>© 2026 Rewire Analytics Engine • A/B Neural Testing • Modal GPU</p>
+      {/* ===== OLLAMA FOOTER ===== */}
+      <footer className="footer-section">
+        <div className="footer-links">
+          <a href="https://github.com/aryaneelshivam/Rewire" target="_blank" rel="noreferrer">Rewire</a>
+          <a href="#models">Models</a>
+          <a href="#docs">Docs</a>
+          <a href="https://github.com/aryaneelshivam/Rewire" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#terms">Terms</a>
+        </div>
+        <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
+          © 2026 Rewire Analytics · Meta Tribe v2 fMRI Inference
+        </span>
       </footer>
+
       {/* Comprehensive Strategy Report Overlay */}
       {reportData && (
         <ReportView

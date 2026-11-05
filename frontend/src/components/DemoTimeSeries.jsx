@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -10,43 +10,115 @@ import {
   ResponsiveContainer,
   ReferenceLine
 } from 'recharts';
+import { MessageSquare } from 'lucide-react';
 
-const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transcriptB = [] }) => {
+const COLORS = { a: '#0066cc', b: '#7a7a7a', grid: '#e0e0e0', muted: '#7a7a7a' };
+
+const CustomDemoTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const vA = payload.find(p => p.dataKey === 'A')?.value;
+    const vB = payload.find(p => p.dataKey === 'B')?.value;
+    const diff = vA !== undefined && vB !== undefined ? vA - vB : null;
+    const pct = vA && vB ? ((vA / vB - 1) * 100).toFixed(1) : null;
+
+    return (
+      <div style={{
+        backgroundColor: 'rgba(255, 255, 255, 0.96)',
+        border: '1px solid #e5e5e5',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        fontFamily: 'var(--font-mono)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+        fontSize: '11px',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', borderBottom: '1px solid #f0f0f0', paddingBottom: '3px' }}>
+          <span style={{ color: 'var(--mute)' }}>t = {label}s</span>
+          {diff !== null && (
+            <span style={{ fontWeight: 700, color: diff >= 0 ? COLORS.a : COLORS.b }}>
+              {diff >= 0 ? `A +${pct}%` : `B +${Math.abs(pct)}%`}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', margin: '2px 0' }}>
+          <span style={{ fontWeight: 600 }}>Variant A:</span>
+          <span>{vA?.toFixed(4) ?? '—'}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', margin: '2px 0' }}>
+          <span style={{ color: 'var(--charcoal)', fontWeight: 600 }}>Variant B:</span>
+          <span>{vB?.toFixed(4) ?? '—'}</span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcriptB = [] }) => {
   const [activeGroup, setActiveGroup] = useState('auditory');
   const [activeDemographic, setActiveDemographic] = useState('kids');
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
 
   // For the selected demographic + group, build A vs B comparison
-  const seriesA = dataA?.[activeDemographic]?.[activeGroup] || [];
-  const seriesB = dataB?.[activeDemographic]?.[activeGroup] || [];
+  const seriesA = useMemo(() => dataA?.[activeDemographic]?.[activeGroup] || [], [dataA, activeDemographic, activeGroup]);
+  const seriesB = useMemo(() => dataB?.[activeDemographic]?.[activeGroup] || [], [dataB, activeDemographic, activeGroup]);
   const maxLen = Math.max(seriesA.length, seriesB.length);
 
-  const chartData = [];
-  for (let i = 0; i < maxLen; i++) {
-    chartData.push({
-      time: i,
-      A: seriesA[i] ?? null,
-      B: seriesB[i] ?? null,
-    });
-  }
+  const chartData = useMemo(() => {
+    const list = [];
+    for (let i = 0; i < maxLen; i++) {
+      list.push({
+        time: i,
+        A: seriesA[i] ?? null,
+        B: seriesB[i] ?? null,
+      });
+    }
+    return list;
+  }, [seriesA, seriesB, maxLen]);
 
   const groups = [
-    { id: 'reward', label: 'Reward', sub: 'OFC + Accumbens — Valuation & Desirability' },
-    { id: 'auditory', label: 'Audio', sub: 'A1 + Belt — Auditory Attention & Saliency' },
-    { id: 'narrative', label: 'Story', sub: 'TPOJ + STS — Narrative Clarity & Meaning' },
-    { id: 'personal', label: 'Self', sub: 'PCC + PGi — Personal Relevance & Identity' },
-    { id: 'action', label: 'Action', sub: 'Area 6 + FEF — Behavioral Intent & Priming' },
-    { id: 'memory', label: 'Recall', sub: 'EC + PHA — Memory Encoding & Latency' },
-    { id: 'prefrontal', label: 'Attention', sub: 'ACC + PFC — Cognitive Load & Focus' }
+    { id: 'reward', label: 'Reward & Valence', desc: 'Orbitofrontal & striatal dopamine response' },
+    { id: 'auditory', label: 'Audio Frequency', desc: 'Primary auditory and tonal processing' },
+    { id: 'narrative', label: 'Story Arc', desc: 'Temporal pole and TPJ narrative comprehension' },
+    { id: 'personal', label: 'Personal Relevance', desc: 'Medial prefrontal self-referential encoding' },
+    { id: 'action', label: 'Action Priming', desc: 'Premotor and supplemental motor activation' },
+    { id: 'memory', label: 'Memory Imprint', desc: 'Hippocampal episodic memory encoding' },
+    { id: 'prefrontal', label: 'Executive Attention', desc: 'DLPFC focus and cognitive prioritization' }
   ];
 
   const demos = [
-    { id: 'kids', label: 'Kids' },
-    { id: 'genz', label: 'GenZ' },
-    { id: 'adults', label: 'Adults' },
-    { id: 'older', label: 'Older' },
+    { id: 'kids', label: 'Kids (6–12)' },
+    { id: 'genz', label: 'Gen Z (13–24)' },
+    { id: 'adults', label: 'Adults (25–54)' },
+    { id: 'older', label: 'Older (55+)' },
   ];
+
+  // Pearson correlation r between A and B
+  const correlationR = useMemo(() => {
+    let count = 0, sumA = 0, sumB = 0;
+    for (let i = 0; i < maxLen; i++) {
+      if (seriesA[i] != null && seriesB[i] != null) {
+        sumA += seriesA[i];
+        sumB += seriesB[i];
+        count++;
+      }
+    }
+    if (count < 2) return null;
+    const meanA = sumA / count;
+    const meanB = sumB / count;
+    let num = 0, denA = 0, denB = 0;
+    for (let i = 0; i < maxLen; i++) {
+      if (seriesA[i] != null && seriesB[i] != null) {
+        const da = seriesA[i] - meanA;
+        const db = seriesB[i] - meanB;
+        num += da * db;
+        denA += da * da;
+        denB += db * db;
+      }
+    }
+    const den = Math.sqrt(denA * denB);
+    return den > 0 ? (num / den).toFixed(3) : null;
+  }, [seriesA, seriesB, maxLen]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -54,59 +126,91 @@ const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transc
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Determine which transcript to show (A or combined)
   const transcript = transcriptA.length > 0 ? transcriptA : transcriptB;
 
   return (
-    <div className="glass-card h-full" style={{ minWidth: 0, overflow: 'hidden', padding: '1.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="glass-card">
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h2>A/B Demographic Trajectories</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Comparing <strong style={{ color: '#E85D24' }}>A</strong> vs <strong style={{ color: '#7F77DD' }}>B</strong> response for a selected demographic & dimension.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span className="command-tag" style={{ fontSize: '10px', padding: '2px 8px' }}>
+              NETWORK DYNAMICS
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
+              Temporal BOLD Synchronization
+            </span>
+          </div>
+          <h2>Demographic Dynamic Trajectories</h2>
+          <p style={{ color: 'var(--body)', fontSize: '13px', marginTop: '2px' }}>
+            Head-to-head cortical trajectory for selected audience cohort & functional neural network.
           </p>
+        </div>
+
+        {/* Telemetry Strip with Pearson Correlation */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {correlationR !== null && (
+            <div className="telemetry-strip">
+              <span style={{ color: 'var(--mute)' }}>CROSS-VARIANT CORR (r):</span>
+              <strong style={{ color: 'var(--ink)' }}>{correlationR}</strong>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <span className="command-tag">
+              <span className="sci-dot variant-a" />
+              <span>Variant A</span>
+            </span>
+            <span className="command-tag" style={{ color: 'var(--charcoal)' }}>
+              <span className="sci-dot variant-b" />
+              <span>Variant B</span>
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Demographic selector */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+      {/* Cohort Selector Pills */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)', marginRight: '4px' }}>COHORT:</span>
         {demos.map(d => (
           <button
             key={d.id}
             onClick={() => setActiveDemographic(d.id)}
             className={`pill-btn ${activeDemographic === d.id ? 'active' : ''}`}
-            style={{ fontSize: '0.72rem' }}
           >
-            {d.label.toUpperCase()}
+            {d.label}
           </button>
         ))}
       </div>
 
-      {/* Group selector */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      {/* Dimension Selector Pills */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)', marginRight: '4px' }}>NETWORK:</span>
         {groups.map(g => (
           <button
             key={g.id}
             onClick={() => setActiveGroup(g.id)}
-            className={`pill-btn ${activeGroup === g.id ? 'active' : ''}`}
-            style={{ fontSize: '0.68rem', padding: '0.3rem 0.6rem' }}
+            className={`tab-btn ${activeGroup === g.id ? 'active' : ''}`}
+            style={{ fontSize: '12px', padding: '4px 12px' }}
+            title={g.desc}
           >
-            {g.label.toUpperCase()}
+            {g.label}
           </button>
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <div className="chart-container" style={{ height: '400px', minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Time-Series Chart */}
+        <div className="chart-container" style={{ height: '360px' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-              <XAxis dataKey="time" stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
-              <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 10 }} domain={['auto', 'auto']} />
-              <Tooltip
-                contentStyle={{ background: 'rgba(15, 15, 15, 0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-              />
-              <Legend verticalAlign="top" iconType="circle" />
+            <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="time" stroke={COLORS.muted} tick={{ fontSize: 10, fontFamily: 'var(--font-mono)' }} tickLine={false} unit="s" />
+              <YAxis stroke={COLORS.muted} tick={{ fontSize: 10, fontFamily: 'var(--font-mono)' }} tickLine={false} />
+              <Tooltip content={<CustomDemoTooltip />} />
+              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontFamily: 'var(--font-mono)' }} />
+              
+              {/* Content Narrative Reference Lines */}
               {transcript && transcript.map((evt, i) => {
                 if (!evt || typeof evt.text !== 'string') return null;
                 const shortText = evt.text.length > 20 ? evt.text.substring(0, 18) + '...' : evt.text;
@@ -114,94 +218,105 @@ const DemoTimeSeries = ({ dataA, dataB, colors, labels, transcriptA = [], transc
                   <ReferenceLine
                     key={i}
                     x={Math.floor(evt.start)}
-                    stroke={hoveredEvent === i ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.15)'}
-                    strokeWidth={hoveredEvent === i ? 2 : 1}
+                    stroke={hoveredEvent === i ? COLORS.a : '#d7deea'}
+                    strokeWidth={hoveredEvent === i ? 1.5 : 1}
                     strokeDasharray="3 3"
                     label={{
                       position: 'insideBottomLeft',
                       value: shortText,
-                      fill: hoveredEvent === i ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)',
+                      fill: hoveredEvent === i ? COLORS.a : COLORS.muted,
                       fontSize: 9,
                       angle: -90,
                       offset: 15,
-                      dy: -10
+                      dy: -10,
+                      fontFamily: 'var(--font-mono)'
                     }}
                   />
                 );
               })}
-              <Line type="monotone" dataKey="A" name={`Variant A — ${labels[activeDemographic]}`} stroke="#E85D24" strokeWidth={2.5} dot={false} connectNulls />
-              <Line type="monotone" dataKey="B" name={`Variant B — ${labels[activeDemographic]}`} stroke="#7F77DD" strokeWidth={2.5} dot={false} strokeDasharray="6 3" connectNulls />
+              
+              <Line 
+                type="monotone" 
+                dataKey="A" 
+                name={`Variant A (${labels[activeDemographic] || activeDemographic})`} 
+                stroke={COLORS.a}
+                strokeWidth={2.5}
+                dot={false} 
+                connectNulls 
+              />
+              <Line 
+                type="monotone" 
+                dataKey="B" 
+                name={`Variant B (${labels[activeDemographic] || activeDemographic})`} 
+                stroke={COLORS.b}
+                strokeWidth={2.5}
+                dot={false} 
+                strokeDasharray="5 3" 
+                connectNulls 
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Neural Narrative Log */}
-        <div style={{
-          background: 'rgba(255,255,255,0.02)',
-          borderRadius: '12px',
-          border: '1px solid rgba(255,255,255,0.05)',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: 'all 0.3s ease'
-        }}>
+        {/* Neural Narrative Log Accordion */}
+        <div className="narrative-log">
           <div
             onClick={() => setIsLogExpanded(!isLogExpanded)}
             style={{
-              padding: '0.75rem 1rem',
-              borderBottom: isLogExpanded ? '1px solid rgba(255,255,255,0.05)' : 'none',
-              background: 'rgba(255,255,255,0.02)',
+              padding: '12px 18px',
+              borderBottom: isLogExpanded ? '1px solid var(--hairline)' : 'none',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               cursor: 'pointer'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Neural Narrative Log</span>
-              {!isLogExpanded && <span style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '4px' }}>{transcript.length} Events</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <MessageSquare size={13} color="var(--charcoal)" />
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Content Narrative Story Events
+              </span>
+              <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
+                {transcript.length} Events Synced
+              </span>
             </div>
-            <button className="pill-btn" style={{ fontSize: '0.6rem', padding: '0.25rem 0.5rem', opacity: 0.8 }}>
-              {isLogExpanded ? 'COLLAPSE' : 'EXPAND'}
+            <button className="pill-btn" style={{ height: '26px', fontSize: '11px', padding: '0 10px' }}>
+              {isLogExpanded ? 'Hide Events' : 'Show Events'}
             </button>
           </div>
 
           {isLogExpanded && (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', maxHeight: '400px' }} className="custom-scrollbar">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
-                {transcript && transcript.map((evt, i) => (
+            <div style={{ padding: '16px', maxHeight: '360px', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+                {transcript.map((evt, i) => (
                   <div
                     key={i}
                     onMouseEnter={() => setHoveredEvent(i)}
                     onMouseLeave={() => setHoveredEvent(null)}
                     style={{
-                      padding: '0.75rem',
-                      borderRadius: '8px',
-                      background: hoveredEvent === i ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.01)',
-                      border: hoveredEvent === i ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent',
-                      cursor: 'default',
-                      transition: 'all 0.2s ease'
+                      padding: '10px 14px',
+                      borderRadius: 'var(--rounded-md)',
+                      backgroundColor: hoveredEvent === i ? 'var(--variant-a-soft)' : 'transparent',
+                      border: '1px solid',
+                      borderColor: hoveredEvent === i ? 'var(--variant-a)' : 'transparent',
+                      transition: 'all 0.15s ease',
+                      cursor: 'pointer',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>{formatTime(evt.start || 0)}</span>
-                      <span style={{ fontSize: '0.5rem', padding: '1px 4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>EVENT {i + 1}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
+                        {formatTime(evt.start)} - {formatTime(evt.end)}
+                      </span>
                     </div>
-                    <p style={{ fontSize: '0.75rem', color: hoveredEvent === i ? 'var(--text-primary)' : 'var(--text-secondary)', lineHeight: '1.4' }}>{evt.text || 'No description available'}</p>
+                    <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--ink)', lineHeight: 1.4, margin: 0 }}>
+                      {evt.text}
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Insight box */}
-      <div style={{ marginTop: '1.5rem', background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-        <h4 style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>{groups.find(g => g.id === activeGroup)?.label || 'Neural'} Insight</h4>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{groups.find(g => g.id === activeGroup)?.sub || 'Analyzing neuro-activation patterns...'}</p>
-        <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginTop: '0.75rem' }}>
-          Select a demographic above to compare how Variant A and Variant B perform for that specific audience segment across the stimulus timeline.
-        </p>
       </div>
     </div>
   );

@@ -1,176 +1,45 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle2, Loader2, Link2, Download, ChevronDown, Sparkles } from 'lucide-react';
-import { uploadPredictions, fetchStatus } from '../api';
+import { Upload, CheckCircle2, Loader2, Copy, Check, Terminal, ChevronDown, Sliders } from 'lucide-react';
+import { uploadPredictions, fetchStatus, loadSampleData } from '../api';
 
 const GENRE_OPTIONS = [
-  { value: 'general',       label: 'General',       icon: '📺' },
-  { value: 'emotional',     label: 'Emotional',     icon: '💔' },
-  { value: 'humor',         label: 'Humor',         icon: '😂' },
-  { value: 'action',        label: 'Action',        icon: '💥' },
-  { value: 'informational', label: 'Informational', icon: '📊' },
-  { value: 'horror',        label: 'Horror',        icon: '👻' },
-  { value: 'luxury',        label: 'Luxury',        icon: '✨' },
+  { value: 'general', label: 'General' },
+  { value: 'emotional', label: 'Emotional' },
+  { value: 'humor', label: 'Humor' },
+  { value: 'action', label: 'Action' },
+  { value: 'informational', label: 'Informational' },
+  { value: 'luxury', label: 'Luxury' },
 ];
 
 const PACING_OPTIONS = [
-  { value: 'fast_cut',  label: 'Fast Cut (<2s avg)' },
-  { value: 'medium',    label: 'Medium' },
+  { value: 'fast_cut', label: 'Fast Cut (<2s avg)' },
+  { value: 'medium', label: 'Medium' },
   { value: 'slow_burn', label: 'Slow Burn (>5s avg)' },
 ];
 
 const AUDIO_OPTIONS = [
-  { value: 'music_heavy',    label: 'Music Heavy' },
+  { value: 'music_heavy', label: 'Music Heavy' },
   { value: 'dialogue_heavy', label: 'Dialogue Heavy' },
-  { value: 'mixed',          label: 'Mixed' },
-  { value: 'silent',         label: 'Silent / Ambient' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'silent', label: 'Silent / Ambient' },
 ];
 
 const CONTENT_TYPE_OPTIONS = [
-  { value: 'video_ad',    label: 'Video Ad' },
+  { value: 'video_ad', label: 'Video Ad' },
   { value: 'music_video', label: 'Music Video' },
-  { value: 'trailer',     label: 'Trailer' },
-  { value: 'short_form',  label: 'Short Form' },
-  { value: 'documentary', label: 'Documentary' },
+  { value: 'trailer', label: 'Trailer' },
+  { value: 'short_form', label: 'Short Form' },
 ];
-
-/* ─── Styled Select ─── */
-const StyledSelect = ({ value, onChange, options, label, color }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-    <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-      {label}
-    </span>
-    <div style={{ position: 'relative' }}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          appearance: 'none',
-          WebkitAppearance: 'none',
-          background: 'rgba(255,255,255,0.04)',
-          border: `1px solid ${color ? `${color}30` : 'rgba(255,255,255,0.08)'}`,
-          borderRadius: '6px',
-          color: '#fff',
-          padding: '0.45rem 1.8rem 0.45rem 0.6rem',
-          fontSize: '0.72rem',
-          fontWeight: 500,
-          fontFamily: 'Inter, sans-serif',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          outline: 'none',
-        }}
-        onFocus={e => e.currentTarget.style.borderColor = color || 'rgba(255,255,255,0.25)'}
-        onBlur={e => e.currentTarget.style.borderColor = color ? `${color}30` : 'rgba(255,255,255,0.08)'}
-      >
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value} style={{ background: '#1a1a1a', color: '#fff' }}>
-            {opt.icon ? `${opt.icon} ${opt.label}` : opt.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown size={12} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-tertiary)' }} />
-    </div>
-  </div>
-);
-
-/* ─── Number Input (brand reveal) ─── */
-const StyledNumberInput = ({ value, onChange, label, color, placeholder }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-    <span style={{ fontSize: '0.6rem', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-      {label}
-    </span>
-    <input
-      type="number"
-      min="-1"
-      value={value}
-      onChange={e => onChange(parseInt(e.target.value) || -1)}
-      placeholder={placeholder}
-      style={{
-        width: '100%',
-        background: 'rgba(255,255,255,0.04)',
-        border: `1px solid ${color ? `${color}30` : 'rgba(255,255,255,0.08)'}`,
-        borderRadius: '6px',
-        color: '#fff',
-        padding: '0.45rem 0.6rem',
-        fontSize: '0.72rem',
-        fontWeight: 500,
-        fontFamily: 'Inter, sans-serif',
-        outline: 'none',
-        transition: 'all 0.2s ease',
-      }}
-      onFocus={e => e.currentTarget.style.borderColor = color || 'rgba(255,255,255,0.25)'}
-      onBlur={e => e.currentTarget.style.borderColor = color ? `${color}30` : 'rgba(255,255,255,0.08)'}
-    />
-  </div>
-);
-
-/* ─── Metadata Panel for a single variant ─── */
-const MetadataPanel = ({ variant, color, metadata, setMetadata }) => (
-  <div style={{
-    padding: '0.75rem',
-    borderRadius: '8px',
-    border: `1px solid ${color}18`,
-    background: `${color}06`,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.1rem' }}>
-      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-      <span style={{ fontSize: '0.65rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        Variant {variant} Profile
-      </span>
-    </div>
-    
-    <StyledSelect
-      label="Genre"
-      value={metadata.genre}
-      onChange={v => setMetadata({ ...metadata, genre: v })}
-      options={GENRE_OPTIONS}
-      color={color}
-    />
-    <StyledSelect
-      label="Content Type"
-      value={metadata.content_type}
-      onChange={v => setMetadata({ ...metadata, content_type: v })}
-      options={CONTENT_TYPE_OPTIONS}
-      color={color}
-    />
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-      <StyledSelect
-        label="Pacing"
-        value={metadata.pacing}
-        onChange={v => setMetadata({ ...metadata, pacing: v })}
-        options={PACING_OPTIONS}
-        color={color}
-      />
-      <StyledSelect
-        label="Audio"
-        value={metadata.audio_profile}
-        onChange={v => setMetadata({ ...metadata, audio_profile: v })}
-        options={AUDIO_OPTIONS}
-        color={color}
-      />
-    </div>
-    <StyledNumberInput
-      label="Brand Reveal (second)"
-      value={metadata.brand_reveal_timestamp}
-      onChange={v => setMetadata({ ...metadata, brand_reveal_timestamp: v })}
-      color={color}
-      placeholder="-1 = auto"
-    />
-  </div>
-);
-
 
 const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
   const [fileA, setFileA] = useState(null);
   const [fileB, setFileB] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [showMetadata, setShowMetadata] = useState(false);
 
-  // V4: Content metadata state
   const [metaA, setMetaA] = useState({
     genre: 'general',
     content_type: 'video_ad',
@@ -186,9 +55,16 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
     brand_reveal_timestamp: -1,
   });
 
+  const snippetCmd = "curl -fsSL https://rewire.ai/eval | sh";
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(snippetCmd);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleUpload = async () => {
     if (!fileA || !fileB) return;
-
     setIsUploading(true);
     setError(null);
 
@@ -198,7 +74,7 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
       if (status.loaded) {
         onUploadComplete();
       } else {
-        setError("Analysis failed. Backend returned empty state.");
+        setError("Analysis failed. Backend returned uninitialized cache.");
       }
     } catch (err) {
       console.error(err);
@@ -208,229 +84,410 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
     }
   };
 
-  const UploadSlot = ({ variant, file, setFile, color }) => (
+  const handleLoadSamples = async () => {
+    setIsLoadingSamples(true);
+    setError(null);
+    try {
+      await loadSampleData();
+      const status = await fetchStatus();
+      if (status.loaded) {
+        onUploadComplete();
+      } else {
+        setError("Sample loading completed without initialized state.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load sample dataset. Ensure brand_A_predictions.pkl exists in backend.");
+    } finally {
+      setIsLoadingSamples(false);
+    }
+  };
+
+  return (
     <div style={{
-      flex: 1,
-      position: 'relative',
-      padding: '1.25rem',
-      borderRadius: '8px',
-      border: `1px solid ${file ? color : 'rgba(255,255,255,0.08)'}`,
-      background: file ? `${color}10` : 'transparent',
+      minHeight: '100vh',
+      backgroundColor: 'var(--canvas)',
+      color: 'var(--ink)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
-      transition: 'all 0.3s ease',
-      cursor: 'pointer'
-    }}
-    onMouseEnter={(e) => {
-      if (!file) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-    }}
-    onMouseLeave={(e) => {
-      if (!file) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-    }}
-    >
-      <input 
-        type="file" 
-        accept=".pkl" 
-        onChange={e => setFile(e.target.files[0])} 
-        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', cursor: 'pointer' }}
-      />
-      
-      {file ? (
-        <>
-          <CheckCircle2 size={24} color={color} style={{ marginBottom: '0.5rem' }} />
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color }}>Variant {variant}</span>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', marginTop: '0.2rem', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {file.name}
-          </span>
-        </>
-      ) : (
-        <>
-          <Upload size={20} color="var(--text-tertiary)" style={{ marginBottom: '0.5rem' }} />
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Variant {variant} PKL</span>
-        </>
-      )}
-    </div>
-  );
-
-  return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', color: 'white', overflowY: 'auto' }}>
-      
-      <div style={{ 
-        maxWidth: showMetadata ? '560px' : '440px', 
-        width: '100%', 
-        display: 'flex', 
-        flexDirection: 'column', 
+      padding: '48px 24px 88px',
+      fontFamily: 'var(--font-body)',
+    }}>
+      {/* Top Navigation Strip */}
+      <div style={{
+        width: '100%',
+        maxWidth: '720px',
+        display: 'flex',
         alignItems: 'center',
-        padding: '2rem',
-        transition: 'max-width 0.3s ease',
+        justifyContent: 'space-between',
+        marginBottom: '64px',
       }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Hand-drawn minimal mascot / icon */}
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
+            <path d="M9 21h6" />
+          </svg>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '16px' }}>Rewire</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <a href="https://github.com/aryaneelshivam/Rewire" target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: 'var(--body)', textDecoration: 'none' }}>Docs</a>
+          <a href="https://github.com/aryaneelshivam/Rewire" target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: 'var(--body)', textDecoration: 'none' }}>GitHub</a>
+          {onCancel && (
+            <button onClick={onCancel} className="btn-secondary" style={{ height: '32px', padding: '0 14px', fontSize: '13px' }}>
+              Return to Dashboard
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Single Column (720px max-width) */}
+      <div style={{ width: '100%', maxWidth: '720px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
         
-        {/* Minimal Hero Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
-          <div style={{ 
-            width: '28px', height: '28px', 
-            borderRadius: '6px', 
-            background: 'linear-gradient(135deg, #E85D24, #7F77DD)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Link2 size={14} color="#fff" />
-          </div>
-          <span style={{ fontFamily: 'Outfit', fontSize: '1.25rem', fontWeight: 600, letterSpacing: '-0.02em' }}>
-            Rewire Initialization
+        {/* Llama-style central mascot ornament */}
+        <div style={{
+          width: '72px',
+          height: '72px',
+          borderRadius: 'var(--rounded-full)',
+          border: '1px solid var(--hairline)',
+          backgroundColor: 'var(--surface-soft)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '24px',
+        }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04" />
+            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04" />
+          </svg>
+        </div>
+
+        {/* 36px Center-aligned SF Pro Rounded Headline */}
+        <h1 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '34px',
+          fontWeight: 600,
+          lineHeight: 1.15,
+          letterSpacing: '-0.02em',
+          color: 'var(--ink)',
+          marginBottom: '12px',
+        }}>
+          The easiest way to predict neural resonance
+        </h1>
+
+        <p style={{
+          fontSize: '16px',
+          color: 'var(--body)',
+          maxWidth: '540px',
+          lineHeight: 1.5,
+          marginBottom: '28px',
+        }}>
+          Simulate cortical activation and run biologically grounded A/B benchmarking across 200 synthetic brains before ad spend.
+        </p>
+
+        {/* Inline curl install snippet inside soft-gray pill */}
+        <div
+          onClick={handleCopy}
+          className="install-snippet"
+          style={{ marginBottom: '32px' }}
+          title="Click to copy"
+        >
+          <span>{snippetCmd}</span>
+          <span className="copy-btn">
+            {copied ? <Check size={14} color="#000000" /> : <Copy size={14} />}
           </span>
         </div>
 
-        {/* Upload Slots */}
-        <div style={{ display: 'flex', gap: '1rem', width: '100%', marginBottom: '1rem' }}>
-          <UploadSlot variant="A" file={fileA} setFile={setFileA} color="#E85D24" />
-          <UploadSlot variant="B" file={fileB} setFile={setFileB} color="#7F77DD" />
+        {/* Terminal Mockup Card (Only product preview on landing) */}
+        <div className="terminal-card" style={{ width: '100%', textAlign: 'left', marginBottom: '40px' }}>
+          <div className="terminal-header">
+            <div className="terminal-traffic-lights">
+              <span className="traffic-dot red" />
+              <span className="traffic-dot yellow" />
+              <span className="traffic-dot green" />
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--mute)' }}>rewire-cli — zsh</span>
+          </div>
+          <div className="terminal-body">
+            <div><span className="comment"># Ingest fMRI predictions and run demographic synthesis</span></div>
+            <div><span className="cmd">ollama run openclaw &amp;&amp; rewire evaluate \</span></div>
+            <div>&nbsp;&nbsp;--variant-a brand_A_predictions.pkl \</div>
+            <div>&nbsp;&nbsp;--variant-b brand_B_predictions.pkl \</div>
+            <div>&nbsp;&nbsp;--mesh fsaverage5 --cohorts 200</div>
+            <div style={{ marginTop: '8px', color: 'var(--charcoal)' }}>
+              ✔ Meta Tribe v2 Z-scores loaded (20,484 vertices)<br />
+              ✔ Temporal latency applied (+3s Kids, +5s Older)<br />
+              ✔ Neural variance calibrated (AR(1) autocorrelation)
+            </div>
+          </div>
         </div>
 
-        {/* V4: Content Metadata Toggle */}
-        <button
-          onClick={() => setShowMetadata(!showMetadata)}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.4rem',
-            padding: '0.5rem',
-            background: showMetadata ? 'rgba(255,255,255,0.04)' : 'transparent',
-            border: `1px solid ${showMetadata ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)'}`,
-            borderRadius: '8px',
-            color: showMetadata ? '#fff' : 'var(--text-tertiary)',
-            fontSize: '0.7rem',
-            fontWeight: 600,
-            fontFamily: 'Inter, sans-serif',
-            cursor: 'pointer',
-            transition: 'all 0.25s ease',
-            marginBottom: showMetadata ? '1rem' : '0.75rem',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; }}
-          onMouseLeave={e => { if (!showMetadata) { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; } }}
-        >
-          <Sparkles size={12} />
-          V4 Content Profile {showMetadata ? '(Active)' : '— Enhance Accuracy'}
-          <ChevronDown size={12} style={{ transform: showMetadata ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.25s ease' }} />
-        </button>
-
-        {/* V4: Metadata Panels */}
-        {showMetadata && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '0.75rem',
-            width: '100%',
-            marginBottom: '1rem',
-            animation: 'fadeIn 0.3s ease forwards',
-          }}>
-            <MetadataPanel variant="A" color="#E85D24" metadata={metaA} setMetadata={setMetaA} />
-            <MetadataPanel variant="B" color="#7F77DD" metadata={metaB} setMetadata={setMetaB} />
+        {/* Upload Slots Section */}
+        <div style={{ width: '100%', marginBottom: '24px' }}>
+          <div style={{ textAlign: 'left', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--charcoal)' }}>
+              Select Model Predictions (.pkl)
+            </span>
           </div>
-        )}
 
-        {/* Action / Error */}
-        <div style={{ width: '100%', height: '45px', position: 'relative' }}>
-          {error && !isUploading && (
-            <div style={{ 
-              position: 'absolute', inset: 0, 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              color: '#FF6B6B', fontSize: '0.75rem', fontWeight: 500 
-            }}>
-              {error}
-            </div>
-          )}
-
-          {(!error || isUploading) && (
-            <div style={{ display: 'flex', gap: '0.75rem', height: '100%' }}>
-              {onCancel && !isUploading && (
-                <button 
-                  onClick={onCancel}
-                  style={{
-                    flex: '0 0 auto',
-                    padding: '0 1.5rem',
-                    borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'transparent',
-                    color: 'rgba(255,255,255,0.7)',
-                    fontSize: '0.85rem', fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
-                >
-                  Cancel
-                </button>
-              )}
-              <button 
-                onClick={handleUpload}
-                disabled={!fileA || !fileB || isUploading}
-                style={{
-                  flex: 1,
-                  borderRadius: '8px', border: 'none',
-                  background: (!fileA || !fileB || isUploading) ? 'rgba(255,255,255,0.04)' : '#fff',
-                  color: (!fileA || !fileB || isUploading) ? 'rgba(255,255,255,0.3)' : '#000',
-                  fontSize: '0.85rem', fontWeight: 600,
-                  cursor: (!fileA || !fileB || isUploading) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                  transition: 'all 0.2s',
-                }}
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Analyzing{showMetadata ? ' (V4 Engine)' : ''}
-                  </>
-                ) : (
-                  showMetadata ? 'Run V4 Content-Aware Analysis' : 'Run Analysis Engine'
-                )}
-              </button>
-            </div>
-          )}
-        </div>
-        
-        {/* Info badge when metadata is active */}
-        {showMetadata && (
-          <div style={{
-            marginTop: '0.75rem',
-            padding: '0.5rem 0.75rem',
-            borderRadius: '6px',
-            background: 'rgba(127, 119, 221, 0.06)',
-            border: '1px solid rgba(127, 119, 221, 0.12)',
-            fontSize: '0.62rem',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.5,
-            textAlign: 'center',
-          }}>
-            🧠 V4 Engine applies <strong style={{ color: '#7F77DD' }}>genre-specific ROI modulation</strong>, <strong style={{ color: '#E85D24' }}>pacing-adaptive noise</strong>, and <strong style={{ color: '#1D9E75' }}>event-driven fatigue recovery</strong> for more accurate 200-brain simulation.
-          </div>
-        )}
-
-        {/* Download Samples Link */}
-        <div style={{ marginTop: '1.5rem' }}>
-          <a
-            href="/samples.zip"
-            download="samples.zip"
-            style={{
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {/* Variant A */}
+            <label style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.4rem',
-              color: 'var(--text-tertiary)',
-              fontSize: '0.8rem',
-              fontWeight: 500,
-              textDecoration: 'none',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+              padding: '28px 16px',
+              borderRadius: 'var(--rounded-lg)',
+              border: fileA ? '1px solid var(--ink)' : '1px solid var(--hairline)',
+              backgroundColor: fileA ? 'var(--surface-soft)' : 'var(--canvas)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}>
+              <input
+                type="file"
+                accept=".pkl"
+                onChange={e => setFileA(e.target.files[0])}
+                style={{ display: 'none' }}
+              />
+              {fileA ? (
+                <>
+                  <CheckCircle2 size={24} color="#000000" style={{ marginBottom: '8px' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>Variant A</span>
+                  <span style={{ fontSize: '12px', color: 'var(--body)', marginTop: '4px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {fileA.name}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Upload size={22} color="var(--mute)" style={{ marginBottom: '8px' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--ink)' }}>Choose Variant A</span>
+                  <span style={{ fontSize: '12px', color: 'var(--mute)', marginTop: '2px' }}>brand_A_predictions.pkl</span>
+                </>
+              )}
+            </label>
+
+            {/* Variant B */}
+            <label style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '28px 16px',
+              borderRadius: 'var(--rounded-lg)',
+              border: fileB ? '1px solid var(--ink)' : '1px solid var(--hairline)',
+              backgroundColor: fileB ? 'var(--surface-soft)' : 'var(--canvas)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}>
+              <input
+                type="file"
+                accept=".pkl"
+                onChange={e => setFileB(e.target.files[0])}
+                style={{ display: 'none' }}
+              />
+              {fileB ? (
+                <>
+                  <CheckCircle2 size={24} color="#000000" style={{ marginBottom: '8px' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>Variant B</span>
+                  <span style={{ fontSize: '12px', color: 'var(--body)', marginTop: '4px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {fileB.name}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Upload size={22} color="var(--mute)" style={{ marginBottom: '8px' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--ink)' }}>Choose Variant B</span>
+                  <span style={{ fontSize: '12px', color: 'var(--mute)', marginTop: '2px' }}>brand_B_predictions.pkl</span>
+                </>
+              )}
+            </label>
+          </div>
+        </div>
+
+        {/* Content Profile Accordion Button */}
+        <div style={{ width: '100%', marginBottom: '24px' }}>
+          <button
+            onClick={() => setShowMetadata(!showMetadata)}
+            className="btn-secondary"
+            style={{ width: '100%', justifyContent: 'space-between', height: '40px' }}
           >
-            <Download size={14} />
-            Download Sample Files
-          </a>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+              <Sliders size={14} />
+              Advanced Content Profiles (Genre, Pacing, Audio)
+            </span>
+            <ChevronDown size={14} style={{ transform: showMetadata ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </button>
+
+          {showMetadata && (
+            <div style={{
+              marginTop: '12px',
+              padding: '20px',
+              borderRadius: 'var(--rounded-lg)',
+              border: '1px solid var(--hairline)',
+              backgroundColor: 'var(--surface-soft)',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '16px',
+              textAlign: 'left',
+            }}>
+              {/* Variant A Meta */}
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', display: 'block', marginBottom: '8px' }}>
+                  Variant A Profile
+                </span>
+                <label style={{ fontSize: '11px', color: 'var(--body)', display: 'block', marginBottom: '4px' }}>Genre</label>
+                <select
+                  value={metaA.genre}
+                  onChange={e => setMetaA({ ...metaA, genre: e.target.value })}
+                  className="dark-input"
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {GENRE_OPTIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                </select>
+
+                <label style={{ fontSize: '11px', color: 'var(--body)', display: 'block', marginBottom: '4px' }}>Pacing</label>
+                <select
+                  value={metaA.pacing}
+                  onChange={e => setMetaA({ ...metaA, pacing: e.target.value })}
+                  className="dark-input"
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {PACING_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+
+                <label style={{ fontSize: '11px', color: 'var(--body)', display: 'block', marginBottom: '4px' }}>Audio</label>
+                <select
+                  value={metaA.audio_profile}
+                  onChange={e => setMetaA({ ...metaA, audio_profile: e.target.value })}
+                  className="dark-input"
+                  style={{ width: '100%' }}
+                >
+                  {AUDIO_OPTIONS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                </select>
+              </div>
+
+              {/* Variant B Meta */}
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)', display: 'block', marginBottom: '8px' }}>
+                  Variant B Profile
+                </span>
+                <label style={{ fontSize: '11px', color: 'var(--body)', display: 'block', marginBottom: '4px' }}>Genre</label>
+                <select
+                  value={metaB.genre}
+                  onChange={e => setMetaB({ ...metaB, genre: e.target.value })}
+                  className="dark-input"
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {GENRE_OPTIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                </select>
+
+                <label style={{ fontSize: '11px', color: 'var(--body)', display: 'block', marginBottom: '4px' }}>Pacing</label>
+                <select
+                  value={metaB.pacing}
+                  onChange={e => setMetaB({ ...metaB, pacing: e.target.value })}
+                  className="dark-input"
+                  style={{ width: '100%', marginBottom: '8px' }}
+                >
+                  {PACING_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+
+                <label style={{ fontSize: '11px', color: 'var(--body)', display: 'block', marginBottom: '4px' }}>Audio</label>
+                <select
+                  value={metaB.audio_profile}
+                  onChange={e => setMetaB({ ...metaB, audio_profile: e.target.value })}
+                  className="dark-input"
+                  style={{ width: '100%' }}
+                >
+                  {AUDIO_OPTIONS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Error Notification */}
+        {error && (
+          <div style={{
+            width: '100%',
+            padding: '12px 16px',
+            borderRadius: 'var(--rounded-md)',
+            border: '1px solid var(--hairline)',
+            backgroundColor: 'var(--surface-soft)',
+            color: 'var(--ink)',
+            fontSize: '13px',
+            marginBottom: '16px',
+            textAlign: 'left',
+          }}>
+            {error}
+          </div>
+        )}
+
+        {/* Primary CTA Row: Black Pill Action */}
+        <div style={{ width: '100%', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={handleUpload}
+            disabled={!fileA || !fileB || isUploading}
+            className="button-primary"
+            style={{
+              flex: 1,
+              height: '42px',
+              fontSize: '14px',
+              opacity: (!fileA || !fileB || isUploading) ? 0.4 : 1,
+              cursor: (!fileA || !fileB || isUploading) ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Synthesizing Neural Ensemble...
+              </>
+            ) : (
+              'Run Analysis Engine'
+            )}
+          </button>
+
+          {/* Quick Start with Built-in Samples */}
+          <button
+            onClick={handleLoadSamples}
+            disabled={isLoadingSamples || isUploading}
+            className="button-secondary"
+            style={{
+              height: '42px',
+              fontSize: '14px',
+            }}
+            title="Load brand_A_predictions.pkl and brand_B_predictions.pkl"
+          >
+            {isLoadingSamples ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Loading...
+              </>
+            ) : (
+              'Use Built-in Samples'
+            )}
+          </button>
+        </div>
+
+        {/* Footer Guarantee Strip */}
+        <div style={{
+          marginTop: '64px',
+          paddingTop: '24px',
+          borderTop: '1px solid var(--hairline)',
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          fontSize: '13px',
+          color: 'var(--body)',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>Your prediction data stays local to your environment.</span>
         </div>
       </div>
     </div>

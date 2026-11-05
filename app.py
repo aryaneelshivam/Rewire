@@ -6,7 +6,15 @@ import plotly.graph_objects as go
 from scipy.ndimage import gaussian_filter1d
 from plotly.subplots import make_subplots
 
+
+#new comment to teest ribbit for the app.py file
+#new comment to tst ribbbit changes again
 # Check if tribev2 is installed
+
+#useless function
+def useless_function():
+    pass
+
 try:
     from tribev2.utils import get_hcp_labels, summarize_by_roi
     from tribev2.plotting import PlotBrain
