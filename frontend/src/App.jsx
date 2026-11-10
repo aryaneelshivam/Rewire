@@ -10,25 +10,20 @@ import EngagementPanel from './components/EngagementPanel';
 import TopRoisPanel from './components/TopRoisPanel';
 import DemoTimeSeries from './components/DemoTimeSeries';
 import VarianceHeatmap from './components/VarianceHeatmap';
-import BrainViewer3D from './components/BrainViewer3D';
+import CortexMonitor from './components/CortexMonitor';
+import WinnerPlayer from './components/WinnerPlayer';
 import AsymmetryPanel from './components/AsymmetryPanel';
 import ImpactScenes from './components/ImpactScenes';
-import LivePulsePanel from './components/LivePulsePanel';
 import ABSummaryPanel from './components/ABSummaryPanel';
 import DimensionalLeadPanel, { ContestsPanel } from './components/DimensionalLeadPanel';
 import KeyMetricsPanel from './components/KeyMetricsPanel';
 import ReportView from './components/ReportView';
 import { Button } from '@/components/arc/button/button';
 import { ActionButton } from '@/components/arc/action-button/action-button';
-import SegmentedControl from '@/components/arc/segmented-control/segmented-control';
-import { Select } from '@/components/arc/select/select';
-import { Slider } from '@/components/arc/slider/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/arc/tabs/tabs';
 import { Alert } from '@/components/arc/alert/alert';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
-import { Tooltip } from '@/components/arc/tooltip/tooltip';
 import { ThemeSwitch } from '@/components/arc/theme-switch/theme-switch';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 
 const TABS = [
   { id: 'overview', label: 'Overview', title: 'A/B overview', desc: 'Which creative drives stronger predicted cortical response, and when.' },
@@ -37,15 +32,15 @@ const TABS = [
   { id: 'regions', label: 'Brain regions', title: 'Brain regions', desc: 'Top cortical regions and how consistent the response is across simulated viewers.' },
 ];
 
-const COHORTS = [
-  { value: 'baseline', label: 'All audiences' },
-  { value: 'kids', label: 'Kids (6 to 12)' },
-  { value: 'genz', label: 'Gen Z (13 to 24)' },
-  { value: 'adults', label: 'Adults (25 to 54)' },
-  { value: 'older', label: 'Older (55+)' },
-];
-
-const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+/** The variant that takes more cohort and dimension contests; 'TIE' when they split evenly. */
+function winnerOf(summary) {
+  let a = 0, b = 0;
+  Object.values(summary?.dimension_winners || {}).forEach(dims => Object.entries(dims).forEach(([dim, d]) => {
+    if (dim === 'overall') return;
+    if (d.winner === 'A') a++; else if (d.winner === 'B') b++;
+  }));
+  return a > b ? 'A' : b > a ? 'B' : 'TIE';
+}
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -66,8 +61,7 @@ function App() {
 
   const [videoUrlA, setVideoUrlA] = useState(null);
   const [videoUrlB, setVideoUrlB] = useState(null);
-  const vRefA = useRef(null);
-  const vRefB = useRef(null);
+  const playerRef = useRef(null);
   const brainRef = useRef(null);
 
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -133,25 +127,19 @@ function App() {
     });
   };
 
-  const handleTimeUpdate = (e) => {
-    setCurrentTime(Math.floor(e.target.currentTime));
-    const otherRef = e.target === vRefA.current ? vRefB : vRefA;
-    if (otherRef.current && Math.abs(otherRef.current.currentTime - e.target.currentTime) > 0.5) {
-      otherRef.current.currentTime = e.target.currentTime;
-    }
-  };
+  const handleTimeUpdate = (e) => setCurrentTime(Math.floor(e.target.currentTime));
 
+  // With a video loaded the element is the clock; without one, the interval below steps the playhead.
   const togglePlayback = () => {
-    [vRefA, vRefB].forEach(r => {
-      if (r.current) { if (isPlaying) r.current.pause(); else r.current.play(); }
-    });
-    setIsPlaying(!isPlaying);
+    const video = playerRef.current;
+    if (video) { if (video.paused) video.play(); else video.pause(); return; }
+    setIsPlaying(p => !p);
   };
 
   const handleSeekToTimestamp = (t) => {
     const maxT = Math.max(overview?.A?.n_timesteps || 1, overview?.B?.n_timesteps || 1) - 1;
     const clampedT = Math.max(0, Math.min(t, maxT));
-    [vRefA, vRefB].forEach(r => { if (r.current) r.current.currentTime = clampedT; });
+    if (playerRef.current) playerRef.current.currentTime = clampedT;
     setCurrentTime(clampedT);
   };
 
@@ -177,13 +165,20 @@ function App() {
 
   useEffect(() => { loadData(); }, []);
 
-  // Without a video, playback steps through the timeline once a second.
+  const winner = winnerOf(abSummary);
+  const shown = winner === 'B' ? 'B' : 'A';
+  const winnerVideo = shown === 'B' ? videoUrlB : videoUrlA;
+
+  // The brain opens on the winning variant once the summary arrives.
+  useEffect(() => { if (abSummary) setBrainVariant(winnerOf(abSummary) === 'B' ? 'B' : 'A'); }, [abSummary]);
+
+  // Without the winner's video, playback steps through the timeline once a second.
   useEffect(() => {
-    if (!isPlaying || !overview || videoUrlA || videoUrlB) return;
+    if (!isPlaying || !overview || winnerVideo) return;
     const maxT = Math.max(overview.A.n_timesteps, overview.B.n_timesteps);
     const interval = setInterval(() => setCurrentTime(t => (t + 1) % maxT), 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, overview, videoUrlA, videoUrlB]);
+  }, [isPlaying, overview, winnerVideo]);
 
   if (awaitingUpload) {
     return (
@@ -218,13 +213,6 @@ function App() {
   const maxTimesteps = Math.max(overview.A.n_timesteps, overview.B.n_timesteps);
   const tab = TABS.find(t => t.id === activeTab);
 
-  const hasVideo = videoUrlA || videoUrlB;
-  const videoTile = (variant, url, ref) => url && (
-    <figure className="video-tile">
-      <video ref={ref} src={url} muted playsInline onTimeUpdate={handleTimeUpdate} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} aria-label={`Variant ${variant} video`} />
-      <figcaption>Variant {variant}</figcaption>
-    </figure>
-  );
 
   return (
     <div className="app-root">
@@ -247,52 +235,30 @@ function App() {
       </header>
 
       <main className="app-main">
-        <aside className="app-aside" aria-label="Cortex monitor">
-          <div className="aside-head">
-            <h2>Cortex monitor</h2>
-            <SegmentedControl label="Variant shown on the brain" options={[{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }]} value={brainVariant} onValueChange={setBrainVariant} />
-          </div>
-          <Select label="Audience" options={COHORTS} value={brainDemographic} onValueChange={setBrainDemographic} />
-
-          <BrainViewer3D
+        <div className="stage">
+          <CortexMonitor
             ref={brainRef}
-            nTimesteps={overview[brainVariant].n_timesteps}
             currentTime={currentTime}
-            setCurrentTime={setCurrentTime}
-            peakTimestep={overview[brainVariant].peak_timestep}
-            demographic={brainDemographic}
-            autoRotate
             variant={brainVariant}
+            onVariantChange={setBrainVariant}
+            cohort={brainDemographic}
+            onCohortChange={setBrainDemographic}
           />
-
-          <div className="colorbar" aria-label="Colour scale: grey is below threshold, white is the peak">
-            <span>Below threshold</span>
-            <div className="colorbar-ramp" />
-            <span>Peak</span>
-          </div>
-
-          <div className="aside-section">
-            <Slider label="Timeline" min={0} max={maxTimesteps - 1} value={currentTime} onValueChange={handleSeekToTimestamp} format={fmtClock} />
-            <div className="player">
-              <Tooltip content="Back 10 seconds"><Button variant="secondary" size="sm" className="icon-btn" aria-label="Back 10 seconds" onClick={() => handleSeekToTimestamp(currentTime - 10)}><SkipBack size={16} strokeWidth={1.75} aria-hidden="true" /></Button></Tooltip>
-              <Button variant="secondary" size="sm" onClick={togglePlayback}>
-                {isPlaying ? <Pause size={16} strokeWidth={1.75} aria-hidden="true" /> : <Play size={16} strokeWidth={1.75} aria-hidden="true" />}
-                {isPlaying ? 'Pause' : 'Play'}
-              </Button>
-              <Tooltip content="Forward 10 seconds"><Button variant="secondary" size="sm" className="icon-btn" aria-label="Forward 10 seconds" onClick={() => handleSeekToTimestamp(currentTime + 10)}><SkipForward size={16} strokeWidth={1.75} aria-hidden="true" /></Button></Tooltip>
-            </div>
-          </div>
-
-          <div className="aside-section">
-            <LivePulsePanel currentTime={currentTime} overviewA={overview.A} overviewB={overview.B} />
-          </div>
-
-          {hasVideo && (
-            <div className="aside-section">
-              <div className="video-tiles">{videoTile('A', videoUrlA, vRefA)}{videoTile('B', videoUrlB, vRefB)}</div>
-            </div>
-          )}
-        </aside>
+          <WinnerPlayer
+            winner={winner}
+            videoUrl={winnerVideo}
+            videoRef={playerRef}
+            currentTime={currentTime}
+            duration={maxTimesteps}
+            peakTime={overview[shown].peak_timestep}
+            isPlaying={isPlaying}
+            onTogglePlay={togglePlayback}
+            onSeek={handleSeekToTimestamp}
+            onTimeUpdate={handleTimeUpdate}
+            onPlayingChange={setIsPlaying}
+            onAddVideo={() => setAwaitingUpload(true)}
+          />
+        </div>
 
         <div className="app-content">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -313,8 +279,8 @@ function App() {
             <TabsContent value="overview">
               <div className="bento">
                 <div className="span-12">{abSummary && <ABSummaryPanel data={abSummary} />}</div>
-                <div className="span-8"><OverviewPanel dataA={overview.A} dataB={overview.B} onSeekToTimestamp={handleSeekToTimestamp} /></div>
-                <div className="span-4"><KeyMetricsPanel overview={overview} engagement={engagement} demographics={demographics} /></div>
+                <div className="span-7"><OverviewPanel dataA={overview.A} dataB={overview.B} onSeekToTimestamp={handleSeekToTimestamp} /></div>
+                <div className="span-5"><KeyMetricsPanel overview={overview} engagement={engagement} demographics={demographics} /></div>
                 <div className="span-12"><AsymmetryPanel dataA={overview.A} dataB={overview.B} /></div>
               </div>
             </TabsContent>

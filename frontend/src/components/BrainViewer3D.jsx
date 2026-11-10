@@ -133,7 +133,8 @@ const BrainViewer3D = React.forwardRef(({
   currentTime,
   demographic = "baseline",
   autoRotate = true,
-  variant = "A"
+  variant = "A",
+  onStats,
 }, ref) => {
   const [meshData, setMeshData] = useState(null);
   const [activation, setActivation] = useState(null);
@@ -171,26 +172,34 @@ const BrainViewer3D = React.forwardRef(({
   // Compute live cortex metrics from activation array
   const liveStats = useMemo(() => {
     if (!activation || activation.length === 0) {
-      return { peak: 0, mean: 0, activePct: 0, activeCount: 0 };
+      return { peak: 0, mean: 0, activePct: 0, activeCount: 0, lr: 0 };
     }
+    // The mesh lists the left hemisphere's vertices first, so the split gives the left minus right mean.
+    const nLeft = meshData?.n_vertices_left ?? Math.floor(activation.length / 2);
     let maxVal = 0;
     let sum = 0;
+    let sumLeft = 0;
     let active = 0;
     const len = activation.length;
     for (let i = 0; i < len; i++) {
       const v = activation[i] || 0;
       if (v > maxVal) maxVal = v;
       sum += v;
+      if (i < nLeft) sumLeft += v;
       if (v > 0.2) active++;
     }
+    const sumRight = sum - sumLeft;
     return {
       peak: maxVal,
       mean: sum / len,
       activePct: (active / len) * 100,
       activeCount: active,
       totalCount: len,
+      lr: (nLeft ? sumLeft / nLeft : 0) - (len - nLeft ? sumRight / (len - nLeft) : 0),
     };
-  }, [activation]);
+  }, [activation, meshData]);
+
+  useEffect(() => { onStats?.(liveStats); }, [liveStats, onStats]);
 
   const handleDownloadSnapshot = () => {
     if (!canvasRef.current) return;
