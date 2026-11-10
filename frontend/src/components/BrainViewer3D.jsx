@@ -3,7 +3,9 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { fetchBrainMesh, fetchBrainActivation } from '../api';
-import { Activity, Camera, RotateCw, Box } from 'lucide-react';
+import { Camera, RotateCw, Box } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/arc/toggle-group/toggle-group';
+import { Tooltip } from '@/components/arc/tooltip/tooltip';
 
 // Publication-grade neuroimaging colormap (Hot Iron / AFNI spec / Inferno inspired)
 function getNeuroColor(val, baseShading = 0.5) {
@@ -203,178 +205,72 @@ const BrainViewer3D = React.forwardRef(({
     setCurrentView(preset);
   };
 
-  if (loading) {
-    return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Activity className="animate-pulse" color="#000000" size={26} />
-          <p style={{ marginTop: '0.75rem', color: 'var(--body)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
-            Reconstructing fsaverage5 Cortical Mesh (20,484 Vertices)...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const views = [
+    { id: 'left', label: 'L', title: 'Left lateral' },
+    { id: 'right', label: 'R', title: 'Right lateral' },
+    { id: 'dorsal', label: 'Top', title: 'Dorsal' },
+    { id: 'anterior', label: 'Front', title: 'Anterior' },
+    { id: 'reset', label: '3D', title: 'Oblique' },
+  ];
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', cursor: 'grab' }}>
-      {/* ===== SCIENTIFIC HUD OVERLAYS ===== */}
-      
-      {/* Top Left: Metadata HUD */}
-      <div className="sci-hud-overlay sci-hud-top-left">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span className="sci-dot live" />
-          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>CORTICAL BOLD ENGINE</span>
-          <span style={{ color: 'var(--mute)' }}>·</span>
-          <span>TR: 1.0s</span>
+    <div className="viewport">
+      {loading ? (
+        <div className="vp-loading">
+          <span className="animate-pulse">Loading cortical mesh</span>
         </div>
-        <div style={{ color: 'var(--charcoal)', fontSize: '9.5px' }}>
-          MNI-152 Stereotaxic Space · fsaverage5 ({meshData?.vertices?.length?.toLocaleString() || '20,484'} Vertices)
-        </div>
-        <div style={{ color: 'var(--mute)', fontSize: '9px' }}>
-          COHORT: {demographic.toUpperCase()} · FILTER: z &gt; 1.65 (p &lt; 0.05)
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="vp-overlay vp-top">
+            <span className="vp-chip" title={`Peak ${liveStats.peak.toFixed(2)}, ${liveStats.activePct.toFixed(1)}% active`}>
+              <i className={`vdot ${variant === 'B' ? 'b' : ''}`} />Variant {variant}
+            </span>
+            <div className="vp-tools">
+              <ToggleGroup
+                type="multiple"
+                label="Display"
+                size="sm"
+                value={[isRotating && 'rotate', wireframe && 'wireframe'].filter(Boolean)}
+                onValueChange={list => { setIsRotating(list.includes('rotate')); setWireframe(list.includes('wireframe')); }}
+              >
+                <ToggleGroupItem value="rotate" label="Auto-rotate"><RotateCw /></ToggleGroupItem>
+                <ToggleGroupItem value="wireframe" label="Wireframe"><Box /></ToggleGroupItem>
+              </ToggleGroup>
+              <Tooltip content="Download as PNG">
+                <button type="button" className="vp-btn" onClick={handleDownloadSnapshot} aria-label="Download brain view as PNG"><Camera size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+              </Tooltip>
+            </div>
+          </div>
 
-      {/* Top Right: Real-time Activation Metrics */}
-      <div className="sci-hud-overlay sci-hud-top-right">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
-          <span className="sci-pill">
-            <span style={{ color: 'var(--mute)' }}>PEAK BOLD:</span>
-            <strong style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>
-              z = +{liveStats.peak.toFixed(3)}
-            </strong>
-          </span>
-          <span className="sci-pill">
-            <span style={{ color: 'var(--mute)' }}>ACTIVE:</span>
-            <strong style={{ color: 'var(--ink)' }}>{liveStats.activePct.toFixed(1)}%</strong>
-          </span>
-        </div>
-        <div style={{ color: 'var(--mute)', fontSize: '9px', marginTop: '2px' }}>
-          {liveStats.activeCount.toLocaleString()} / {liveStats.totalCount?.toLocaleString() || 20484} vertices active
-        </div>
-      </div>
+          <div className="vp-overlay vp-bottom">
+            <div className="vp-views">
+              <ToggleGroup label="Camera view" size="sm" value={currentView} onValueChange={v => v && handlePreset(v)}>
+                {views.map(v => <ToggleGroupItem key={v.id} value={v.id} label={v.title}>{v.label}</ToggleGroupItem>)}
+              </ToggleGroup>
+            </div>
+          </div>
 
-      {/* Bottom Left: Colormap Calibration */}
-      <div className="sci-hud-overlay sci-hud-bottom-left" style={{ pointerEvents: 'auto' }}>
-        <div className="sci-colorbar">
-          <span>Sub-threshold</span>
-          <div className="sci-colorbar-gradient" />
-          <span>Peak z</span>
-        </div>
-      </div>
-
-      {/* Bottom Right: Quick Tool Actions */}
-      <div className="sci-hud-overlay sci-hud-bottom-right" style={{ pointerEvents: 'auto' }}>
-        <button
-          onClick={() => setIsRotating(!isRotating)}
-          className={`sci-pill ${isRotating ? 'active' : ''}`}
-          title="Toggle Auto Rotation"
-          style={{ cursor: 'pointer' }}
-        >
-          <RotateCw size={11} className={isRotating ? 'animate-spin' : ''} />
-          <span>{isRotating ? 'Rotate: ON' : 'Rotate: OFF'}</span>
-        </button>
-
-        <button
-          onClick={() => setWireframe(!wireframe)}
-          className={`sci-pill ${wireframe ? 'active' : ''}`}
-          title="Toggle Cortical Wireframe Tessellation"
-          style={{ cursor: 'pointer' }}
-        >
-          <Box size={11} />
-          <span>{wireframe ? 'Mesh' : 'Solid'}</span>
-        </button>
-
-        <button
-          onClick={handleDownloadSnapshot}
-          className="sci-pill"
-          title="Capture High-Res Image"
-          style={{ cursor: 'pointer' }}
-        >
-          <Camera size={11} />
-          <span>Capture</span>
-        </button>
-      </div>
-
-      {/* View Presets Bar (Pill Group Center Bottom) */}
-      <div className="brain-view-controls">
-        <button
-          className={`brain-view-btn ${currentView === 'left' ? 'active' : ''}`}
-          onClick={() => handlePreset('left')}
-          title="Left Lateral View"
-        >
-          L-LAT
-        </button>
-        <button
-          className={`brain-view-btn ${currentView === 'right' ? 'active' : ''}`}
-          onClick={() => handlePreset('right')}
-          title="Right Lateral View"
-        >
-          R-LAT
-        </button>
-        <button
-          className={`brain-view-btn ${currentView === 'dorsal' ? 'active' : ''}`}
-          onClick={() => handlePreset('dorsal')}
-          title="Dorsal (Superior) View"
-        >
-          DORSAL
-        </button>
-        <button
-          className={`brain-view-btn ${currentView === 'anterior' ? 'active' : ''}`}
-          onClick={() => handlePreset('anterior')}
-          title="Anterior (Frontal) View"
-        >
-          FRONT
-        </button>
-        <button
-          className={`brain-view-btn ${currentView === 'reset' ? 'active' : ''}`}
-          onClick={() => handlePreset('reset')}
-          title="Isometric Reset View"
-        >
-          OBLIQUE
-        </button>
-      </div>
-
-      {/* 3D WebGL Canvas */}
-      <Canvas
-        shadows
-        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
-        style={{ background: 'transparent' }}
-        onCreated={({ gl }) => { canvasRef.current = gl.domElement; }}
-      >
-        <PerspectiveCamera makeDefault position={[240, 140, 160]} fov={45} />
-
-        {/* Studio lighting calibrated for high anatomical contrast */}
-        <ambientLight intensity={0.65} />
-        <directionalLight position={[150, 150, 150]} intensity={1.1} />
-        <directionalLight position={[-150, -100, -100]} intensity={0.5} />
-        <directionalLight position={[0, 0, 180]} intensity={0.7} />
-        <directionalLight position={[0, 180, 0]} intensity={0.4} />
-
-        <Suspense fallback={null}>
-          {meshData && activation && (
-            <BrainMesh
-              vertices={meshData.vertices}
-              faces={meshData.faces}
-              activation={activation}
-              wireframe={wireframe}
-            />
-          )}
-        </Suspense>
-
-        <CameraController viewPreset={currentView} controlsRef={controlsRef} />
-
-        <OrbitControls
-          ref={controlsRef}
-          enableDamping
-          dampingFactor={0.06}
-          autoRotate={isRotating}
-          autoRotateSpeed={0.8}
-          minDistance={90}
-          maxDistance={380}
-        />
-      </Canvas>
+          <Canvas
+            gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+            style={{ background: 'transparent' }}
+            onCreated={({ gl }) => { canvasRef.current = gl.domElement; }}
+          >
+            <PerspectiveCamera makeDefault position={[240, 140, 160]} fov={45} />
+            <ambientLight intensity={0.65} />
+            <directionalLight position={[150, 150, 150]} intensity={1.1} />
+            <directionalLight position={[-150, -100, -100]} intensity={0.5} />
+            <directionalLight position={[0, 0, 180]} intensity={0.7} />
+            <directionalLight position={[0, 180, 0]} intensity={0.4} />
+            <Suspense fallback={null}>
+              {meshData && activation && (
+                <BrainMesh vertices={meshData.vertices} faces={meshData.faces} activation={activation} wireframe={wireframe} />
+              )}
+            </Suspense>
+            <CameraController viewPreset={currentView} controlsRef={controlsRef} />
+            <OrbitControls ref={controlsRef} enableDamping dampingFactor={0.06} autoRotate={isRotating} autoRotateSpeed={0.8} minDistance={90} maxDistance={380} />
+          </Canvas>
+        </>
+      )}
     </div>
   );
 });

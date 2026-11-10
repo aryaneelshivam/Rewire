@@ -118,7 +118,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
         }}>
           <div>
             <span style={{ color: 'var(--mute)', display: 'block', fontSize: '9px' }}>INFERENCE ENGINE</span>
-            <strong>Meta Tribe v2 CUDA</strong>
+            <strong>Rewire neural encoder</strong>
           </div>
           <div>
             <span style={{ color: 'var(--mute)', display: 'block', fontSize: '9px' }}>COHORT ENSEMBLE</span>
@@ -291,7 +291,7 @@ const ReportView = ({ data, snapshots, onClose }) => {
             SCIENTIFIC ATTESTATION & METHODOLOGY
           </span>
           <p style={{ fontSize: '10.5px', color: 'var(--body)', lineHeight: 1.6, margin: 0 }}>
-            Rewire utilizes Meta Tribe v2 deep learning models running on high-throughput GPU clusters, paired with our proprietary synthetic demographic synthesis engine. All metrics represent an ensemble average of 200 virtual human subjects across 20,484 cortical surface vertices with empirical hemodynamic lag compensation (+3.0s Kids, +5.0s Older Adults), AR(1) pink noise autocorrelation, and sigmoidal saturation constraints.
+            Rewire uses a deep learning brain-response model running on GPU clusters, paired with our proprietary synthetic demographic synthesis engine. All metrics represent an ensemble average of 200 virtual human subjects across 20,484 cortical surface vertices with empirical hemodynamic lag compensation (+3.0s Kids, +5.0s Older Adults), AR(1) pink noise autocorrelation, and sigmoidal saturation constraints.
           </p>
         </section>
 

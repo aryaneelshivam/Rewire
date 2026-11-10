@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+import { SlopeChart } from '@/components/arc/slope-chart/slope-chart';
+import { DonutChart } from '@/components/arc/donut-chart/donut-chart';
+import { signedZ, CHART_COLORS } from '@/lib/chart-data';
+import { Card } from './ui';
+import { Accordion } from '@/components/arc/accordion/accordion';
+import SegmentedControl from '@/components/arc/segmented-control/segmented-control';
 
-const COLORS = { a: '#0066cc', b: '#7a7a7a', grid: '#e0e0e0', muted: '#7a7a7a' };
 
 const REGION_DEFINITIONS = {
   'V4t': {
@@ -63,67 +58,9 @@ const REGION_DEFINITIONS = {
   }
 };
 
-const CustomRoiTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    const vA = payload.find(p => p.dataKey === 'peakA')?.value ?? 0;
-    const vB = payload.find(p => p.dataKey === 'peakB')?.value ?? 0;
-    const lead = vA >= vB ? 'A' : 'B';
-    const pct = Math.min(vA, vB) > 0 ? ((Math.abs(vA - vB) / Math.min(vA, vB)) * 100).toFixed(1) : 0;
-    const info = REGION_DEFINITIONS[label] || {};
-
-    return (
-      <div style={{ 
-        backgroundColor: 'rgba(255, 255, 255, 0.96)', 
-        border: '1px solid #e5e5e5',
-        padding: '12px 16px',
-        borderRadius: '8px',
-        fontFamily: 'var(--font-mono)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-        fontSize: '11px',
-        minWidth: '220px'
-      }}>
-        <div style={{ borderBottom: '1px solid #f0f0f0', paddingBottom: '6px', marginBottom: '6px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--mute)' }}>HCP PARCELLATION</span>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-            {label} {info.fullName ? `· ${info.fullName}` : ''}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-          <span>Variant A Peak:</span>
-          <strong>{vA.toFixed(4)}</strong>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-          <span>Variant B Peak:</span>
-          <strong>{vB.toFixed(4)}</strong>
-        </div>
-        <div style={{
-          marginTop: '8px',
-          paddingTop: '6px',
-          borderTop: '1px solid #f0f0f0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <span style={{ color: 'var(--mute)' }}>Advantage:</span>
-          <span style={{
-            fontWeight: 700,
-            color: '#ffffff',
-            backgroundColor: lead === 'A' ? COLORS.a : COLORS.b,
-            padding: '1px 6px',
-            borderRadius: '3px'
-          }}>
-            Variant {lead} (+{pct}%)
-          </span>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
 const TopRoisPanel = ({ dataA, dataB }) => {
   const [selectedRoi, setSelectedRoi] = useState(null);
+  const [shareVariant, setShareVariant] = useState('A');
 
   if (!dataA || !dataA.rois || !dataB || !dataB.rois) return null;
 
@@ -139,7 +76,9 @@ const TopRoisPanel = ({ dataA, dataB }) => {
   });
 
   // Sort by max of A/B peak
+  // Only regions both variants report can be compared; a missing value is not a zero.
   const mergedRois = Object.values(roiMap)
+    .filter(r => r.peakA != null && r.peakB != null)
     .map(r => ({
       ...r,
       peakA: r.peakA || 0,
@@ -150,125 +89,78 @@ const TopRoisPanel = ({ dataA, dataB }) => {
     .sort((a, b) => Math.max(b.peakA, b.peakB) - Math.max(a.peakA, a.peakB))
     .slice(0, 8);
 
+  const slopeData = mergedRois.map(r => ({ key: r.name, label: r.name, start: r.peakA, end: r.peakB }));
+  const biggestSwing = mergedRois.reduce((best, r) => !best || Math.abs(r.diff) > Math.abs(best.diff) ? r : best, null);
+  const shareData = mergedRois.map((r, i) => ({ color: CHART_COLORS[i % CHART_COLORS.length], key: r.name, label: REGION_DEFINITIONS[r.name]?.network ? `${r.name} · ${REGION_DEFINITIONS[r.name].network}` : r.name, value: Math.max(0, shareVariant === 'A' ? r.peakA : r.peakB) }));
+
+  // A highlighted line takes the colour of the variant it favours.
+  const favourColor = item => (item && item.end > item.start ? 'var(--chart-b)' : 'var(--chart-a)');
+
+  const notes = mergedRois.filter(r => REGION_DEFINITIONS[r.name]).map(r => {
+    const info = REGION_DEFINITIONS[r.name];
+    return {
+      title: `${r.name}: ${info.fullName}`,
+      content: (
+        <div className="region-note">
+          <p>{info.desc}</p>
+          <p className="muted">{info.network}, {info.lobe}. Peak A {r.peakA.toFixed(3)}, B {r.peakB.toFixed(3)}.</p>
+        </div>
+      ),
+    };
+  });
+
   return (
-    <div className="glass-card">
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <span className="command-tag" style={{ fontSize: '10px', padding: '2px 8px' }}>
-              HCP MULTIMODAL PARCELLATION
-            </span>
-            <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
-              180 Cortical Areas per Hemisphere
-            </span>
-          </div>
-          <h2>Top Cortical Regions of Interest (ROIs)</h2>
-          <p style={{ color: 'var(--body)', fontSize: '13px', marginTop: '2px' }}>
-            Maximum BOLD activation across specialized functional anatomical parcellations.
+    <Card
+      title="Top cortical regions"
+      exportName="top-cortical-regions"
+      description="Peak activation in the strongest regions both variants share."
+    >
+      <div className="split split-7-5">
+        <div className="split-main">
+          <p className="block-label">
+            <strong>Peak z-score, A to B</strong>
+            {biggestSwing && <span>Largest swing {biggestSwing.name}</span>}
           </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <div className="command-tag">
-            <span className="sci-dot variant-a" />
-            <span>Variant A</span>
+          <div style={{ '--series-1': favourColor(slopeData.find(d => d.key === (selectedRoi ?? biggestSwing?.name))) }}>
+          <SlopeChart
+            data={slopeData}
+            label="Peak activation by cortical region, Variant A vs B"
+            startLabel="Variant A"
+            endLabel="Variant B"
+            highlightKey={selectedRoi ?? biggestSwing?.name ?? null}
+            height={Math.max(160, slopeData.length * 40)}
+            formatValue={v => v.toFixed(3)}
+            formatChange={change => `B ${signedZ(change)} vs A`}
+          />
           </div>
-          <div className="command-tag" style={{ color: 'var(--charcoal)' }}>
-            <span className="sci-dot variant-b" />
-            <span>Variant B</span>
+        </div>
+        <div className="split-aside">
+          <div className="block-label">
+            <strong>Share</strong>
+            <SegmentedControl label="Variant" options={[{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }]} value={shareVariant} onValueChange={setShareVariant} />
           </div>
+          <DonutChart
+            data={shareData}
+            label={`Variant ${shareVariant} peak activation across top regions`}
+            totalLabel="Summed peak z"
+            formatValue={v => v.toFixed(2)}
+            legendAction="select"
+            activeKey={selectedRoi}
+            onActiveChange={setSelectedRoi}
+            maxSegments={6}
+            size={168}
+            thickness={20}
+          />
         </div>
       </div>
 
-      {/* Horizontal Bar Chart */}
-      <div className="chart-container" style={{ height: '340px' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={mergedRois} layout="vertical" margin={{ top: 5, right: 30, left: 15, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={true} horizontal={false} />
-            <XAxis
-              type="number"
-              stroke={COLORS.muted}
-              tick={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}
-              tickLine={false}
-              label={{ value: 'Peak BOLD z-score', position: 'insideBottom', offset: -4, fontSize: 10, fill: COLORS.muted, fontFamily: 'var(--font-mono)' }}
-            />
-            <YAxis 
-              dataKey="name" 
-              type="category" 
-              tick={{ fill: 'var(--ink)', fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600 }}
-              width={65}
-              tickLine={false}
-            />
-            <Tooltip content={<CustomRoiTooltip />} cursor={{ fill: 'rgba(91, 92, 226, 0.05)' }} />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px', fontFamily: 'var(--font-mono)' }} />
-            <Bar dataKey="peakA" name="Variant A" fill={COLORS.a} radius={[0, 5, 5, 0]} />
-            <Bar dataKey="peakB" name="Variant B" fill={COLORS.b} radius={[0, 5, 5, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      
-      {/* Region Architecture Definitions Grid */}
-      <div style={{ marginTop: '28px', borderTop: '1px solid var(--hairline)', paddingTop: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-            Cortical Region Architecture & Neuromarketing Implications
-          </span>
-          <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
-            Glasser et al. (Nature 2016) Parcellations
-          </span>
+      {notes.length > 0 && (
+        <div className="block">
+          <p className="block-label"><strong>What these regions do</strong></p>
+          <Accordion defaultOpen={-1} items={notes} />
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-          {Object.entries(REGION_DEFINITIONS).map(([name, info]) => {
-            const isWinnerA = mergedRois.find(r => r.name === name)?.winner === 'A';
-            return (
-              <div
-                key={name}
-                onClick={() => setSelectedRoi(selectedRoi === name ? null : name)}
-                style={{ 
-                  backgroundColor: selectedRoi === name ? 'var(--variant-a-soft)' : 'rgba(255, 255, 255, 0.55)', 
-                  padding: '14px 16px', 
-                  borderRadius: 'var(--rounded-md)',
-                  border: '1px solid',
-                  borderColor: selectedRoi === name ? 'var(--variant-a)' : 'transparent',
-                  fontSize: '12px',
-                  lineHeight: 1.5,
-                  color: 'var(--body)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: selectedRoi === name ? 'inset 0 0 0 1px var(--variant-a)' : 'inset 0 0 0 1px var(--hairline)'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <strong style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{name}</strong>
-                    <span style={{ fontSize: '10px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>[{info.lobe}]</span>
-                  </div>
-                  <span style={{
-                    fontSize: '10px',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 700,
-                    padding: '1px 6px',
-                    borderRadius: '2px',
-                    backgroundColor: isWinnerA ? COLORS.a : COLORS.b,
-                    color: '#ffffff'
-                  }}>
-                    {isWinnerA ? 'Variant A' : 'Variant B'}
-                  </span>
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--charcoal)', fontWeight: 500, marginBottom: '4px' }}>
-                  {info.fullName}
-                </div>
-                <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--body)' }}>
-                  {info.desc}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+      )}
+    </Card>
   );
 };
 

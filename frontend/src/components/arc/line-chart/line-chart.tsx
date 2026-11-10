@@ -86,7 +86,7 @@ const clean = (value: number) => Number(value.toPrecision(12));
 
 /** Clean gridlines: the smallest step of 1, 2, 2.5, or 5 that covers the data in four rows or fewer, from zero unless the data dips below it. */
 function niceScale(low: number, high: number) {
-  const lo = Math.min(0, low), hi = Math.max(high, lo + 1);
+  const lo = Math.min(0, low), hi = high > lo ? high : lo + 1;
   const span = hi - lo, magnitude = 10 ** Math.floor(Math.log10(span / 4));
   for (const factor of [1, 2, 2.5, 5, 10]) {
     const step = factor * magnitude, bottom = Math.floor(lo / step) * step, top = Math.ceil(hi / step) * step;
