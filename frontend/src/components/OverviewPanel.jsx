@@ -34,7 +34,7 @@ const OverviewPanel = ({ dataA, dataB, onSeekToTimestamp }) => {
       title="Whole-brain response"
       exportName="whole-brain-response"
       description="Peak z-score per second. Turn on the means in the legend; click to move the playhead."
-      actions={<span className="card-meta">Total A <span className="num">{aucA.toFixed(1)}</span>, B <span className="num">{aucB.toFixed(1)}</span></span>}
+      actions={<span className="card-meta">Total A <span className="num-a">{aucA.toFixed(1)}</span>, B <span className="num-b">{aucB.toFixed(1)}</span></span>}
       className="fill"
     >
       <div className="chart-click" onClick={() => { if (activeIndex.current != null) onSeekToTimestamp?.(activeIndex.current); }}>

@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import { Button } from '@/components/arc/button/button';
 import { Tooltip } from '@/components/arc/tooltip/tooltip';
 import { Badge } from '@/components/arc/badge/badge';
+import { Progress } from '@/components/arc/progress/progress';
 import { leadPct } from '@/lib/chart-data';
 
 // Chart marks get their paint from CSS-module classes and custom properties, which do not survive the
@@ -92,7 +93,7 @@ export function Card({ title, description, actions, exportName, children, classN
 /** Variant A carries the accent; Variant B stays neutral. */
 export function VariantTag({ v, children }) {
   if (v === 'TIE' || v === '=') return <Badge size="sm">{children ?? 'Tie'}</Badge>;
-  return <Badge size="sm" tone={v === 'A' ? 'info' : 'neutral'}>{children ?? v}</Badge>;
+  return <Badge size="sm" tone={v === 'A' ? 'info' : 'neutral'} className={v === 'B' ? 'badge-b' : undefined}>{children ?? v}</Badge>;
 }
 
 export function VariantLegend() {
@@ -104,13 +105,14 @@ export function VariantLegend() {
   );
 }
 
+/** One variant's score as an Arc progress bar, scaled to the larger of the pair, with the value beside it. */
 export function BarRow({ variant, value, max, format = v => v.toFixed(3) }) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
-    <div className="bar-row">
-      <span>{variant}</span>
-      <div className={`bar ${variant === 'B' ? 'b' : ''}`}><span style={{ width: `${pct}%` }} /></div>
-      <span className="num">{format(value)}</span>
+    <div className={`bar-row ${variant === 'B' ? 'is-b' : ''}`}>
+      <span aria-hidden="true">{variant}</span>
+      <Progress value={pct} label={`Variant ${variant}`} />
+      <span className={`num ${variant === 'B' ? 'num-b' : 'num-a'}`}>{format(value)}</span>
     </div>
   );
 }

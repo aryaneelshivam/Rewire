@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
+import { Button } from '@/components/arc/button/button';
+import { SortableDataTable } from '@/components/arc/sortable-data-table/sortable-data-table';
 import { Card, VariantTag } from './ui';
 
 const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTimestamp }) => {
@@ -75,46 +77,43 @@ const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTime
 
   const fmt = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
 
-  // Frames once a video is loaded; until then, the peak moments themselves.
-  const column = (variant, videoUrl, snapshots, peaks, processing) => {
-    const items = snapshots.length ? snapshots : peaks.map(p => ({ timestamp: p.idx, activation: p.val, image: null }));
-    return (
-      <div>
-        <div className="scene-col-head">
-          <h3><VariantTag v={variant} /> Variant {variant} <span className="muted">peak z-score and time</span></h3>
-
-        </div>
-        {processing && !snapshots.length ? (
-          <Skeleton lines={4} label="Capturing frames" />
-        ) : (
-          <div className="scene-list">
-            {[...items].sort((a, b) => b.activation - a.activation).map(s => (
-              <button key={s.timestamp} type="button" className={`scene ${s.image ? '' : 'no-img'}`} onClick={() => onSeekToTimestamp(s.timestamp)} title="Jump to this moment">
-                {s.image && <img src={s.image} alt={`Variant ${variant} at ${s.timestamp}s`} />}
-                <div className="scene-meta">
-                  <strong>{s.activation.toFixed(3)}</strong>
-                </div>
-                <span className="scene-time">{fmt(s.timestamp)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+  // One sortable list of both variants' peaks. Frames join each row once that variant's video is loaded.
+  const rowsFor = (variant, snapshots, peaks) => {
+    const frames = new Map(snapshots.map(sn => [sn.timestamp, sn.image]));
+    return peaks.map(p => ({ id: `${variant}-${p.idx}`, time: p.idx, variant, peak: p.val, image: frames.get(p.idx) ?? null }));
   };
+  const rows = [...rowsFor('A', snapshotsA, topPeaksA), ...rowsFor('B', snapshotsB, topPeaksB)];
+  const processing = (isProcessingA && !snapshotsA.length) || (isProcessingB && !snapshotsB.length);
+
+  const columns = [
+    {
+      key: 'time', label: 'Moment', numeric: false, width: 220,
+      render: (t, r) => (
+        <span className="moment">
+          {r.image && <img src={r.image} alt="" />}
+          <Button variant="ghost" size="sm" onClick={() => onSeekToTimestamp(t)} aria-label={`Move the playhead to ${fmt(t)}, Variant ${r.variant}`}>{fmt(t)}</Button>
+        </span>
+      ),
+    },
+    { key: 'variant', label: 'Variant', render: v => <VariantTag v={v}>{`Variant ${v}`}</VariantTag> },
+    { key: 'peak', label: 'Peak z', numeric: true, render: (v, r) => <span className={r.variant === 'B' ? 'num-b' : 'num-a'}>{v.toFixed(3)}</span> },
+  ];
 
   return (
     <Card
       title="Strongest moments per variant"
       exportName="key-moments"
       description={videoUrlA || videoUrlB
-        ? 'Six highest-activation seconds per variant. Select one to move the playhead there.'
-        : 'Six highest-activation seconds per variant. Select one to move the playhead there. Add the videos in the cortex monitor to see each frame.'}
+        ? 'Six highest-activation seconds per variant. Select a time to move the playhead there.'
+        : 'Six highest-activation seconds per variant. Select a time to move the playhead there. Add the videos under Change data to see each frame.'}
     >
-      <div className="scene-cols">
-        {column('A', videoUrlA, snapshotsA, topPeaksA, isProcessingA)}
-        {column('B', videoUrlB, snapshotsB, topPeaksB, isProcessingB)}
-      </div>
+      {processing ? (
+        <Skeleton lines={4} label="Capturing frames" />
+      ) : (
+        <div className="flat-table moments-table">
+          <SortableDataTable rows={rows} columns={columns} rowKey="id" defaultSort={{ key: 'peak', direction: 'desc' }} caption="Highest-activation moments for each variant" itemName={{ one: 'moment', other: 'moments' }} />
+        </div>
+      )}
     </Card>
   );
 };

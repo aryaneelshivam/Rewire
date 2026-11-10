@@ -100,7 +100,7 @@ const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcrip
       title="Response over time"
       exportName="response-over-time"
       description="Compare the variants second by second for one cohort."
-      actions={correlationR !== null && <span className="card-meta">A and B correlation <span className="num">r = {correlationR}</span></span>}
+      actions={correlationR !== null && <span className="card-meta">A and B correlation <span className="num-key">r = {correlationR}</span></span>}
     >
       <div className="split split-3-9">
         <div className="split-aside filters">

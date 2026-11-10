@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Ridgeline } from '@/components/arc/ridgeline/ridgeline';
 import { Card } from './ui';
+import { Treemap } from '@/components/arc/treemap/treemap';
 import SegmentedControl from '@/components/arc/segmented-control/segmented-control';
-import { SearchField } from '@/components/arc/search-field/search-field';
-import { EmptyState } from '@/components/arc/empty-state/empty-state';
-import { Button } from '@/components/arc/button/button';
+import { Select } from '@/components/arc/select/select';
+import { VARIANT_OPTIONS } from '@/lib/chart-data';
 
 const ROI_ANATOMY = {
   'V1': { network: 'Visual', name: 'Primary Visual Cortex', desc: 'Low-level edge and luminance contrast' },
@@ -46,77 +46,57 @@ const DEMO_LABELS = {
   older: 'Older (55+)',
 };
 
+// Ten networks fold into four systems, so the treemap's four Arc series hues each mark one system.
+const SYSTEMS = {
+  Visual: 'Vision', Motion: 'Vision',
+  Auditory: 'Hearing',
+  Integration: 'Integration and attention', Parietal: 'Integration and attention', Attention: 'Integration and attention',
+  Executive: 'Evaluation and memory', Limbic: 'Evaluation and memory', Memory: 'Evaluation and memory',
+};
+const SYSTEM_ORDER = ['Vision', 'Hearing', 'Integration and attention', 'Evaluation and memory'];
+// Regions outside the anatomy table, placed by their HCP-MMP family.
+const EXTRA_SYSTEMS = {
+  V7: 'Vision', VMV3: 'Vision', LO3: 'Vision',
+  A4: 'Hearing', A5: 'Hearing', LBelt: 'Hearing', RI: 'Hearing',
+  STSdp: 'Integration and attention', STSvp: 'Integration and attention', STV: 'Integration and attention', PGp: 'Integration and attention', PGi: 'Integration and attention', FEF: 'Integration and attention', '6a': 'Integration and attention', '6d': 'Integration and attention',
+  IFSp: 'Evaluation and memory', IFSa: 'Evaluation and memory', IFJa: 'Evaluation and memory',
+};
+const systemOf = roi => SYSTEMS[ROI_ANATOMY[roi]?.network] ?? EXTRA_SYSTEMS[roi] ?? 'Integration and attention';
+
+const COHORT_OPTIONS = [{ value: 'all', label: 'All cohorts' }, ...Object.entries(DEMO_LABELS).map(([value, label]) => ({ value, label }))];
+
 const VarianceHeatmap = ({ dataA, dataB }) => {
-  const [activeVariant, setActiveVariant] = useState('both');
-  const [view, setView] = useState('grid');
-  const [hoveredCell, setHoveredCell] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('default'); // 'default', 'variance', 'delta'
+  const [variant, setVariant] = useState('A');
+  const [cohort, setCohort] = useState('all');
+  const [view, setView] = useState('map');
 
   if (!dataA?.values || !dataB?.values) return null;
 
-  const rawRoiLabels = dataA.roi_labels || [];
+  const roiLabels = dataA.roi_labels || [];
   const demographics = dataA.demographics || [];
   const valuesA = dataA.values;
   const valuesB = dataB.values;
 
-  const maxValueA = valuesA.length ? Math.max(...valuesA.flat()) : 1;
-  const maxValueB = valuesB.length ? Math.max(...valuesB.flat()) : 1;
-  const globalMax = Math.max(maxValueA, maxValueB, 0.0001);
-
-  // Compute full difference matrix
-  const diffMatrix = demographics.map((_, dIdx) =>
-    rawRoiLabels.map((_, rIdx) => {
-      const a = valuesA[dIdx]?.[rIdx] || 0;
-      const b = valuesB[dIdx]?.[rIdx] || 0;
-      return a - b;
-    })
-  );
-
-  const maxDiff = diffMatrix.length
-    ? Math.max(...diffMatrix.flat().map(Math.abs), 0.0001)
-    : 1;
-
-  // Filter & Sort ROI Indices
-  let processedRois = rawRoiLabels.map((roi, idx) => ({ roi, idx }));
-
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase();
-    processedRois = processedRois.filter(item => {
-      const info = ROI_ANATOMY[item.roi] || {};
-      return (
-        item.roi.toLowerCase().includes(q) ||
-        (info.name && info.name.toLowerCase().includes(q)) ||
-        (info.network && info.network.toLowerCase().includes(q))
-      );
-    });
-  }
-
-  if (sortBy === 'variance') {
-    processedRois.sort((a, b) => {
-      const totalA = demographics.reduce((s, _, d) => s + (valuesA[d]?.[b.idx] || 0) + (valuesB[d]?.[b.idx] || 0), 0);
-      const totalB = demographics.reduce((s, _, d) => s + (valuesA[d]?.[a.idx] || 0) + (valuesB[d]?.[a.idx] || 0), 0);
-      return totalA - totalB;
-    });
-  } else if (sortBy === 'delta') {
-    processedRois.sort((a, b) => {
-      const sumDiffA = demographics.reduce((s, _, d) => s + Math.abs(diffMatrix[d]?.[b.idx] || 0), 0);
-      const sumDiffB = demographics.reduce((s, _, d) => s + Math.abs(diffMatrix[d]?.[a.idx] || 0), 0);
-      return sumDiffA - sumDiffB;
-    });
-  }
-
-  // Summary Metrics
-  let minVar = Infinity, minRoi = '', maxVar = 0, maxRoi = '';
-  rawRoiLabels.forEach((roi, r) => {
-    let sumVar = 0;
-    demographics.forEach((_, d) => {
-      sumVar += (valuesA[d]?.[r] || 0) + (valuesB[d]?.[r] || 0);
-    });
-    if (sumVar < minVar) { minVar = sumVar; minRoi = roi; }
-    if (sumVar > maxVar) { maxVar = sumVar; maxRoi = roi; }
+  // Mean inter-subject variance per region over the chosen cohorts.
+  const cohortIdx = cohort === 'all' ? demographics.map((_, i) => i) : [demographics.indexOf(cohort)].filter(i => i >= 0);
+  const meanOver = (values, r) => cohortIdx.length ? cohortIdx.reduce((sum, d) => sum + (Number(values[d]?.[r]) || 0), 0) / cohortIdx.length : 0;
+  const regions = roiLabels.map((roi, r) => {
+    const a = meanOver(valuesA, r), b = meanOver(valuesB, r);
+    return { roi, a, b, system: systemOf(roi) };
   });
-  const summaryInsights = { minRoi, maxRoi };
+
+  const own = variant === 'A' ? 'a' : 'b', other = variant === 'A' ? 'b' : 'a', otherName = variant === 'A' ? 'B' : 'A';
+  const tree = {
+    id: 'root', label: 'All regions',
+    children: SYSTEM_ORDER.map(system => ({
+      id: system, label: system,
+      children: regions.filter(r => r.system === system).map(r => ({ id: r.roi, label: `${r.roi} ${ROI_ANATOMY[r.roi]?.name ? `(${ROI_ANATOMY[r.roi].name})` : ''}`.trim(), value: r[own], color: r[own] - r[other] })),
+    })).filter(group => group.children.length),
+  };
+
+  const ranked = [...regions].sort((x, y) => (x[own]) - (y[own]));
+  const calm = ranked[0], split = ranked[ranked.length - 1];
+  const name = roi => ROI_ANATOMY[roi]?.name ? ` (${ROI_ANATOMY[roi].name})` : '';
 
   // Spread of inter-subject variance across all ROIs, one ridge per cohort and variant.
   const SHORT = { kids: 'Kids', genz: 'GenZ', adults: 'Adult', older: 'Older' };
@@ -125,107 +105,39 @@ const VarianceHeatmap = ({ dataA, dataB }) => {
     { id: `${demo}-B`, label: `${SHORT[demo] || demo} B`, values: (valuesB[dIdx] || []).map(Number).filter(Number.isFinite) },
   ]).filter(item => item.values.length > 1);
 
-  // Scientific Colormaps
-  // Colours come from the variant tokens, mixed toward transparent by magnitude.
-  const mix = (token, ratio) => `color-mix(in oklab, var(${token}) ${(8 + ratio * 88).toFixed(0)}%, transparent)`;
-  const getHeatColor = (value, token) => mix(token, Math.max(0, Math.min(1, value / (globalMax || 1))));
-  const getDiffColor = (diff) => {
-    if (Math.abs(diff) < 0.0001) return 'var(--surface-muted)';
-    return mix(diff > 0 ? '--chart-a' : '--chart-b', Math.min(1, Math.abs(diff) / (maxDiff || 1)));
-  };
-
-  const getCellColor = (dIdx, rIdx) => {
-    if (activeVariant === 'A') return getHeatColor(dataA.values[dIdx]?.[rIdx] || 0, '--chart-a');
-    if (activeVariant === 'B') return getHeatColor(dataB.values[dIdx]?.[rIdx] || 0, '--chart-b');
-    return getDiffColor(diffMatrix[dIdx]?.[rIdx] || 0);
-  };
-
-  const modes = [
-    { value: 'both', label: 'A vs B' },
-    { value: 'A', label: 'Variant A' },
-    { value: 'B', label: 'Variant B' },
-  ];
-  const sorts = [
-    { value: 'default', label: 'Default' },
-    { value: 'variance', label: 'Most variance' },
-    { value: 'delta', label: 'Biggest gap' },
-  ];
-
-  const cols = `120px repeat(${processedRois.length}, minmax(18px, 1fr))`;
-  const cell = hoveredCell && {
-    roi: rawRoiLabels[hoveredCell.rIdx],
-    demo: demographics[hoveredCell.dIdx],
-    a: valuesA[hoveredCell.dIdx]?.[hoveredCell.rIdx] || 0,
-    b: valuesB[hoveredCell.dIdx]?.[hoveredCell.rIdx] || 0,
-  };
-
   return (
     <Card
       title="Response variance across viewers"
       exportName="response-variance"
       description="Low variance: the audience reacts as one. High variance: the creative is polarising."
-      actions={<SegmentedControl label="View" options={[{ value: 'grid', label: 'By region' }, { value: 'spread', label: 'Distribution' }]} value={view} onValueChange={setView} />}
+      actions={<SegmentedControl label="View" options={[{ value: 'map', label: 'By region' }, { value: 'spread', label: 'Distribution' }]} value={view} onValueChange={setView} />}
     >
-      {view === 'grid' && (<>
-      <div className="filter-row">
-        <SegmentedControl label="Heatmap mode" options={modes} value={activeVariant} onValueChange={setActiveVariant} />
-        <div className="search">
-          <SearchField label="Filter regions" placeholder="Region or network" value={searchQuery} onValueChange={setSearchQuery} />
+      {view === 'map' && (<>
+        <div className="filter-row">
+          <SegmentedControl label="Variant" options={VARIANT_OPTIONS} value={variant} onValueChange={setVariant} />
+          <div className="filter-select"><Select label="Cohort" options={COHORT_OPTIONS} value={cohort} onValueChange={setCohort} /></div>
         </div>
-        <SegmentedControl label="Sort regions" options={sorts} value={sortBy} onValueChange={setSortBy} />
-      </div>
-
-      {processedRois.length === 0 ? (
-        <EmptyState icon={null} title="No matching regions" description={`Nothing matches “${searchQuery}”. Try a region code such as V4 or a network such as Visual.`} action={<Button variant="secondary" onClick={() => setSearchQuery('')}>Clear search</Button>} />
-      ) : (
-        <div className="heatmap-wrap" onMouseLeave={() => setHoveredCell(null)}>
-          <div className="heatmap" style={{ gridTemplateColumns: cols }}>
-            {demographics.map((demo, dIdx) => (
-              <React.Fragment key={demo}>
-                <span className="heatmap-rowlabel">{DEMO_LABELS[demo] || demo}</span>
-                {processedRois.map(({ roi, idx }) => (
-                  <div
-                    key={roi}
-                    className="heatmap-cell"
-                    style={{ background: getCellColor(dIdx, idx) }}
-                    onMouseEnter={() => setHoveredCell({ dIdx, rIdx: idx })}
-                    aria-label={`${roi}, ${DEMO_LABELS[demo] || demo}`}
-                  />
-                ))}
-              </React.Fragment>
-            ))}
-            <span />
-            {processedRois.map(({ roi }) => <span key={roi} className="heatmap-collabel">{roi}</span>)}
+        <div className="treemap-colors">
+          <Treemap
+            data={tree}
+            label={`Inter-subject variance by region for Variant ${variant}, grouped by brain system`}
+            formatValue={v => `σ² ${v.toFixed(4)}`}
+            colorLabel={`More varied than Variant ${otherName} by`}
+            formatColor={v => `${v < 0 ? '\u2212' : '+'}${Math.abs(v).toFixed(4)}`}
+            height={380}
+          />
+        </div>
+        {calm && split && (
+          <div className="readout">
+            <span>Most consistent: <strong>{calm.roi}</strong>{name(calm.roi)}</span>
+            <span>Most polarising: <strong>{split.roi}</strong>{name(split.roi)}</span>
           </div>
-        </div>
-      )}
-
-      <div className="readout">
-        {cell ? (
-          <>
-            <span><strong>{cell.roi}</strong> · {ROI_ANATOMY[cell.roi]?.name || 'Cortical region'} · {DEMO_LABELS[cell.demo] || cell.demo}</span>
-            <span>A σ² <strong>{cell.a.toFixed(4)}</strong></span>
-            <span>B σ² <strong>{cell.b.toFixed(4)}</strong></span>
-            <span>Gap <strong>{cell.a >= cell.b ? '+A' : '+B'} {Math.abs(cell.a - cell.b).toFixed(4)}</strong></span>
-          </>
-        ) : (
-          <>
-            <span>Most consistent: <strong>{summaryInsights.minRoi}</strong> {ROI_ANATOMY[summaryInsights.minRoi]?.name ? `(${ROI_ANATOMY[summaryInsights.minRoi].name})` : ''}</span>
-            <span>Most polarising: <strong>{summaryInsights.maxRoi}</strong> {ROI_ANATOMY[summaryInsights.maxRoi]?.name ? `(${ROI_ANATOMY[summaryInsights.maxRoi].name})` : ''}</span>
-            <span className="heatmap-scale">
-              {activeVariant === 'both'
-                ? <><span className="chart-dot b" />B higher<span className="ramp" style={{ background: 'linear-gradient(90deg, var(--chart-b), var(--surface-muted), var(--chart-a))' }} />A higher<span className="chart-dot" /></>
-                : <>Low<span className="ramp" style={{ background: `linear-gradient(90deg, color-mix(in oklab, var(${activeVariant === 'A' ? '--chart-a' : '--chart-b'}) 8%, transparent), var(${activeVariant === 'A' ? '--chart-a' : '--chart-b'}))` }} />High</>}
-            </span>
-          </>
         )}
-      </div>
-
       </>)}
 
       {view === 'spread' && ridgeSeries.length > 0 && (
         <>
-          <p className="block-label"><strong>Variance across {rawRoiLabels.length} regions</strong><span>Narrow ridge = consensus</span></p>
+          <p className="block-label"><strong>Variance across {roiLabels.length} regions</strong><span>Narrow ridge = consensus</span></p>
           <div className="ridge-colors"><Ridgeline series={ridgeSeries} label="Distribution of inter-subject variance across regions by cohort and variant" formatValue={v => v.toFixed(3)} rowHeight={26} /></div>
         </>
       )}
