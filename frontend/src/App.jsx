@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
   fetchStatus, fetchOverview, fetchEngagement, fetchTopRois,
@@ -12,6 +12,7 @@ import DemoTimeSeries from './components/DemoTimeSeries';
 import VarianceHeatmap from './components/VarianceHeatmap';
 import CortexMonitor from './components/CortexMonitor';
 import WinnerPlayer from './components/WinnerPlayer';
+import CreativeTimeline from './components/CreativeTimeline';
 import AsymmetryPanel from './components/AsymmetryPanel';
 import ImpactScenes from './components/ImpactScenes';
 import ABSummaryPanel from './components/ABSummaryPanel';
@@ -172,6 +173,38 @@ function App() {
   // The brain opens on the winning variant once the summary arrives.
   useEffect(() => { if (abSummary) setBrainVariant(winnerOf(abSummary) === 'B' ? 'B' : 'A'); }, [abSummary]);
 
+  // The timeline's two tracks, and a key for its saved notes that changes when the data does.
+  const tracks = useMemo(() => overview ? ['A', 'B'].map(v => ({
+    variant: v,
+    overview: overview[v],
+    videoUrl: v === 'A' ? videoUrlA : videoUrlB,
+    isWinner: v === (winner === 'B' ? 'B' : 'A'),
+  })) : [], [overview, videoUrlA, videoUrlB, winner]);
+  const notesKey = overview
+    ? `rewire-notes:${overview.A.n_timesteps}-${overview.A.peak_timestep}-${overview.B.peak_timestep}-${overview.A.transcript?.length ?? 0}-${overview.B.transcript?.length ?? 0}`
+    : 'rewire-notes';
+
+  // A looped range sends the playhead back to its start whenever it reaches the end.
+  const [loopRange, setLoopRange] = useState(null);
+  useEffect(() => {
+    if (loopRange && (currentTime >= loopRange.end || currentTime < loopRange.start)) handleSeekToTimestamp(loopRange.start);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, loopRange]);
+  const playRange = (span) => {
+    setLoopRange(span);
+    if (!span) return;
+    handleSeekToTimestamp(span.start);
+    if (playerRef.current) playerRef.current.play(); else setIsPlaying(true);
+  };
+
+  const contentRef = useRef(null);
+  const openTab = (tabId, t) => {
+    setActiveTab(tabId);
+    handleSeekToTimestamp(t);
+    // After the tab renders, bring the analysis into view.
+    setTimeout(() => contentRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 0);
+  };
+
   // Without the winner's video, playback steps through the timeline once a second.
   useEffect(() => {
     if (!isPlaying || !overview || winnerVideo) return;
@@ -258,9 +291,19 @@ function App() {
             onPlayingChange={setIsPlaying}
             onAddVideo={() => setAwaitingUpload(true)}
           />
+          <CreativeTimeline
+            duration={maxTimesteps}
+            currentTime={currentTime}
+            onSeek={handleSeekToTimestamp}
+            tracks={tracks}
+            onOpenTab={openTab}
+            onPlayRange={playRange}
+            loopRange={loopRange}
+            storageKey={notesKey}
+          />
         </div>
 
-        <div className="app-content">
+        <div className="app-content" ref={contentRef}>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="content-head">
               <div>
