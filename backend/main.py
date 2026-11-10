@@ -14,7 +14,9 @@ import numpy as np
 from fastapi import FastAPI, Form, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
-from analysis import run_full_analysis, cohens_d, CONTENT_METADATA_DEFAULTS
+from pydantic import BaseModel
+
+from analysis import run_full_analysis, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
 
 # ---------------------------------------------------------------------------
 # Global cache — computed once at startup, holds both variants
@@ -290,6 +292,82 @@ def get_brain_activation(timestep: int, demographic: str = "baseline", variant: 
         "demographic": demographic,
         "variant": variant,
         "activation": activation,
+    }
+
+
+def _profiles(variant: str) -> dict:
+    profiles = _get_cache(variant).get("profiles")
+    if not profiles:
+        raise HTTPException(status_code=400, detail="No analysis is loaded yet")
+    return profiles
+
+
+@app.get("/api/ensemble")
+def get_ensemble(variant: str = "A"):
+    """Every simulated viewer of one variant: who they are and how they responded, compactly.
+
+    trajectory: whole-brain response per second; regions: time-averaged response per labelled region;
+    networks: per-second response of seven functional groups; dimensions: engagement score per dimension.
+    """
+    p = _profiles(variant)
+    r4 = lambda a: np.round(np.asarray(a, dtype=np.float64), 4).tolist()
+    regions = p["roi_tensor"][:, :, LABELLED_ROIS].mean(axis=1)
+    c = _get_cache(variant)
+    return {
+        "variant": variant,
+        "n_profiles": len(p["cohorts"]),
+        "n_timesteps": int(p["roi_tensor"].shape[1]),
+        "cohorts": p["cohorts"],
+        "cohort_order": DEMO_ORDER,
+        "cohort_labels": c.get("demo_labels", {}),
+        "roi_labels": [ROI_LABEL_NAMES[i] for i in LABELLED_ROIS],
+        "trajectory": r4(p["trajectory"]),
+        "regions": r4(regions),
+        "networks": {k: r4(v) for k, v in p["networks"].items()},
+        "dimensions": {k: r4(v) for k, v in p["dimensions"].items()},
+    }
+
+
+class EnsembleActivationRequest(BaseModel):
+    variant: str = "A"
+    timestep: int = 0
+    ids: list[int]
+    mode: str = "cluster"   # cluster, rest, or difference
+
+
+@app.post("/api/ensemble/activation")
+def ensemble_activation(req: EnsembleActivationRequest):
+    """A group of viewers' mean regional response at one second, painted onto the cortical mesh.
+
+    mode "difference" shows where the group responds more than everyone else, scaled to the mesh's colour range.
+    """
+    p = _profiles(req.variant)
+    tensor = p["roi_tensor"]
+    n, T, _ = tensor.shape
+    t = max(0, min(req.timestep, T - 1))
+    ids = sorted({i for i in req.ids if 0 <= i < n})
+    if not ids:
+        raise HTTPException(status_code=400, detail="Choose at least one profile")
+    inside = np.zeros(n, dtype=bool)
+    inside[ids] = True
+    group = tensor[inside, t].mean(axis=0)
+    rest = tensor[~inside, t].mean(axis=0) if (~inside).any() else np.zeros_like(group)
+    if req.mode == "rest":
+        values = rest
+    elif req.mode == "difference":
+        diff = group - rest
+        top = float(np.abs(diff[LABELLED_ROIS]).max()) or 1.0
+        # Only where the group is higher is painted; the colour map starts at 0.05 and saturates near 0.9.
+        values = np.where(diff > 0, 0.05 + 0.85 * diff / top, 0.0)
+    else:
+        values = group
+    values = values.astype(np.float64)
+    values[[i for i, name in enumerate(ROI_LABEL_NAMES) if name == "?"]] = 0.0
+    return {
+        "timestep": t,
+        "mode": req.mode,
+        "n_selected": len(ids),
+        "activation": np.round(values[VERTEX_ROI], 4).tolist(),
     }
 
 

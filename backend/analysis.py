@@ -6,6 +6,7 @@ All computation is pure numpy/scipy — no GPU required.
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+from scipy import sparse
 from scipy.signal import fftconvolve
 from scipy.stats import gamma as gamma_dist
 from tribev2.utils import get_hcp_labels, summarize_by_roi
@@ -17,6 +18,19 @@ from tribev2.utils import get_hcp_labels, summarize_by_roi
 _hcp_labels = get_hcp_labels(mesh="fsaverage5", combine=False, hemi="both")
 ROI_LABEL_NAMES = list(_hcp_labels.keys())
 N_ROIS = len(ROI_LABEL_NAMES)
+
+# Every vertex belongs to exactly one HCP region, so a sparse averaging matrix turns any
+# (rows, vertices) array into (rows, regions) in one multiply. "?" is the unlabelled medial wall.
+N_VERTICES = int(sum(len(v) for v in _hcp_labels.values()))
+VERTEX_ROI = np.full(N_VERTICES, -1, dtype=np.int32)
+for _r, _idx in enumerate(_hcp_labels.values()):
+    VERTEX_ROI[_idx] = _r
+ROI_AVERAGER = sparse.csr_matrix(
+    (1.0 / np.array([len(_hcp_labels[name]) for name in ROI_LABEL_NAMES])[VERTEX_ROI],
+     (np.arange(N_VERTICES), VERTEX_ROI)),
+    shape=(N_VERTICES, N_ROIS),
+)
+LABELLED_ROIS = [i for i, name in enumerate(ROI_LABEL_NAMES) if name != "?"]
 
 # Hemisphere-Aware Bias (Functional Lateralization)
 # Many ROI asymmetries are documented (language L>R, spatial attention R>L)
@@ -604,6 +618,47 @@ def compute_engagement_score(
     return scores
 
 
+NETWORK_GROUPS = [
+    ("reward", ["OFC", "p47r", "Area_47"]),
+    ("auditory", ["LBelt", "PBelt", "A1"]),
+    ("prefrontal", ["a24pr", "p32pr"]),
+    ("memory", ["EC", "PHA1", "PHA2", "PHA3"]),
+    ("narrative", ["TPOJ1", "TPOJ2", "TPOJ3", "STSda", "STSdp"]),
+    ("personal", ["PGi", "PGp", "PGs", "PCV"]),
+    ("action", ["6a", "6d", "FEF", "8Ad"]),
+]
+
+
+def build_profiles(ensembles: dict, weights: dict) -> dict:
+    """Keep a compact record of every simulated viewer before the ensembles are averaged away.
+
+    For each of the cohorts' viewers (4 x 50 = 200 by default): the per-region response at every second,
+    the whole-brain trajectory, the network trajectories, and the engagement score on each dimension.
+    """
+    cohorts, roi_parts, traj_parts = [], [], []
+    for demo in DEMO_ORDER:
+        ens = ensembles[demo]                       # (S, T, V)
+        S, T, V = ens.shape
+        flat = ens.reshape(S * T, V)
+        roi_parts.append(np.asarray(flat @ ROI_AVERAGER).reshape(S, T, N_ROIS).astype(np.float32))
+        traj_parts.append(ens.mean(axis=2).astype(np.float32))
+        cohorts += [demo] * S
+    roi_tensor = np.concatenate(roi_parts)          # (N, T, R)
+    networks = {}
+    for name, group in NETWORK_GROUPS:
+        idxs = [i for i, lbl in enumerate(ROI_LABEL_NAMES) if any(r in lbl for r in group)]
+        networks[name] = roi_tensor[:, :, idxs].mean(axis=2) if idxs else np.zeros(roi_tensor.shape[:2], np.float32)
+    scores = [compute_engagement_score(roi_tensor[n], weights=weights) for n in range(len(cohorts))]
+    dimensions = {k: np.array([sc[k] for sc in scores], np.float32) for k in scores[0]}
+    return {
+        "cohorts": cohorts,
+        "roi_tensor": roi_tensor,
+        "trajectory": np.concatenate(traj_parts),
+        "networks": networks,
+        "dimensions": dimensions,
+    }
+
+
 # =============================================================================
 # FULL PIPELINE — run once, cache everything
 # =============================================================================
@@ -719,24 +774,14 @@ def run_full_analysis(
 
     best_demo = max(engagement_scores, key=lambda d: engagement_scores[d]["overall"])
 
-    # ── 7. Demographic time-series for specific ROI groups (Cell 8) ───────
-    reward_rois = ["OFC", "p47r", "Area_47"]
-    audio_rois = ["LBelt", "PBelt", "A1"]
-    pfc_rois = ["a24pr", "p32pr"]
-    memory_rois = ["EC", "PHA1", "PHA2", "PHA3"]
+    # ── 6b. Individual profiles for the ensemble explorer ─────────────────
+    profiles = build_profiles(ensembles, active_weights)
 
+    # ── 7. Demographic time-series for specific ROI groups (Cell 8) ───────
     demo_timeseries = {}
     for demo, roi_mat in demo_roi_matrices.items():
         ts_data = {}
-        for group_name, group_rois in [
-            ("reward", reward_rois),
-            ("auditory", audio_rois),
-            ("prefrontal", pfc_rois),
-            ("memory", memory_rois),
-            ("narrative", ["TPOJ1", "TPOJ2", "TPOJ3", "STSda", "STSdp"]),
-            ("personal", ["PGi", "PGp", "PGs", "PCV"]),
-            ("action", ["6a", "6d", "FEF", "8Ad"]),
-        ]:
+        for group_name, group_rois in NETWORK_GROUPS:
             idxs = [
                 i for i, lbl in enumerate(ROI_LABEL_NAMES)
                 if any(r in lbl for r in group_rois)
@@ -809,4 +854,5 @@ def run_full_analysis(
         "demo_labels": DEMO_LABELS,
         "demo_colors": DEMO_COLORS,
         "content_profile": content_profile,
+        "profiles": profiles,
     }

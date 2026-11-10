@@ -26,6 +26,7 @@ const TABS = [
   { id: 'audiences', label: 'Audience dynamics' },
   { id: 'scenes', label: 'Key moments' },
   { id: 'regions', label: 'Brain regions' },
+  { id: 'ensemble', label: 'Neural ensemble' },
 ];
 
 const icon = (type, size = 14) => { const I = ICONS[type]; return I ? <I size={size} strokeWidth={1.75} aria-hidden="true" /> : null; };

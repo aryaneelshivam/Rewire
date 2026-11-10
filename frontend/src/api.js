@@ -91,3 +91,15 @@ export const loadSampleData = async () => {
 };
 
 export default api;
+
+/** Every simulated viewer of one variant: cohort, trajectory, regional pattern, networks and dimensions. */
+export const fetchEnsemble = async (variant = 'A') => {
+  const response = await api.get(`/ensemble?variant=${variant}`);
+  return response.data;
+};
+
+/** A group of viewers' mean regional response at one second, per vertex. mode: cluster, rest or difference. */
+export const fetchEnsembleActivation = async (variant, timestep, ids, mode = 'cluster') => {
+  const response = await api.post('/ensemble/activation', { variant, timestep, ids, mode });
+  return response.data;
+};

@@ -13,6 +13,7 @@ import VarianceHeatmap from './components/VarianceHeatmap';
 import CortexMonitor from './components/CortexMonitor';
 import WinnerPlayer from './components/WinnerPlayer';
 import CreativeTimeline from './components/CreativeTimeline';
+import EnsembleExplorer from './components/EnsembleExplorer';
 import AsymmetryPanel from './components/AsymmetryPanel';
 import ImpactScenes from './components/ImpactScenes';
 import ABSummaryPanel from './components/ABSummaryPanel';
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'audiences', label: 'Audiences', title: 'Audience dynamics', desc: 'How each age cohort responds to the two variants across eight cognitive dimensions.' },
   { id: 'scenes', label: 'Key moments', title: 'High-impact moments', desc: 'The seconds where each variant drives the strongest response.' },
   { id: 'regions', label: 'Brain regions', title: 'Brain regions', desc: 'Top cortical regions and how consistent the response is across simulated viewers.' },
+  { id: 'ensemble', label: 'Ensemble', title: 'Neural ensemble explorer', desc: 'All 200 simulated viewers, grouped by how alike they respond. Find a group and see what sets it apart.' },
 ];
 
 /** The variant that takes more cohort and dimension contests; 'TIE' when they split evenly. */
@@ -347,6 +349,10 @@ function App() {
 
             <TabsContent value="scenes">
               <ImpactScenes videoUrlA={videoUrlA} videoUrlB={videoUrlB} overviewA={overview.A} overviewB={overview.B} onSeekToTimestamp={handleSeekToTimestamp} />
+            </TabsContent>
+
+            <TabsContent value="ensemble">
+              {activeTab === 'ensemble' && <EnsembleExplorer variants={['A', 'B']} winner={winner === 'B' ? 'B' : 'A'} currentTime={currentTime} theme={theme} />}
             </TabsContent>
 
             <TabsContent value="regions">

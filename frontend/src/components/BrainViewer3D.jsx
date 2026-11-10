@@ -135,6 +135,10 @@ const BrainViewer3D = React.forwardRef(({
   autoRotate = true,
   variant = "A",
   onStats,
+  // Another source of activation (an ensemble group, say): called with the second, resolves to one value per vertex.
+  loadActivation,
+  sourceKey,
+  chipLabel,
 }, ref) => {
   const [meshData, setMeshData] = useState(null);
   const [activation, setActivation] = useState(null);
@@ -162,12 +166,14 @@ const BrainViewer3D = React.forwardRef(({
   }, []);
 
   useEffect(() => {
-    if (meshData) {
-      fetchBrainActivation(currentTime, demographic, variant).then(data => {
-        setActivation(data.activation);
-      });
-    }
-  }, [currentTime, demographic, meshData, variant]);
+    if (!meshData) return;
+    let live = true;
+    const load = loadActivation ? loadActivation(currentTime) : fetchBrainActivation(currentTime, demographic, variant).then(data => data.activation);
+    load.then(values => { if (live && values) setActivation(values); }).catch(() => {});
+    return () => { live = false; };
+  // loadActivation is identified by sourceKey, so a new function with the same source does not refetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTime, demographic, meshData, variant, sourceKey]);
 
   // Compute live cortex metrics from activation array
   const liveStats = useMemo(() => {
@@ -232,7 +238,7 @@ const BrainViewer3D = React.forwardRef(({
         <>
           <div className="vp-overlay vp-top">
             <span className="vp-chip" title={`Peak ${liveStats.peak.toFixed(2)}, ${liveStats.activePct.toFixed(1)}% active`}>
-              <i className={`vdot ${variant === 'B' ? 'b' : ''}`} />Variant {variant}
+              <i className={`vdot ${variant === 'B' ? 'b' : ''}`} />{chipLabel ?? `Variant ${variant}`}
             </span>
             <div className="vp-tools">
               <ToggleGroup
