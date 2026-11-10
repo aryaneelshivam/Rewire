@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Zap, ChevronRight, Loader2, Sparkles, Eye, Film } from 'lucide-react';
+import { Skeleton } from '@/components/arc/skeleton/skeleton';
+import { Card, VariantTag } from './ui';
 
 const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTimestamp }) => {
   const [snapshotsA, setSnapshotsA] = useState([]);
@@ -72,165 +73,49 @@ const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTime
     }
   }, [videoUrlB, topPeaksB, snapshotsB.length]);
 
-  // Infer physiological neural driver tag
-  const inferSceneTag = (ts, val) => {
-    if (val > 3.5) return 'Surge: Executive & Reward';
-    if (ts < 5) return 'Stimulus Onset & Visual Salience';
-    if (ts % 2 === 0) return 'Audio-Visual Synchrony';
-    return 'Narrative Immersion Peak';
+  const fmt = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+
+  // Frames once a video is loaded; until then, the peak moments themselves.
+  const column = (variant, videoUrl, snapshots, peaks, processing) => {
+    const items = snapshots.length ? snapshots : peaks.map(p => ({ timestamp: p.idx, activation: p.val, image: null }));
+    return (
+      <div>
+        <div className="scene-col-head">
+          <h3><VariantTag v={variant} /> Variant {variant} <span className="muted">peak z-score and time</span></h3>
+
+        </div>
+        {processing && !snapshots.length ? (
+          <Skeleton lines={4} label="Capturing frames" />
+        ) : (
+          <div className="scene-list">
+            {[...items].sort((a, b) => b.activation - a.activation).map(s => (
+              <button key={s.timestamp} type="button" className={`scene ${s.image ? '' : 'no-img'}`} onClick={() => onSeekToTimestamp(s.timestamp)} title="Jump to this moment">
+                {s.image && <img src={s.image} alt={`Variant ${variant} at ${s.timestamp}s`} />}
+                <div className="scene-meta">
+                  <strong>{s.activation.toFixed(3)}</strong>
+                </div>
+                <span className="scene-time">{fmt(s.timestamp)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const hasAnyVideo = videoUrlA || videoUrlB;
-
-  if (!hasAnyVideo) {
-    return (
-      <div className="glass-card" style={{ textAlign: 'center', padding: '64px 24px' }}>
-        <div style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: 'var(--rounded-full)',
-          backgroundColor: 'var(--surface-soft)',
-          border: '1px solid var(--hairline)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 16px',
-        }}>
-          <Film size={24} color="var(--charcoal)" />
-        </div>
-        <h3 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--ink)' }}>Upload Stimulus Videos for Keyframe Extraction</h3>
-        <p style={{ color: 'var(--body)', fontSize: '14px', maxWidth: '480px', margin: '8px auto 20px', lineHeight: 1.5 }}>
-          Rewire chronometrically aligns video keyframes with localized BOLD fMRI resonance peaks to detect which creative visual cuts drive maximal neural imprint.
-        </p>
-        <div style={{ display: 'inline-flex', gap: '8px', padding: '6px 14px', borderRadius: 'var(--rounded-full)', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--charcoal)' }}>
-          Supported: H.264 / MP4 · Upload in Left Panel Controls
-        </div>
-      </div>
-    );
-  }
-
-  const isProcessing = (isProcessingA && snapshotsA.length === 0) || (isProcessingB && snapshotsB.length === 0);
-  if (isProcessing) {
-    return (
-      <div className="glass-card" style={{ textAlign: 'center', padding: '64px 24px' }}>
-        <Loader2 className="animate-spin" size={28} style={{ color: '#000000', marginBottom: '16px' }} />
-        <h3>Extracting Neural Peaks from Video Stream...</h3>
-        <p style={{ color: 'var(--body)', fontSize: '14px', marginTop: '6px', fontFamily: 'var(--font-mono)' }}>
-          Decoding keyframes at peak BOLD timestamps via HTML5 Canvas.
-        </p>
-      </div>
-    );
-  }
-
-  const renderColumn = (label, isVariantA, snapshots, variant) => (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className={isVariantA ? "variant-badge-a" : "variant-badge-b"}>{variant}</span>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--ink)' }}>{label}</h3>
-        </div>
-        <span className="command-tag" style={{ fontSize: '10px' }}>
-          {snapshots.length} Detected Peaks
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {snapshots.map((s, i) => {
-          const tag = inferSceneTag(s.timestamp, s.activation);
-          return (
-            <div
-              key={i}
-              className="snapshot-card"
-              onClick={() => onSeekToTimestamp(s.timestamp)}
-              style={{
-                boxShadow: 'var(--shadow-card)',
-                transition: 'var(--transition-smooth)'
-              }}
-            >
-              <div className="snapshot-image-container">
-                <img src={s.image} alt={`Peak at ${s.timestamp}s`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div className="snapshot-time-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Eye size={10} />
-                  <span>{Math.floor(s.timestamp / 60)}:{(s.timestamp % 60).toString().padStart(2, '0')}s</span>
-                </div>
-              </div>
-
-              <div className="snapshot-info" style={{ padding: '14px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    color: isVariantA ? '#000000' : '#525252',
-                    fontFamily: 'var(--font-mono)',
-                    backgroundColor: 'var(--surface-soft)',
-                    padding: '2px 8px',
-                    borderRadius: 'var(--rounded-full)',
-                    border: '1px solid var(--hairline)'
-                  }}>
-                    {tag}
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
-                    t={s.timestamp}s
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '6px' }}>
-                  <div>
-                    <span style={{ fontSize: '10px', color: 'var(--mute)', display: 'block', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-                      Peak BOLD z
-                    </span>
-                    <span style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--ink)' }}>
-                      +{s.activation.toFixed(3)}
-                    </span>
-                  </div>
-
-                  <button className="pill-btn" style={{ height: '26px', fontSize: '11px', padding: '0 10px' }}>
-                    Seek Cortex <ChevronRight size={12} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   return (
-    <div>
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <span className="command-tag" style={{ fontSize: '10px', padding: '2px 8px' }}>
-            KEYFRAME BENCHMARKING
-          </span>
-          <span style={{ fontSize: '11px', color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}>
-            Maximal Cortical Intensity Synchronization
-          </span>
-        </div>
-        <h2>High Impact Moments — A/B Stimulus Comparison</h2>
-        <p style={{ color: 'var(--body)', fontSize: '13px', marginTop: '2px' }}>
-          Keyframes extracted at peaks of cortical resonance. Click any moment to jump the video and 3D cortex mesh to that exact timestamp.
-        </p>
+    <Card
+      title="Strongest moments per variant"
+      exportName="key-moments"
+      description={videoUrlA || videoUrlB
+        ? 'Six highest-activation seconds per variant. Select one to move the playhead there.'
+        : 'Six highest-activation seconds per variant. Select one to move the playhead there. Add the videos in the cortex monitor to see each frame.'}
+    >
+      <div className="scene-cols">
+        {column('A', videoUrlA, snapshotsA, topPeaksA, isProcessingA)}
+        {column('B', videoUrlB, snapshotsB, topPeaksB, isProcessingB)}
       </div>
-
-      <div style={{ display: 'flex', gap: '20px' }}>
-        {snapshotsA.length > 0 ? (
-          renderColumn('Variant A Keyframes', true, snapshotsA, 'A')
-        ) : (
-          <div style={{ flex: 1, textAlign: 'center', padding: '40px 20px', color: 'var(--mute)', fontSize: '13px', border: '1px dashed var(--hairline)', borderRadius: '12px' }}>
-            {videoUrlA ? 'Extracting Variant A Keyframes...' : 'Upload Video A in left panel to extract peak keyframes'}
-          </div>
-        )}
-
-        {snapshotsB.length > 0 ? (
-          renderColumn('Variant B Keyframes', false, snapshotsB, 'B')
-        ) : (
-          <div style={{ flex: 1, textAlign: 'center', padding: '40px 20px', color: 'var(--mute)', fontSize: '13px', border: '1px dashed var(--hairline)', borderRadius: '12px' }}>
-            {videoUrlB ? 'Extracting Variant B Keyframes...' : 'Upload Video B in left panel to extract peak keyframes'}
-          </div>
-        )}
-      </div>
-    </div>
+    </Card>
   );
 };
 
