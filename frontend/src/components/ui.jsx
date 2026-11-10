@@ -92,7 +92,7 @@ export function Card({ title, description, actions, exportName, children, classN
 /** Variant A carries the accent; Variant B stays neutral. */
 export function VariantTag({ v, children }) {
   if (v === 'TIE' || v === '=') return <Badge size="sm">{children ?? 'Tie'}</Badge>;
-  return <Badge size="sm" tone={v === 'A' ? 'info' : 'neutral'}>{children ?? v}</Badge>;
+  return <Badge size="sm" tone={v === 'A' ? 'info' : 'neutral'} className={v === 'B' ? 'badge-b' : undefined}>{children ?? v}</Badge>;
 }
 
 export function VariantLegend() {
@@ -110,7 +110,7 @@ export function BarRow({ variant, value, max, format = v => v.toFixed(3) }) {
     <div className="bar-row">
       <span>{variant}</span>
       <div className={`bar ${variant === 'B' ? 'b' : ''}`}><span style={{ width: `${pct}%` }} /></div>
-      <span className="num">{format(value)}</span>
+      <span className={`num ${variant === 'B' ? 'num-b' : 'num-a'}`}>{format(value)}</span>
     </div>
   );
 }

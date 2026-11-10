@@ -14,29 +14,29 @@ const ABSummaryPanel = ({ data }) => {
     if (d.winner === 'A') aWins++; else if (d.winner === 'B') bWins++;
   }));
   const winner = aWins > bWins ? 'A' : bWins > aWins ? 'B' : 'TIE';
-  const lead = (a, b) => `Variant ${a >= b ? 'A' : 'B'} +${leadPct(a, b).toFixed(0)}%`;
+  const lead = (a, b) => <span className={a >= b ? 'num-a' : 'num-b'}>{`Variant ${a >= b ? 'A' : 'B'} +${leadPct(a, b).toFixed(0)}%`}</span>;
 
   return (
     <section className="verdict" aria-labelledby="verdict-title">
       <div className="verdict-copy">
-        <h2 id="verdict-title">{winner === 'TIE' ? 'The variants are evenly matched' : `Variant ${winner} drives stronger engagement`}</h2>
+        <h2 id="verdict-title">{winner === 'TIE' ? 'The variants are evenly matched' : <><span className={winner === 'A' ? 'num-a' : 'num-b'}>Variant {winner}</span> drives stronger engagement</>}</h2>
         <p>Predicted whole-brain response across 200 simulated viewers.</p>
       </div>
       <dl className="stat-strip">
         <div>
           <dt>Mean activation, A</dt>
-          <dd><AnimatedCounter value={A_global_mean} decimals={3} animateOnView /></dd>
-          <dd className="stat-note">B {B_global_mean.toFixed(3)} · {lead(A_global_mean, B_global_mean)}</dd>
+          <dd className="stat-value-a"><AnimatedCounter value={A_global_mean} decimals={3} animateOnView /></dd>
+          <dd className="stat-note">B <span className="num-b">{B_global_mean.toFixed(3)}</span> · {lead(A_global_mean, B_global_mean)}</dd>
         </div>
         <div>
           <dt>Peak activation, A</dt>
-          <dd><AnimatedCounter value={A_peak_activation} decimals={3} animateOnView /></dd>
-          <dd className="stat-note">B {B_peak_activation.toFixed(3)} · {lead(A_peak_activation, B_peak_activation)}</dd>
+          <dd className="stat-value-a"><AnimatedCounter value={A_peak_activation} decimals={3} animateOnView /></dd>
+          <dd className="stat-note">B <span className="num-b">{B_peak_activation.toFixed(3)}</span> · {lead(A_peak_activation, B_peak_activation)}</dd>
         </div>
         <div>
           <dt>Contests won, A</dt>
-          <dd><AnimatedCounter value={aWins} suffix={`\u00a0of ${total}`} animateOnView /></dd>
-          <dd className="stat-note">B won {bWins}{total - aWins - bWins ? `, ${total - aWins - bWins} tied` : ''}</dd>
+          <dd className="stat-value-a"><AnimatedCounter value={aWins} suffix={`\u00a0of ${total}`} animateOnView /></dd>
+          <dd className="stat-note">B won <span className="num-b">{bWins}</span>{total - aWins - bWins ? `, ${total - aWins - bWins} tied` : ''}</dd>
         </div>
       </dl>
     </section>

@@ -121,11 +121,16 @@ function App() {
     }
   };
 
-  const handleFileChange = (variant) => (files) => {
-    const file = files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    if (variant === 'A') setVideoUrlA(url); else setVideoUrlB(url);
+  // Videos are chosen on the data screen. A new file replaces the current one; leaving a slot empty keeps what is loaded.
+  const [videoNames, setVideoNames] = useState({ A: null, B: null });
+  const applyVideos = (videos = {}) => {
+    ['A', 'B'].forEach(v => {
+      const file = videos[v];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      (v === 'A' ? setVideoUrlA : setVideoUrlB)(old => { if (old) URL.revokeObjectURL(old); return url; });
+      setVideoNames(names => ({ ...names, [v]: file.name }));
+    });
   };
 
   const handleTimeUpdate = (e) => {
@@ -181,7 +186,13 @@ function App() {
   }, [isPlaying, overview, videoUrlA, videoUrlB]);
 
   if (awaitingUpload) {
-    return <UploadDataScreen onUploadComplete={() => loadData()} onCancel={overview ? () => setAwaitingUpload(false) : undefined} />;
+    return (
+      <UploadDataScreen
+        currentVideos={videoNames}
+        onUploadComplete={videos => { applyVideos(videos); loadData(); }}
+        onCancel={overview ? videos => { applyVideos(videos); setAwaitingUpload(false); } : undefined}
+      />
+    );
   }
 
   if (loading) {
@@ -207,21 +218,12 @@ function App() {
   const maxTimesteps = Math.max(overview.A.n_timesteps, overview.B.n_timesteps);
   const tab = TABS.find(t => t.id === activeTab);
 
-  const videoRow = (variant, url, ref) => (
-    <div className="video-row">
-      <span className="video-label">Video {variant}</span>
-      {url ? (
-        <>
-          <video ref={ref} src={url} muted playsInline onTimeUpdate={handleTimeUpdate} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} aria-label={`Variant ${variant} video`} />
-          <Button variant="ghost" size="sm" onClick={() => (variant === 'A' ? setVideoUrlA : setVideoUrlB)(null)}>Remove</Button>
-        </>
-      ) : (
-        <label className="file-button">
-          Add MP4
-          <input type="file" accept="video/mp4" onChange={e => handleFileChange(variant)(e.target.files)} />
-        </label>
-      )}
-    </div>
+  const hasVideo = videoUrlA || videoUrlB;
+  const videoTile = (variant, url, ref) => url && (
+    <figure className="video-tile">
+      <video ref={ref} src={url} muted playsInline onTimeUpdate={handleTimeUpdate} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} aria-label={`Variant ${variant} video`} />
+      <figcaption>Variant {variant}</figcaption>
+    </figure>
   );
 
   return (
@@ -285,10 +287,11 @@ function App() {
             <LivePulsePanel currentTime={currentTime} overviewA={overview.A} overviewB={overview.B} />
           </div>
 
-          <div className="aside-section">
-            <h3 className="aside-title">Stimulus videos</h3>
-            <div className="video-list">{videoRow('A', videoUrlA, vRefA)}{videoRow('B', videoUrlB, vRefB)}</div>
-          </div>
+          {hasVideo && (
+            <div className="aside-section">
+              <div className="video-tiles">{videoTile('A', videoUrlA, vRefA)}{videoTile('B', videoUrlB, vRefB)}</div>
+            </div>
+          )}
         </aside>
 
         <div className="app-content">

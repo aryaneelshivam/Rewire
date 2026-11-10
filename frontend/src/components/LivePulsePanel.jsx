@@ -24,8 +24,8 @@ const LivePulsePanel = ({ currentTime, overviewA, overviewB }) => {
         {rows.map(([v, r]) => (
           <tr key={v}>
             <th scope="row"><VariantTag v={v} /></th>
-            <td className="num">{r.intensity.toFixed(3)}</td>
-            <td className="num">{(r.density * 100).toFixed(1)}%</td>
+            <td className={`num num-${v.toLowerCase()}`}>{r.intensity.toFixed(3)}</td>
+            <td className={`num num-${v.toLowerCase()}`}>{(r.density * 100).toFixed(1)}%</td>
           </tr>
         ))}
       </tbody>

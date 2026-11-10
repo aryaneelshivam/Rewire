@@ -26,9 +26,10 @@ const KeyMetricsPanel = ({ overview, engagement, demographics }) => {
     row('peakAt', 'Peak moment', s.A.peakAt, s.B.peakAt, v => `${v}s`, false),
     row('audience', 'Top audience', s.A.audience, s.B.audience, v => v, false),
   ];
-  const cell = (value, won) => won
-    ? <td className="num"><strong className="win">{value}</strong><span className="sr-only"> (higher)</span></td>
-    : <td className="num">{value}</td>;
+  // Each column wears its variant's colour; the higher value of a pair is set heavier and named for screen readers.
+  const cell = (value, won, side) => (
+    <td className={`num num-${side} ${won ? 'won' : 'lost'}`}>{value}{won && <span className="sr-only"> (higher)</span>}</td>
+  );
 
   return (
     <Card title="Key numbers" className="fill">
@@ -41,8 +42,8 @@ const KeyMetricsPanel = ({ overview, engagement, demographics }) => {
           {rows.map(r => (
             <tr key={r.id}>
               <th scope="row">{r.metric}</th>
-              {cell(r.a, r.win === 'a')}
-              {cell(r.b, r.win === 'b')}
+              {cell(r.a, r.win === 'a', 'a')}
+              {cell(r.b, r.win === 'b', 'b')}
             </tr>
           ))}
         </tbody>

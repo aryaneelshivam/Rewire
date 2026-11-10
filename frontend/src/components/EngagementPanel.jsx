@@ -44,9 +44,9 @@ const EngagementPanel = ({ dataA, dataB }) => {
         className="seg-wrap"
         value={current.id}
         onValueChange={setCohortId}
-        options={cohorts.map(c => ({ value: c.id, label: c.short, accessory: <span className="seg-note">{leadText(c)}</span> }))}
+        options={cohorts.map(c => ({ value: c.id, label: c.short, accessory: <span className={`seg-note ${c.winner === 'B' ? 'num-b' : c.winner === 'A' ? 'num-a' : ''}`}>{leadText(c)}</span> }))}
       />
-      <p className="cohort-caption">{current.label}: {current.note.toLowerCase()}. Overall {leadText(current)}.</p>
+      <p className="cohort-caption">{current.label}: {current.note.toLowerCase()}. Overall <span className={current.winner === 'B' ? 'num-b' : 'num-a'}>{leadText(current)}</span>.</p>
       {/* The highlighted swing takes the colour of the variant it favours. */}
       <div style={{ '--series-1': current.swing && current.swing.end > current.swing.start ? 'var(--chart-b)' : 'var(--chart-a)' }}>
       <SlopeChart

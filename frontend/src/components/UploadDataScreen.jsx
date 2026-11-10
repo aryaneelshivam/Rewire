@@ -35,9 +35,13 @@ const CONTENT_TYPE_OPTIONS = [
   { value: 'short_form', label: 'Short Form' },
 ];
 
-const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
+const UploadDataScreen = ({ onUploadComplete, onCancel, currentVideos = {} }) => {
   const [fileA, setFileA] = useState(null);
   const [fileB, setFileB] = useState(null);
+  // Optional stimulus videos. They never leave the browser: the dashboard plays them in sync with the predictions.
+  const [videoA, setVideoA] = useState(null);
+  const [videoB, setVideoB] = useState(null);
+  const videos = () => ({ A: videoA, B: videoB });
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
   const [error, setError] = useState(null);
@@ -66,7 +70,7 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
       await uploadPredictions(fileA, fileB, metaA, metaB);
       const status = await fetchStatus();
       if (status.loaded) {
-        onUploadComplete();
+        onUploadComplete(videos());
       } else {
         setError("The backend finished but returned no results. Check the backend logs and try again.");
       }
@@ -85,7 +89,7 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
       await loadSampleData();
       const status = await fetchStatus();
       if (status.loaded) {
-        onUploadComplete();
+        onUploadComplete(videos());
       } else {
         setError("The sample data loaded but returned no results. Try again.");
       }
@@ -107,60 +111,65 @@ const UploadDataScreen = ({ onUploadComplete, onCancel }) => {
     </div>
   );
 
-  const dropzone = (variant, setFile) => (
-    <div className="dropzone-col">
-      <h3 className="aside-title">Variant {variant}</h3>
-      <FileDropzone
-        accept=".pkl"
-        multiple={false}
-        maxFiles={1}
-        label={`Add Variant ${variant} predictions`}
-        description="Drop the .pkl file or choose it from your device"
-        note="One .pkl prediction file"
-        onFilesChange={files => setFile(files[0] ?? null)}
-      />
-    </div>
-  );
+  const column = (variant, setFile, video, setVideo) => {
+    const existing = currentVideos[variant];
+    return (
+      <section className="variant-col" aria-labelledby={`variant-${variant}`}>
+        <h2 id={`variant-${variant}`}>Variant {variant}</h2>
+        <FileDropzone
+          accept=".pkl"
+          multiple={false}
+          maxFiles={1}
+          label="Add predictions"
+          description="Drop the .pkl file or choose it"
+          note="Required"
+          onFilesChange={files => setFile(files[0] ?? null)}
+        />
+        <div className="video-pick">
+          <div>
+            <span className="video-pick-label">Stimulus video</span>
+            <span className="video-pick-name">{video ? video.name : existing ? `${existing} (current)` : 'Optional. Plays in sync with the results.'}</span>
+          </div>
+          <label className="file-button">
+            {video || existing ? 'Replace' : 'Add MP4'}
+            <input type="file" accept="video/mp4" onChange={e => setVideo(e.target.files[0] ?? null)} />
+          </label>
+        </div>
+      </section>
+    );
+  };
 
   return (
     <main className="onboard">
-      <div className="onboard-card">
-        <div className="onboard-brand">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" /><path d="M9 21h6" />
-          </svg>
-          Rewire
-        </div>
-
-        <div>
+      <div className="onboard-inner">
+        <p className="onboard-brand">Rewire</p>
+        <header className="onboard-head">
           <h1>Compare two creatives</h1>
           <p className="onboard-lede">Add the brain-response predictions for each video, or start with the sample pair.</p>
+        </header>
+
+        <div className="variant-cols">
+          {column('A', setFileA, videoA, setVideoA)}
+          {column('B', setFileB, videoB, setVideoB)}
         </div>
 
-        <section className="card onboard-form" aria-label="Prediction files">
-          <div className="dropzones">
-            {dropzone('A', setFileA)}
-            {dropzone('B', setFileB)}
+        <Accordion
+          defaultOpen={-1}
+          items={[{
+            title: 'Creative details (optional)',
+            content: <div className="meta-grid">{metaFields('A', metaA, setMetaA)}{metaFields('B', metaB, setMetaB)}</div>,
+          }]}
+        />
+
+        {error && <Alert tone="danger" title="The analysis did not run">{error}</Alert>}
+
+        <div className="onboard-actions">
+          <Button variant="secondary" loading={isLoadingSamples} disabled={isUploading} onClick={handleLoadSamples}>Use sample data</Button>
+          <div className="onboard-actions-end">
+            {onCancel && <Button variant="ghost" onClick={() => onCancel(videos())}>Back to results</Button>}
+            <Button loading={isUploading} disabled={!fileA || !fileB || isLoadingSamples} onClick={handleUpload}>Run analysis</Button>
           </div>
-
-          <Accordion
-            defaultOpen={-1}
-            items={[{
-              title: 'Creative details (optional)',
-              content: <div className="meta-grid">{metaFields('A', metaA, setMetaA)}{metaFields('B', metaB, setMetaB)}</div>,
-            }]}
-          />
-
-          {error && <Alert tone="danger" title="The analysis did not run">{error}</Alert>}
-
-          <div className="onboard-actions">
-            <Button variant="secondary" loading={isLoadingSamples} disabled={isUploading} onClick={handleLoadSamples}>Use sample data</Button>
-            <div className="onboard-actions-end">
-              {onCancel && <Button variant="ghost" onClick={onCancel}>Back to results</Button>}
-              <Button loading={isUploading} disabled={!fileA || !fileB || isLoadingSamples} onClick={handleUpload}>Run analysis</Button>
-            </div>
-          </div>
-        </section>
+        </div>
       </div>
     </main>
   );

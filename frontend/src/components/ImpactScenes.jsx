@@ -92,7 +92,7 @@ const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTime
               <button key={s.timestamp} type="button" className={`scene ${s.image ? '' : 'no-img'}`} onClick={() => onSeekToTimestamp(s.timestamp)} title="Jump to this moment">
                 {s.image && <img src={s.image} alt={`Variant ${variant} at ${s.timestamp}s`} />}
                 <div className="scene-meta">
-                  <strong>{s.activation.toFixed(3)}</strong>
+                  <strong className={variant === 'B' ? 'num-b' : 'num-a'}>{s.activation.toFixed(3)}</strong>
                 </div>
                 <span className="scene-time">{fmt(s.timestamp)}</span>
               </button>
@@ -109,7 +109,7 @@ const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTime
       exportName="key-moments"
       description={videoUrlA || videoUrlB
         ? 'Six highest-activation seconds per variant. Select one to move the playhead there.'
-        : 'Six highest-activation seconds per variant. Select one to move the playhead there. Add the videos in the cortex monitor to see each frame.'}
+        : 'Six highest-activation seconds per variant. Select one to move the playhead there. Add the videos under Change data to see each frame.'}
     >
       <div className="scene-cols">
         {column('A', videoUrlA, snapshotsA, topPeaksA, isProcessingA)}

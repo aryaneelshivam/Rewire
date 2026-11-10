@@ -204,9 +204,9 @@ const VarianceHeatmap = ({ dataA, dataB }) => {
         {cell ? (
           <>
             <span><strong>{cell.roi}</strong> · {ROI_ANATOMY[cell.roi]?.name || 'Cortical region'} · {DEMO_LABELS[cell.demo] || cell.demo}</span>
-            <span>A σ² <strong>{cell.a.toFixed(4)}</strong></span>
-            <span>B σ² <strong>{cell.b.toFixed(4)}</strong></span>
-            <span>Gap <strong>{cell.a >= cell.b ? '+A' : '+B'} {Math.abs(cell.a - cell.b).toFixed(4)}</strong></span>
+            <span>A σ² <strong className="num-a">{cell.a.toFixed(4)}</strong></span>
+            <span>B σ² <strong className="num-b">{cell.b.toFixed(4)}</strong></span>
+            <span>Gap <strong className={cell.a >= cell.b ? 'num-a' : 'num-b'}>{cell.a >= cell.b ? '+A' : '+B'} {Math.abs(cell.a - cell.b).toFixed(4)}</strong></span>
           </>
         ) : (
           <>
