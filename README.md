@@ -1,163 +1,142 @@
-# Rewire: Neural Intelligence & Neuromarketing Analytics 🧠🚀
+# Rewire
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/aryaneelshivam/Rewire)
 
-**Rewire** is a professional-grade neuromarketing platform that eliminates guesswork in creative A/B testing. By leveraging state-of-the-art deep learning (Meta's Tribe v2) and biologically-grounded demographic synthesis, Rewire predicts exactly how human brains respond to video content—before you spend a single rupee on ad placements.
+Rewire compares two video creatives by their predicted brain response. A neural encoder predicts cortical activity second by second across 20,484 points on the brain's surface, and Rewire expands that prediction into 200 simulated viewers across four age cohorts. The dashboard then shows which creative wins, for whom, and at which moments, before any media is bought.
 
-![Rewire Demo](./demovideorewire.mp4)
-
-## 📸 Platform Interface
-
-| ![A/B Test Verdict](./demo1.png) | ![Demographic Dynamics](./demo2.png) |
-|:---:|:---:|
-| *A/B Test Verdict & 3D Brain* | *A/B Demographic Trajectories* |
-
-| ![Engagement Comparison](./demo3.png) | ![High Impact Moments](./demo4.png) |
-|:---:|:---:|
-| *A/B Engagement Comparison* | *High Impact Moments — A/B Comparison* |
-
-| ![Top ROIs](./demo5.png) | ![Neural Variance](./demo6.png) |
-|:---:|:---:|
-| *Top Regions of Interest (ROIs)* | *Neural Variance Topology* |
-
-| ![Dimensional Lead](./demo7.png) |
-|:---:|
-| *Dimensional Lead Analysis* |
+All results are predictions for simulated viewers, not measurements of real people.
 
 ---
 
-## 🌟 Key Features
+## What it does
 
-- **fMRI-Grade Predictions**: Uses high-dimensional deep learning to simulate cortical activation across 20,484 vertices.
-- **200-Brain Synthetic Ensemble**: Reconstructs heterogeneous audience cohorts (Kids, Gen Z, Adults, Older) with realistic neural variance.
-- **3D Neuronal Mapping**: Real-time cortical activation visualization on a 3D brain mesh (using Three.js).
-- **A/B Testing Engine**: Head-to-head comparison of two video variants across 9 cognitive benchmarks.
-- **Automated Strategy Reports**: One-click generation of professional PDF-ready reports with peak activation timestamps and demographic wins.
-- **Neural Blindspot Audit**: Identifies low-engagement "dead zones" to optimize media spend.
+- **Head-to-head verdict**: names the stronger creative across eight cognitive dimensions and four age cohorts (32 contests), with mean activation, peak activation and contests won.
+- **Cortex monitor**: a 3D brain showing the predicted response at the playhead, with the active share of the surface, mean and peak response, and the left-right balance. Filter by variant and cohort.
+- **Winning-creative player**: the winning video plays beside the brain and drives the playhead for the whole dashboard.
+- **Creative timeline**: a filmstrip of each variant, split into scenes and narrative sections (opening hook, development, close), with markers for dialogue, scene cuts, sound changes, brand mentions, calls to action and sharp shifts in predicted response. Click to seek, drag to select a range, loop a range, bookmark moments, add notes, and jump from any moment into the matching analysis tab. It opens on the winner; more variants can be added to align them on one axis.
+- **Neural ensemble explorer**: all 200 simulated viewers as a 3D graph, each joined to the viewers who respond most like them. Groups are found by clustering on the response over time, the regional pattern, a chosen segment, or the analytical dimensions. Select a group to see its brain response, how its viewers are spread, its cohort mix, and the dimensions and regions that set it apart from everyone else.
+- **Analysis tabs**: Overview, Audiences, Key moments, Brain regions and Ensemble, covering whole-brain response, approach versus avoidance, engagement by cohort and dimension, the strongest moments with video frames, top regions, and how consistent the response is across viewers.
+- **Exports**: every chart downloads as a PNG, and the full analysis exports as a printable report.
+- **Light and dark themes**, meeting WCAG AA contrast.
 
----
-
-## 🏗️ Technical Architecture
-
-Rewire operates on a sophisticated three-stage neural pipeline:
-
-### 1. Neural Ingestion (Tribe v2 Inference)
-Powered by **Meta's Tribe v2** model running on **Nvidia L4 GPUs** (via Modal). It transforms raw video/audio frames into high-resolution Z-scores of predicted cortical activity.
-
-### 2. Demographic Synthesis (Analysis Engine V3)
-Our proprietary engine (`backend/analysis.py`) applies biologically-grounded realism to raw predictions:
-- **Temporal Latency**: Staggers peaks to reflect real-world processing speeds (+3s for Kids, +5s for Older).
-- **AR(1) Autocorrelation**: Mimics the "Pink Noise" of real fMRI BOLD signals.
-- **Network Coherence**: Uses Cholesky Decomposition to ensure functional hubs (Reward, Visual, DMN) fire as unified clusters.
-- **Sigmoidal Saturation**: Applies firing caps to prevent unrealistic data spikes.
-
-### 3. Intelligence Dashboard
-A unified interface built with **React** and **FastAPI** that distills complex neural data into marketing-actionable metrics.
-
-### 🔄 System Workflow & Logic
-![Neural Processing Pipeline](./flowchart1.png)
-*Figure 1: High-level neural processing and data flow.*
-
-![Ensemble Generation Logic](./flowchart2.png)
-*Figure 2: Biological synthesis and demographic ensemble generation logic.*
+Videos are only read in the browser to build the filmstrip, find scene cuts and detect sound changes. They are never uploaded.
 
 ---
 
-## 🛠️ Tech Stack
+## How it works
 
-### Backend
-- **Core**: Python 3.9+, FastAPI
-- **Processing**: NumPy, SciPy, Joblib
-- **Visualization (Notebooks/Dev)**: Plotly, Matplotlib, Nilearn
-- **Inference**: Modal (Cloud GPU)
+### 1. Prediction
+`modal_inference.py` runs the neural encoder on a cloud GPU (via Modal). It turns a video's frames and audio into per-second z-scores of predicted cortical activity, saved as a `.pkl` file per creative.
 
-### Frontend
-- **Framework**: React 19 (Vite)
-- **3D Rendering**: React Three Fiber, Three.js
-- **Charts**: Recharts
-- **Icons**: Lucide-React
-- **State Management**: React Hooks
+### 2. Audience synthesis
+`backend/analysis.py` expands one prediction into 200 simulated viewers: 50 for each cohort (Kids 6 to 12, Gen Z 13 to 24, Adults 25 to 54, Older 55+). Each viewer gets:
+- **Processing latency** that shifts response timing by cohort.
+- **Individual differences** from a latent-factor profile per region.
+- **Haemodynamic blurring** with a jittered response peak.
+- **Attention fatigue** that recovers at detected events.
+- **Realistic noise**: blended 1/f and AR(1) noise, coupled within functional networks over time.
+- **Hemisphere biases** and **saturation caps** so responses stay plausible.
+
+Optional creative details (genre, format, pacing, audio) adjust these rules.
+
+### 3. Scoring
+Responses are averaged over 180 cortical regions and scored on eight dimensions: visual, auditory, reward, memory, attention, narrative, self-relevance and action, plus an overall score. Variants are compared on every cohort and dimension pair.
+
+### 4. Dashboard
+A FastAPI backend serves the analysis; a React frontend presents it.
 
 ---
 
-## 🚀 Getting Started
+## Tech stack
 
-### 1. Backend Setup
+**Backend**: Python, FastAPI, NumPy, SciPy, Nilearn, Joblib. Inference runs on Modal.
+
+**Frontend**: React 19 with Vite, the Arc design system (uiarc.dev) for components and charts, React Three Fiber and Three.js for the brain and the ensemble graph, Radix primitives, html-to-image for PNG export, and Lucide icons.
+
+---
+
+## Getting started
+
+### 1. Backend
 ```bash
-# Navigate to backend
 cd backend
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Start the API server
-uvicorn main:app --reload --port 8000
+uvicorn main:app --port 8000
 ```
+On start, the backend loads the sample predictions (`brand_A_predictions.pkl`, `brand_B_predictions.pkl`) so the dashboard has data straight away. Building the 200-viewer ensembles takes a short while.
 
-### 2. Frontend Setup
+### 2. Frontend
 ```bash
-# Navigate to frontend
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start the development server
 npm run dev
 ```
+Then open http://localhost:5173.
 
-### 3. Optional: Streamlit Dashboard
-For deep-dive exploration of the synthesis engine:
+### 3. Optional: Streamlit explorer
+For exploring the synthesis engine directly:
 ```bash
 streamlit run app.py
 ```
 
 ---
 
-## 📂 Project Structure
+## Using Rewire
+
+1. **Predict**: run `modal_inference.py` on each video to produce its `.pkl` predictions.
+2. **Add data**: on the start screen, add the `.pkl` file for Variant A and Variant B, and optionally each variant's MP4. Or choose **Use sample data**.
+3. **Read the verdict**: the Overview tab names the winner and the numbers behind it.
+4. **Watch and scrub**: play the winning creative; the brain, gauge and readouts follow the playhead. Use the timeline to jump to scenes, dialogue and response shifts.
+5. **Dig in**: compare cohorts and dimensions in Audiences, find the strongest seconds in Key moments, and check regions and consistency in Brain regions.
+6. **Explore the ensemble**: in the Ensemble tab, find groups of viewers who respond alike and see what makes each group different.
+7. **Share**: download any chart as a PNG, or choose **Export report**.
+
+---
+
+## API
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/status` | Whether an analysis is loaded |
+| `POST /api/upload-predictions` | Runs the analysis on two uploaded `.pkl` files and optional creative details |
+| `POST /api/load-sample-data` | Loads the bundled sample pair |
+| `GET /api/overview` | Per-second metrics, peak and transcript for each variant |
+| `GET /api/ab-summary` | Verdict data and every cohort and dimension contest |
+| `GET /api/engagement` | Engagement scores by cohort and dimension |
+| `GET /api/timeseries` | Network response over time by cohort |
+| `GET /api/top-rois` | Top regions with their time series |
+| `GET /api/heatmap` | Response variance across viewers by region and cohort |
+| `GET /api/demographics` | Cohort labels and colours |
+| `GET /api/brain-mesh` | The cortical surface mesh |
+| `GET /api/brain-activation/{t}` | Activation per vertex at one second, for a variant and cohort |
+| `GET /api/ensemble` | All 200 simulated viewers: cohort, trajectory, regional pattern, networks and dimension scores |
+| `POST /api/ensemble/activation` | A group of viewers' mean regional response at one second: the group, everyone else, or where the group is higher |
+
+---
+
+## Project structure
 
 ```text
-tribeRewire/
+Rewire/
 ├── backend/
-│   ├── main.py            # FastAPI Entry Point
-│   ├── analysis.py        # Core Synthesis & Scoring Engine
-│   └── requirements.txt   # Python Dependencies
+│   ├── main.py              # FastAPI app and endpoints
+│   ├── analysis.py          # Audience synthesis, scoring and ensemble profiles
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx        # Main UI Logic
-│   │   ├── components/    # Reusable UI Components
-│   │   └── api.js         # API Client
-│   └── package.json       # JS Dependencies
-├── app.py                 # Streamlit Exploration Tool
-├── modal_inference.py     # Cloud Inference Interface
-└── process.md             # Detailed Technical Documentation
+│   │   ├── App.jsx          # Layout, playhead and tabs
+│   │   ├── api.js           # API client
+│   │   ├── components/      # Panels, brain viewer, player, timeline, ensemble explorer
+│   │   │   └── arc/         # Arc design system components
+│   │   ├── lib/             # Chart data, timeline detection, video analysis, clustering
+│   │   └── index.css        # Layout on top of Arc's tokens
+│   └── package.json
+├── app.py                   # Streamlit explorer
+├── modal_inference.py       # Cloud inference
+└── process.md               # Technical notes
 ```
 
 ---
 
-## 📊 User Flow
-
-1. **Inference**: Run `modal_inference.py` to generate `.pkl` prediction files from your video assets.
-2. **Upload**: Open the Rewire Dashboard and upload the `.pkl` files for Variant A and Variant B.
-3. **Analyze**: Explore the **A/B Overview** to see global activation peaks and hemisphere asymmetry.
-4. **Targeting**: Switch to **Demographic Dynamics** to see which variant wins for specific age groups (e.g., "Gen Z responds 15% better to Variant B in Reward evaluation").
-5. **Optimize**: Use **High Impact Scenes** to identify the exact seconds that triggered the highest neural engagement.
-6. **Export**: Click **Export Strategy Report** to generate a comprehensive deck for stakeholders.
-
----
-
-## 🧠 Scientific Benchmarks
-
-Engagement is calculated across 9 key cognitive dimensions:
-- **Reward**: OFC, Caudate, Accumbens (The "Buy" Signal)
-- **Visual Intake**: V1-V3, MT (Complexity/Attention)
-- **Memory Focus**: Hippocampus, Entorhinal Cortex
-- **Social Narrative**: STS, TPOJ
-- **Action Readiness**: Premotor Cortex (6a, 6d)
-
----
-
-## 📜 License
-Internal Proprietary - Rewire Analytics Engine V3.1
-© 2026 Rewire. Subconscious Intelligence. Quantified.
-🚀
+## License
+Internal and proprietary. © 2026 Rewire.
