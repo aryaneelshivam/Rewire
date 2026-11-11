@@ -226,7 +226,7 @@ function App() {
         key={job.id}
         jobId={job.id}
         onDone={() => { applyVideos(job.videos || {}); setJob(null); setAwaitingUpload(false); setActiveTab('overview'); setCurrentTime(0); loadData(); }}
-        onBack={() => { setJob(null); setAwaitingUpload(true); }}
+        onBack={() => { setJob(null); loadData(); }}
         onRetry={job.videos ? async () => {
           const { job_id } = await createJob(job.mode, job.videos, job.meta);
           setJob(j => ({ ...j, id: job_id }));

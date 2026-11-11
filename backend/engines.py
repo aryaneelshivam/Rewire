@@ -31,26 +31,54 @@ class ModalEngine:
         self.app_name, self.class_name = app_name, class_name
 
     def run(self, video_path: Path, on_progress: Progress, should_stop: Callable[[], bool]):
+        import uuid
         import modal
+        import modal.exception
 
         try:
             predictor = modal.Cls.from_name(self.app_name, self.class_name)()
+            progress = modal.Dict.from_name("rewire-progress", create_if_missing=True)
         except Exception as exc:  # not deployed, or not signed in
             raise RuntimeError("The cloud GPU service is not reachable. Run `modal deploy modal_inference.py` and check `modal token` is set.") from exc
 
-        on_progress("starting", "Starting a GPU and loading the model")
-        data = video_path.read_bytes()
-        result = None
-        for event in predictor.predict_video.remote_gen(data, video_path.suffix or ".mp4"):
-            if should_stop():
-                raise Cancelled()
-            if "stage" in event:
-                stage = {"model_ready": "starting"}.get(event["stage"], event["stage"])
-                on_progress(stage, event.get("detail", ""))
-            else:
-                result = event["result"]
-        if result is None:
-            raise RuntimeError("The GPU service finished without returning predictions.")
+        run_id = uuid.uuid4().hex
+        call = predictor.predict.spawn(video_path.read_bytes(), video_path.suffix or ".mp4", run_id)
+        started, seen = time.time(), None
+        lost_since = None             # when contact with Modal last dropped, if it has
+        on_progress("starting", "Requesting a GPU")
+        try:
+            while True:
+                if should_stop():
+                    call.cancel()
+                    raise Cancelled()
+                try:
+                    result = call.get(timeout=2)
+                    break
+                except (TimeoutError, modal.exception.TimeoutError):   # still running
+                    pass
+                except (ConnectionError, OSError, modal.exception.ConnectionError) as exc:
+                    # A dropped connection is not a failed prediction: the GPU keeps working. Retry for a while.
+                    lost_since = lost_since or time.time()
+                    if time.time() - lost_since > 300:
+                        raise RuntimeError("Lost contact with the cloud GPU for five minutes. Check the connection and try again.") from exc
+                    time.sleep(min(15, 2 + (time.time() - lost_since) / 4))
+                    continue
+                lost_since = None
+                try:
+                    update = progress.get(run_id)
+                except Exception:
+                    update = seen
+                if update and update != seen:
+                    seen = update
+                    on_progress({"model_ready": "starting"}.get(update["stage"], update["stage"]), update.get("detail", ""))
+                elif not update and time.time() - started > 30:
+                    # No container yet: Modal is still finding a free GPU.
+                    on_progress("starting", f"Waiting for a free GPU, {int(time.time() - started)}s")
+        finally:
+            try:
+                progress.pop(run_id, None)
+            except Exception:
+                pass
         return np.asarray(result["preds"]), result.get("transcript", [])
 
 

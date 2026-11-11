@@ -95,6 +95,14 @@ class Job:
         return data
 
 
+def short_error(exc: Exception) -> str:
+    """A readable one or two lines for the progress screen; the full traceback stays in the backend log."""
+    lines = [l.strip() for l in (str(exc) or exc.__class__.__name__).splitlines() if l.strip()]
+    if len(lines) <= 2:
+        return " ".join(lines)[:400]
+    return f"{lines[0]} {lines[-1]}"[:400]
+
+
 def probe_duration(path: Path) -> float:
     """Seconds of video, read with ffprobe."""
     out = subprocess.run(
@@ -222,7 +230,7 @@ class JobManager:
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         except Exception as exc:
             traceback.print_exc()
-            job.status, job.error = "failed", str(exc) or exc.__class__.__name__
+            job.status, job.error = "failed", short_error(exc)
             self._fail(job, current, job.error)
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         finally:

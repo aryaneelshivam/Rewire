@@ -19,6 +19,7 @@ const mb = bytes => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
   const [job, setJob] = useState(null);
   const [lost, setLost] = useState(false);
+  const [gone, setGone] = useState(false);      // the backend no longer knows this job (it restarted)
   const [cancelling, setCancelling] = useState(false);
   const doneRef = useRef(false);
   const offset = useRef(0);        // local clock minus server clock, so elapsed times use the server's timestamps
@@ -35,8 +36,10 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
         setJob(next); setLost(false);
         if (next.status === 'done' && !doneRef.current) { doneRef.current = true; setTimeout(onDone, 700); return; }
         if (next.status !== 'running') return;
-      } catch {
-        if (live) setLost(true);
+      } catch (err) {
+        if (!live) return;
+        if (err.response?.status === 404) { setGone(true); return; }
+        setLost(true);
       }
       timer = setTimeout(tick, 1000);
     };
@@ -44,6 +47,17 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
     return () => { live = false; clearTimeout(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  if (gone) {
+    return (
+      <main className="onboard"><div className="onboard-inner">
+        <p className="onboard-brand">Rewire</p>
+        <h1>This analysis is no longer running</h1>
+        <Alert tone="warning" title="The backend restarted">Analyses in progress do not survive a restart. Completed runs are kept and open on their own.</Alert>
+        <div className="onboard-actions"><span /><div className="onboard-actions-end"><Button variant="secondary" onClick={onBack}>Back</Button>{onRetry && <Button onClick={() => { setGone(false); onRetry(); }}>Run it again</Button>}</div></div>
+      </div></main>
+    );
+  }
 
   if (!job) {
     return <main className="onboard"><div className="onboard-inner"><p className="onboard-brand">Rewire</p><h1>Starting the analysis</h1>{lost && <Alert tone="warning" title="The backend is not answering">Retrying every second.</Alert>}</div></main>;
