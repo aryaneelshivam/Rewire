@@ -25,7 +25,7 @@ export interface LineChartDatum {
   label: string;
   /** Short label on the x axis, such as "Sep 15". Leave it out to keep the axis quiet at that point. */
   axisLabel?: string;
-  /** One value per series key. A missing value counts as zero. */
+  /** One value per series key. A series with no values after some point ends there, as a shorter recording does on a shared axis; other missing values count as zero. */
   values: Record<string, number | undefined>;
 }
 
@@ -123,6 +123,13 @@ function curveFor(values: number[], smooth: boolean): Point[] {
   return points;
 }
 
+const has = (value: number | null | undefined): value is number => typeof value === "number" && Number.isFinite(value);
+/** How many points a series covers: past its last value it has ended, so its line stops instead of running on at zero. */
+function extentOf(data: LineChartDatum[], key: string) {
+  for (let index = data.length - 1; index >= 0; index--) if (has(data[index]!.values[key])) return index + 1;
+  return 0;
+}
+
 /** Value of a sampled line at x, straight between samples. */
 function valueAt(shape: Point[], x: number) {
   if (!shape.length) return 0;
@@ -203,7 +210,13 @@ export function LineChart({ data, series, label, unit = "", height = 220, format
 
   // Each series becomes a dense curve in data units; the scale fits only the series on show.
   const signature = `${curve}|${series.map(item => item.key).join(",")}|${data.map(item => `${item.key}:${series.map(line => item.values[line.key] ?? 0).join(",")}`).join(";")}`;
-  const targets = useMemo(() => new Map(series.map(line => [line.key, curveFor(data.map(item => item.values[line.key] ?? 0), curve === "smooth")])), [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A series that ends early is drawn over its own points only, then placed on the shared axis.
+  const targets = useMemo(() => new Map(series.map(line => {
+    const covered = extentOf(data, line.key);
+    const share = data.length > 1 ? Math.max(0, covered - 1) / (data.length - 1) : 1;
+    const shape = curveFor(data.slice(0, covered).map(item => item.values[line.key] ?? 0), curve === "smooth");
+    return [line.key, share === 1 ? shape : shape.map(([x, value]): Point => [x * share, value])];
+  })), [signature]); // eslint-disable-line react-hooks/exhaustive-deps
   let low = Infinity, high = -Infinity;
   for (const line of visible) for (const item of data) { const value = item.values[line.key] ?? 0; low = Math.min(low, value); high = Math.max(high, value); }
   const range = Number.isFinite(low) ? niceScale(low, high) : null;
@@ -244,15 +257,19 @@ export function LineChart({ data, series, label, unit = "", height = 220, format
       const y = (value: number) => toY(lo + (value - lo) * p);
       const path = track.shape.length ? `M${track.shape.map(([x, value]) => `${(x * w).toFixed(1)},${y(value).toFixed(1)}`).join("L")}` : "";
       lines.current.get(line.key)?.setAttribute("d", path);
-      areas.current.get(line.key)?.setAttribute("d", path ? `${path}L${w},${height}L0,${height}Z` : "");
+      const start = (track.shape[0]?.[0] ?? 0) * w, end = (track.shape[track.shape.length - 1]?.[0] ?? 1) * w;
+      areas.current.get(line.key)?.setAttribute("d", path ? `${path}L${end.toFixed(1)},${height}L${start.toFixed(1)},${height}Z` : "");
       const group = groups.current.get(line.key);
       if (group) group.style.opacity = String(p);
       const dot = dots.current.get(line.key);
       if (dot && track.shape.length) {
+        // Past the end of a series that stopped early, it has no point to mark.
+        const ended = at > track.shape[track.shape.length - 1]![0] + 1e-6;
         const cy = y(valueAt(track.shape, at));
         dot.setAttribute("cx", (at * w).toFixed(1));
         dot.setAttribute("cy", cy.toFixed(1));
-        if (p > .5) dotYs.push(cy);
+        dot.style.visibility = ended ? "hidden" : "";
+        if (p > .5 && !ended) dotYs.push(cy);
       }
     }
     clip.current?.setAttribute("width", String(drawn.get() * (w + 16)));
@@ -294,7 +311,8 @@ export function LineChart({ data, series, label, unit = "", height = 220, format
       const track = tracks.current.get(key);
       if (!track) { tracks.current.set(key, { shape: target, presence: live.current.hidden.includes(key) ? 0 : 1, fade: null }); continue; }
       if (!track.shape.length || !target.length || reduced) { update(track, { shape: target }); continue; }
-      const xs = [...new Set([...grid, ...target.map(([x]) => x)])].sort((a, b) => a - b);
+      const end = target[target.length - 1]![0];
+      const xs = [...new Set([...grid.filter(x => x <= end + 1e-9), ...target.map(([x]) => x)])].sort((a, b) => a - b);
       moves.push({ track, xs, from: xs.map(x => valueAt(track.shape, x)), to: xs.map(x => valueAt(target, x)), target });
     }
     morph.current?.stop();
@@ -367,10 +385,10 @@ export function LineChart({ data, series, label, unit = "", height = 220, format
   };
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => { if (!empty && (event.pointerType === "mouse" || event.buttons)) setActive(pointAt(event.clientX)); };
 
-  const format = (value: number, line: LineChartSeries) => `${formatValue ? formatValue(value, line) : grouped.format(value)}${unit ? ` ${unit}` : ""}`;
+  const format = (value: number | null | undefined, line: LineChartSeries) => has(value) ? `${formatValue ? formatValue(value, line) : grouped.format(value)}${unit ? ` ${unit}` : ""}` : "—";
   const reading = index === null ? null : data[index];
-  const valueText = reading ? `${reading.label}: ${visible.map(line => `${line.label} ${format(reading.values[line.key] ?? 0, line)}`).join(", ")}` : empty ? emptyLabel : `${visible.length} of ${series.length} series shown`;
-  const summary = empty ? `${label}. ${emptyLabel}.` : `${label}, ${data[0]!.label} to ${data[last]!.label}. ${visible.map(line => `${line.label}, latest ${format(data[last]!.values[line.key] ?? 0, line)}`).join(". ")}.`;
+  const valueText = reading ? `${reading.label}: ${visible.map(line => `${line.label} ${format(reading.values[line.key], line)}`).join(", ")}` : empty ? emptyLabel : `${visible.length} of ${series.length} series shown`;
+  const summary = empty ? `${label}. ${emptyLabel}.` : `${label}, ${data[0]!.label} to ${data[last]!.label}. ${visible.map(line => `${line.label}, latest ${format(data[extentOf(data, line.key) - 1]?.values[line.key], line)}`).join(". ")}.`;
   const picks = axisPicks(data, plotWidth);
   const allHidden = !empty && visible.length === 0;
   const tipX = reduced ? tipTargetX : tipSpringX, tipY = reduced ? tipTargetY : tipSpringY;
@@ -404,7 +422,7 @@ export function LineChart({ data, series, label, unit = "", height = 220, format
           {visible.map(line => <p key={line.key} className={styles.tipRow} style={{ "--series": colorOf(line, series.indexOf(line)) } as CSSProperties}>
             <span className={styles.tipSwatch} data-dashed={line.dashed || undefined} />
             <span className={styles.tipName}>{line.label}</span>
-            <span className={styles.tipValue}>{format((reading ?? data[last])?.values[line.key] ?? 0, line)}</span>
+            <span className={styles.tipValue}>{format((reading ?? data[last])?.values[line.key], line)}</span>
           </p>)}
         </motion.div>
         <AnimatePresence initial={false}>
@@ -425,7 +443,7 @@ export function LineChart({ data, series, label, unit = "", height = 220, format
     {!empty && <div className={styles.srOnly}><table>
       <caption>{label}</caption>
       <thead><tr><th scope="col">{categoryLabel}</th>{series.map(line => <th key={line.key} scope="col">{line.label}</th>)}</tr></thead>
-      <tbody>{data.map(item => <tr key={item.key}><th scope="row">{item.label}</th>{series.map(line => <td key={line.key}>{format(item.values[line.key] ?? 0, line)}</td>)}</tr>)}</tbody>
+      <tbody>{data.map(item => <tr key={item.key}><th scope="row">{item.label}</th>{series.map(line => <td key={line.key}>{format(item.values[line.key], line)}</td>)}</tr>)}</tbody>
     </table></div>}
     <p className={styles.srOnly} aria-live="polite" aria-atomic="true">{loading ? "Loading" : ""}</p>
   </figure>;

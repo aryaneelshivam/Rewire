@@ -9,17 +9,21 @@ export function axisStride(length, maxTicks = 8) {
 
 /**
  * Turns per-timestep rows ({ seriesKey: value }) into LineChart data, one point per second.
- * Missing values are carried forward so a shorter variant doesn't plunge to zero.
+ * A gap inside a series is carried forward from its last value. After a series' final value it has ended (a shorter
+ * variant on a shared axis), so it is left empty and the chart stops its line there instead of running on.
  */
 export function timeSeriesData(length, valuesAt) {
   const stride = axisStride(length);
+  const rows = Array.from({ length }, (_, i) => valuesAt(i));
+  const present = v => v != null && !Number.isNaN(v);
+  const ends = {};
+  rows.forEach((raw, i) => Object.entries(raw).forEach(([key, value]) => { if (present(value)) ends[key] = i; }));
   const last = {};
-  return Array.from({ length }, (_, i) => {
-    const raw = valuesAt(i);
+  return rows.map((raw, i) => {
     const values = {};
     for (const [key, value] of Object.entries(raw)) {
-      if (value == null || Number.isNaN(value)) values[key] = last[key] ?? 0;
-      else { values[key] = Number(value); last[key] = values[key]; }
+      if (present(value)) { values[key] = Number(value); last[key] = values[key]; }
+      else if (i <= (ends[key] ?? -1)) values[key] = last[key] ?? 0;
     }
     return {
       key: `t-${i}`,
