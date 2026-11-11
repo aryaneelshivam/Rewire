@@ -23,7 +23,7 @@ export function ContestsPanel({ data }) {
   const tally = [
     { key: 'A', label: 'Variant A leads', value: a, color: 'var(--chart-a)' },
     { key: 'B', label: 'Variant B leads', value: b, color: 'var(--chart-b)' },
-    ...(tie ? [{ key: 'tie', label: 'Tied', value: tie, color: 'var(--chart-tie)' }] : []),
+    ...(tie ? [{ key: 'tie', label: 'Too close to call', value: tie, color: 'var(--chart-tie)' }] : []),
   ];
   return (
     <Card title="Contests won" exportName="contests-won" description={`${a + b + tie} cohort and dimension pairs.`} className="fill">

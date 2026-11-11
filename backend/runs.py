@@ -101,14 +101,11 @@ def summarise(results: dict) -> dict:
     summary = {"variants": per}
     if len(results) == 2 and {"A", "B"} <= set(results):
         a, b = results["A"]["engagement_scores"], results["B"]["engagement_scores"]
-        wins = {"A": 0, "B": 0}
+        from analysis import contest_winner
+        wins = {"A": 0, "B": 0, "TIE": 0}
         for demo in a:
             for dim in DIMENSIONS:
-                diff = b[demo].get(dim, 0) - a[demo].get(dim, 0)
-                if diff > 0:
-                    wins["B"] += 1
-                elif diff < 0:
-                    wins["A"] += 1
+                wins[contest_winner(a[demo].get(dim, 0), b[demo].get(dim, 0))] += 1
         summary["contests"] = wins
         summary["winner"] = "A" if wins["A"] > wins["B"] else "B" if wins["B"] > wins["A"] else "TIE"
     return summary

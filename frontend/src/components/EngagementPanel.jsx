@@ -31,7 +31,7 @@ const EngagementPanel = ({ dataA, dataB }) => {
   });
 
   const current = cohorts.find(c => c.id === cohortId) ?? cohorts[0];
-  const leadText = c => c.winner === 'TIE' ? 'tied' : `${c.winner} +${leadPct(c.a, c.b).toFixed(0)}%`;
+  const leadText = c => c.winner === 'TIE' ? 'too close' : `${c.winner} +${leadPct(c.a, c.b).toFixed(0)}%`;
 
   return (
     <Card

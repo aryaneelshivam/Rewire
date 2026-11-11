@@ -32,14 +32,13 @@ Videos are only read in the browser to build the filmstrip, find scene cuts and 
 
 ### 2. Audience synthesis
 `backend/analysis.py` expands one prediction into 200 simulated viewers: 50 for each cohort (Kids 6 to 12, Gen Z 13 to 24, Adults 25 to 54, Older 55+). Each viewer gets:
-- **Processing latency** that shifts response timing by cohort.
-- **Individual differences** from a latent-factor profile per region.
-- **Haemodynamic blurring** with a jittered response peak.
-- **Attention fatigue** that recovers at detected events.
-- **Realistic noise**: blended 1/f and AR(1) noise, coupled within functional networks over time.
-- **Hemisphere biases** and **saturation caps** so responses stay plausible.
+- **A cohort pattern**: which regions respond relatively more or less for that age group. Each pattern is normalised to an average of 1, so no cohort is simply louder than another.
+- **Individual differences** from a latent-factor model: each cohort shares its factor structure, each viewer draws their own factor scores, and every one of the 180 regions varies across viewers.
+- **Timing**: a small, sub-second response delay by cohort plus per-viewer jitter. The model's output is already an fMRI-style signal, so no second haemodynamic delay is added.
+- **Realistic noise**: blended 1/f and AR(1) noise, correlated within functional networks over time.
+- **A soft ceiling** that only compresses the largest responses, plus mild hemisphere biases.
 
-Optional creative details (genre, format, pacing, audio) adjust these rules.
+The same simulated viewers watch both videos in a comparison, so A/B differences come from the videos. Each cohort is judged against its own content-neutral baseline (its *lift*), so the strongest audience reflects the video, not the cohort's profile. Contests within 5% are reported as too close to call.
 
 ### 3. Scoring
 Responses are averaged over 180 cortical regions and scored on eight dimensions: visual, auditory, reward, memory, attention, narrative, self-relevance and action, plus an overall score. Variants are compared on every cohort and dimension pair.

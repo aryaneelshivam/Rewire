@@ -29,7 +29,7 @@ This document describes how Rewire moves from a single-user app on a laptop to a
 
 ### What blocks multi-tenancy
 - **Global state.** `_results` in `main.py` holds one analysis for the whole process, so two users would overwrite each other.
-- **Memory.** `run_full_analysis` builds four float64 ensembles of 50 viewers by T seconds by 20,484 vertices, about 270 MB per cohort for a 33-second video, so roughly 1 GB per variant. Memory grows linearly with video length.
+- **Memory.** `run_full_analysis` builds four float32 ensembles of 50 viewers by T seconds by 20,484 vertices, about 135 MB per cohort for a 33-second video, and keeps all four until scoring (peak about 1.2 GB for one variant). Memory grows linearly with video length and viewer count.
 - **Per-cohort mean brains kept as Python lists** (`demo_mean_brains`), which is slow to build and heavy to hold. Brain activation is served from these lists.
 - **Per-viewer profiles** (`build_profiles`) are compact (about 5 MB per variant) but also live only in memory.
 - **In-process jobs.** One job at a time, held in a thread, and lost on restart.
@@ -74,7 +74,7 @@ flowchart LR
 
 ## 3. Backend refactors needed
 1. **Key everything by analysis id.** Replace `_results` with a store interface (`load_artifact(analysis_id, name)`) backed by storage, and remove module-level state.
-2. **Stream cohorts.** Generate one cohort ensemble at a time in float32, reduce it to region and mean summaries, and drop it before the next. Peak memory falls from about 1 GB to about 140 MB per variant, independent of other users.
+2. **Stream cohorts.** Generate one cohort ensemble at a time (already float32), reduce it to region and mean summaries, and drop it before the next. Peak memory falls to a few hundred MB per variant, independent of other users.
 3. **Store arrays, not lists.** Keep `demo_mean_brains` as `np.float16`, never as Python lists.
 4. **Write artifacts.** Add an `export_artifacts(cache) -> dict[name, json]` step at the end of `run_full_analysis`, and serve those files instead of computing per request.
 5. **Make jobs durable.** Move `JobManager` stages into Postgres so progress survives restarts and can be read by any API instance.

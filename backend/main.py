@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from pipeline import JobManager
 import runs
 from runs import latest_run
-from analysis import run_full_analysis, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
+from analysis import run_full_analysis, contest_winner, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
 
 # ---------------------------------------------------------------------------
 # Results — the analysed variants of the current run, in order (A, then B when comparing)
@@ -64,12 +64,13 @@ def _analyse(preds, transcript, metadata=None, seed=42, on_step=None) -> dict:
 
 
 def _load_files(files: dict, metadata: dict | None = None) -> dict:
-    """Analyses saved prediction files ({variant: path}), seeding A with 42 and B with 43 as before."""
+    """Analyses saved prediction files ({variant: path}). Every variant uses the same seed, so the same simulated
+    viewers watch each video and A/B differences come from the videos."""
     out = {}
     for i, (variant, path) in enumerate(files.items()):
         data = joblib.load(str(path))
         print(f"🧠  Analysing Variant {variant} from {Path(path).name}...")
-        out[variant] = _analyse(data["preds"], data.get("transcript", []), (metadata or {}).get(variant), 42 + i)
+        out[variant] = _analyse(data["preds"], data.get("transcript", []), (metadata or {}).get(variant), 42)
     return out
 
 
@@ -539,6 +540,8 @@ def get_ab_summary():
             "peak_activation": round(float(c["preds"].max()), 4),
             "overall_engagement": {d: eng[d]["overall"] for d in eng},
             "best_demographic": c["best_demographic"],
+            "best_demographic_clear": c.get("best_demographic_clear", True),
+            "lift": {d: c.get("engagement_lift", {}).get(d, {}).get("overall") for d in eng},
             "scores": {d: {dim: round(eng[d].get(dim, 0), 4) for dim in dims} for d in eng},
             "n_timesteps": c["n_timesteps"],
         }
@@ -549,10 +552,9 @@ def get_ab_summary():
         dimension_winners[demo] = {}
         for dim in dims:
             a_val, b_val = a_eng[demo].get(dim, 0), b_eng[demo].get(dim, 0)
-            diff = b_val - a_val
             dimension_winners[demo][dim] = {
-                "A": round(a_val, 4), "B": round(b_val, 4), "diff": round(diff, 4),
-                "winner": "B" if diff > 0 else "A" if diff < 0 else "TIE",
+                "A": round(a_val, 4), "B": round(b_val, 4), "diff": round(b_val - a_val, 4),
+                "winner": contest_winner(a_val, b_val),
             }
     return {
         "mode": "compare",

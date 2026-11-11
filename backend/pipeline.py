@@ -244,7 +244,8 @@ class JobManager:
                         self._finish(job, "synthesis")
                         self._begin(job, "scoring")
                 job.stage("synthesis").detail = f"Variant {v.variant}"
-                results[v.variant] = self.analyse(preds, transcript, job.metadata.get(v.variant), 42 + i, on_step)
+                # One seed for every variant: the same simulated viewers watch each video.
+                results[v.variant] = self.analyse(preds, transcript, job.metadata.get(v.variant), 42, on_step)
             current = "scoring"
             if job.stage("synthesis").state == "running":
                 self._finish(job, "synthesis")

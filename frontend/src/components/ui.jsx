@@ -120,7 +120,7 @@ export function BarRow({ variant, value, max, format = v => v.toFixed(3) }) {
 /** Who leads and by how much: a relative lead, or the raw gap when a score is zero or negative. */
 export function LeadPill({ a, b, digits = 1 }) {
   const winner = a > b ? 'A' : b > a ? 'B' : 'TIE';
-  if (winner === 'TIE') return <Badge size="sm">Tied</Badge>;
+  if (winner === 'TIE') return <Badge size="sm">Too close</Badge>;
   const gap = Math.min(a, b) > 0 ? `+${leadPct(a, b).toFixed(digits)}%` : `+${Math.abs(a - b).toFixed(3)}`;
   return <VariantTag v={winner}>{`${winner} ${gap}`}</VariantTag>;
 }

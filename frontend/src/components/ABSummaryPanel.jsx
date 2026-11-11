@@ -14,8 +14,11 @@ function SingleSummary({ data }) {
   return (
     <section className="verdict" aria-labelledby="verdict-title">
       <div className="verdict-copy">
-        <h2 id="verdict-title">Strongest with <span className="num-a">{COHORT_NAMES[best] ?? best}</span></h2>
-        <p>Predicted whole-brain response across 200 simulated viewers. It leads on {DIMENSION_NAMES[topDim] ?? topDim} for that cohort.</p>
+        <h2 id="verdict-title">{data.best_demographic_clear === false ? 'Narrowly strongest with ' : 'Strongest with '}<span className="num-a">{COHORT_NAMES[best] ?? best}</span></h2>
+        <p>
+          Predicted whole-brain response across 200 simulated viewers. Each age group is measured against its own baseline.
+          {data.best_demographic_clear === false ? ' The age groups respond similarly; the lead is within 5%.' : ''} It leads on {DIMENSION_NAMES[topDim] ?? topDim} for that cohort.
+        </p>
       </div>
       <dl className="stat-strip">
         <div>
@@ -72,7 +75,7 @@ const ABSummaryPanel = ({ data }) => {
         <div>
           <dt>Contests won, A</dt>
           <dd className="stat-value-a"><AnimatedCounter value={aWins} suffix={`\u00a0of ${total}`} animateOnView /></dd>
-          <dd className="stat-note">B won <span className="num-b">{bWins}</span>{total - aWins - bWins ? `, ${total - aWins - bWins} tied` : ''}</dd>
+          <dd className="stat-note">B won <span className="num-b">{bWins}</span>{total - aWins - bWins ? `, ${total - aWins - bWins} too close to call` : ''}</dd>
         </div>
       </dl>
     </section>

@@ -47,10 +47,10 @@ NETWORK_COVARIANCE = {
     "visual_early":  (["V1","V2","V3"],                       0.80),
     "visual_motion": (["MT","MST","V4t","VMV3"],              0.75),
     "auditory":      (["A1","LBelt","PBelt"],                 0.78),
-    "language":      (["STSvp","STSdp","IFSa","IFSp","47"],  0.70),
-    "reward":        (["OFC","p47r","Area_47"],               0.65),
+    "language":      (["STSvp","STSdp","IFSa","IFSp","47l"],  0.70),
+    "reward":        (["OFC","p47r","47m"],               0.65),
     "salience":      (["a24pr","p32pr"],                      0.60),
-    "dmn":           (["PCC","PGi","PGp","PCV"],              0.70),
+    "dmn":           (["v23ab","PGi","PGp","PCV"],              0.70),
     "narrative":     (["TPOJ1","TPOJ2","TPOJ3"],             0.68),
     "motor":         (["6a","6d","FEF","8Ad"],               0.65),
     "memory":        (["EC","PHA1"],                          0.72),
@@ -60,8 +60,11 @@ NETWORK_COVARIANCE = {
 
 # =============================================================================
 # DEMOGRAPHIC PROFILES  (Cell 5 of triberewire6_updated.py)
-# Literature-grounded ROI scalars relative to adult baseline (1.0)
-# Each entry: (scalar_multiplier, inter_subject_noise_sigma)
+# Hand-set ROI scalars relative to adult baseline (1.0). The directions follow common findings
+# (for example, older adults: weaker early sensory, stronger default-mode); the sizes are assumptions,
+# not values taken from a cited study. Each cohort's scalars are normalised to an average of 1 before use
+# (see _normalised_profile), so they shape the response pattern without making one cohort louder overall.
+# Each entry: (scalar_multiplier, inter_subject_noise_sigma). Names are HCP-MMP atlas areas.
 # =============================================================================
 
 DEMOGRAPHIC_PROFILES = {
@@ -72,13 +75,13 @@ DEMOGRAPHIC_PROFILES = {
         "A1": (1.10, 0.09), "LBelt": (1.12, 0.10), "PBelt": (1.12, 0.10),
         "STSvp": (1.05, 0.10), "STSdp": (1.05, 0.10),
         "OFC": (1.25, 0.12), "p47r": (1.25, 0.12),
-        "Area_47": (1.20, 0.13), "EC": (1.10, 0.11), "PHA1": (1.10, 0.11),
+        "47m": (1.20, 0.13), "EC": (1.10, 0.11), "PHA1": (1.10, 0.11),
         "TPOJ1": (1.05, 0.10), "TPOJ2": (1.05, 0.10), "TPOJ3": (1.05, 0.10),
         "PGi": (0.80, 0.12), "PGp": (0.80, 0.12), "PCV": (0.85, 0.12),
         "6a": (1.15, 0.11), "6d": (1.15, 0.11),
         "a24pr": (0.75, 0.12), "p32pr": (0.75, 0.12),
         "IFSa": (0.80, 0.11), "IFSp": (0.80, 0.11),
-        "47": (0.70, 0.13), "PCC": (0.85, 0.12),
+        "47l": (0.70, 0.13), "v23ab": (0.85, 0.12),
     },
     "genz": {
         "V1": (1.10, 0.08), "V2": (1.10, 0.08), "V3": (1.10, 0.08),
@@ -87,13 +90,13 @@ DEMOGRAPHIC_PROFILES = {
         "A1": (1.15, 0.09), "LBelt": (1.30, 0.10), "PBelt": (1.30, 0.10),
         "STSvp": (1.20, 0.10), "STSdp": (1.20, 0.10),
         "OFC": (1.45, 0.12), "p47r": (1.45, 0.12),
-        "Area_47": (1.35, 0.13), "EC": (1.15, 0.11), "PHA1": (1.15, 0.11),
+        "47m": (1.35, 0.13), "EC": (1.15, 0.11), "PHA1": (1.15, 0.11),
         "TPOJ1": (1.30, 0.10), "TPOJ2": (1.30, 0.10), "TPOJ3": (1.30, 0.10),
         "PGi": (1.10, 0.12), "PGp": (1.10, 0.12), "PCV": (1.15, 0.12),
         "6a": (1.35, 0.11), "6d": (1.35, 0.11),
         "a24pr": (0.80, 0.12), "p32pr": (0.80, 0.12),
         "IFSa": (0.88, 0.11), "IFSp": (0.88, 0.11),
-        "47": (0.78, 0.13), "PCC": (0.90, 0.12),
+        "47l": (0.78, 0.13), "v23ab": (0.90, 0.12),
     },
     "adults": {
         "V1": (1.00, 0.07), "V2": (1.00, 0.07), "V3": (1.00, 0.07),
@@ -102,13 +105,13 @@ DEMOGRAPHIC_PROFILES = {
         "A1": (1.00, 0.08), "LBelt": (1.00, 0.09), "PBelt": (1.00, 0.09),
         "STSvp": (1.00, 0.09), "STSdp": (1.00, 0.09),
         "OFC": (1.00, 0.10), "p47r": (1.00, 0.10),
-        "Area_47": (1.00, 0.10), "EC": (1.00, 0.10), "PHA1": (1.00, 0.10),
+        "47m": (1.00, 0.10), "EC": (1.00, 0.10), "PHA1": (1.00, 0.10),
         "TPOJ1": (1.00, 0.09), "TPOJ2": (1.00, 0.09), "TPOJ3": (1.00, 0.09),
         "PGi": (1.00, 0.10), "PGp": (1.00, 0.10), "PCV": (1.00, 0.10),
         "6a": (1.00, 0.09), "6d": (1.00, 0.09),
         "a24pr": (1.00, 0.10), "p32pr": (1.00, 0.10),
         "IFSa": (1.00, 0.09), "IFSp": (1.00, 0.09),
-        "47": (1.00, 0.11), "PCC": (1.00, 0.10),
+        "47l": (1.00, 0.11), "v23ab": (1.00, 0.10),
     },
     "older": {
         "V1": (0.80, 0.10), "V2": (0.80, 0.10), "V3": (0.80, 0.10),
@@ -117,29 +120,37 @@ DEMOGRAPHIC_PROFILES = {
         "A1": (0.75, 0.10), "LBelt": (0.72, 0.11), "PBelt": (0.72, 0.11),
         "STSvp": (0.80, 0.10), "STSdp": (0.80, 0.10),
         "OFC": (0.85, 0.12), "p47r": (0.85, 0.12),
-        "Area_47": (1.05, 0.12), "EC": (0.80, 0.12), "PHA1": (0.80, 0.12),
+        "47m": (1.05, 0.12), "EC": (0.80, 0.12), "PHA1": (0.80, 0.12),
         "TPOJ1": (1.15, 0.12), "TPOJ2": (1.15, 0.12), "TPOJ3": (1.15, 0.12),
         "PGi": (1.20, 0.13), "PGp": (1.20, 0.13), "PCV": (1.25, 0.14),
         "6a": (0.75, 0.12), "6d": (0.75, 0.12),
         "a24pr": (1.20, 0.14), "p32pr": (1.20, 0.14),
         "IFSa": (1.15, 0.12), "IFSp": (1.15, 0.12),
-        "47": (1.25, 0.14), "PCC": (1.30, 0.13),
+        "47l": (1.25, 0.14), "v23ab": (1.30, 0.13),
     },
 }
 
-# Individual cohort realism parameters
+# Cohort timing and dynamics.
+#  latency_s   extra response delay in seconds. Age-related differences in the haemodynamic response are
+#              well under a second (later peaks in older adults), so these are kept small. The model's output
+#              is already an fMRI-style signal, so no extra haemodynamic delay is applied on top.
+#  saturation  a ceiling (in z units) that only bends the largest responses; it has no gain at normal levels.
+#  fatigue     slow decline over a video. There is no good evidence that it differs by age over ad-length
+#              stimuli, so it is the same for every cohort.
 DEMOGRAPHICS_PARAMS = {
-    "kids":   {"latency_shift": 3, "saturation": 1.1, "fatigue": 0.15},
-    "genz":   {"latency_shift": 0, "saturation": 1.4, "fatigue": 0.10},
-    "adults": {"latency_shift": 1, "saturation": 1.0, "fatigue": 0.05},
-    "older":  {"latency_shift": 5, "saturation": 0.9, "fatigue": 0.20},
+    "kids":   {"latency_s": 0.3, "saturation": 2.5, "fatigue": 0.05},
+    "genz":   {"latency_s": 0.0, "saturation": 2.5, "fatigue": 0.05},
+    "adults": {"latency_s": 0.0, "saturation": 2.5, "fatigue": 0.05},
+    "older":  {"latency_s": 0.6, "saturation": 2.5, "fatigue": 0.05},
 }
+LATENCY_JITTER_S = 0.2      # per-viewer timing spread
+N_LATENT = 5                # shared individual-difference factors per cohort
 
 
 ENGAGEMENT_WEIGHTS = {
     "visual":    (["V1", "V2", "V3", "VMV3", "MT", "MST"],  0.25),
     "auditory":  (["A1", "LBelt", "PBelt", "STSvp"],         0.20),
-    "reward":    (["OFC", "p47r", "Area_47"],                0.20),
+    "reward":    (["OFC", "p47r", "47m"],                0.20),
     "memory":    (["EC", "PHA1", "PHA2", "PHA3"],            0.15),
     "attention": (["a24pr", "p32pr"],                         0.05),
     "narrative": (["TPOJ1", "TPOJ2", "TPOJ3", "STSda", "STSdp"], 0.15),
@@ -178,12 +189,12 @@ CONTENT_METADATA_DEFAULTS = {
 CONTENT_RULES = {
     "genre_roi_modifiers": {
         "general":       {},
-        "emotional":     {"OFC": 1.35, "p47r": 1.30, "Area_47": 1.25, "PCC": 1.20, "PGi": 1.25, "EC": 1.15, "PHA1": 1.15, "a24pr": 1.10},
+        "emotional":     {"OFC": 1.35, "p47r": 1.30, "47m": 1.25, "v23ab": 1.20, "PGi": 1.25, "EC": 1.15, "PHA1": 1.15, "a24pr": 1.10},
         "humor":         {"OFC": 1.40, "p47r": 1.35, "STSvp": 1.20, "STSdp": 1.20, "IFSa": 1.15, "TPOJ1": 1.25, "TPOJ2": 1.25},
         "action":        {"MT": 1.35, "MST": 1.30, "V1": 1.15, "V2": 1.15, "V3": 1.15, "6a": 1.25, "6d": 1.25, "FEF": 1.20},
-        "informational": {"IFSa": 1.30, "IFSp": 1.30, "47": 1.25, "STSvp": 1.15, "EC": 1.20, "PHA1": 1.20, "a24pr": 1.15},
-        "horror":        {"OFC": 0.85, "a24pr": 1.40, "p32pr": 1.35, "PCC": 0.80, "V1": 1.20, "MT": 1.25},
-        "luxury":        {"OFC": 1.45, "p47r": 1.40, "PGi": 1.30, "PGp": 1.25, "VMV3": 1.20, "PCC": 1.15},
+        "informational": {"IFSa": 1.30, "IFSp": 1.30, "47l": 1.25, "STSvp": 1.15, "EC": 1.20, "PHA1": 1.20, "a24pr": 1.15},
+        "horror":        {"OFC": 0.85, "a24pr": 1.40, "p32pr": 1.35, "v23ab": 0.80, "V1": 1.20, "MT": 1.25},
+        "luxury":        {"OFC": 1.45, "p47r": 1.40, "PGi": 1.30, "PGp": 1.25, "VMV3": 1.20, "v23ab": 1.15},
     },
     "pacing_noise_modifiers": {
         "fast_cut":  {"ar1_rho": 0.45, "noise_sigma_scale": 1.3, "fatigue_boost": 0.08},
@@ -192,7 +203,7 @@ CONTENT_RULES = {
     },
     "audio_roi_boosts": {
         "music_heavy":    {"A1": 1.25, "LBelt": 1.30, "PBelt": 1.30, "OFC": 1.10},
-        "dialogue_heavy": {"STSvp": 1.30, "STSdp": 1.25, "IFSa": 1.15, "47": 1.10},
+        "dialogue_heavy": {"STSvp": 1.30, "STSdp": 1.25, "IFSa": 1.15, "47l": 1.10},
         "mixed":          {},
         "silent":         {"A1": 0.70, "LBelt": 0.65, "V1": 1.15, "MT": 1.10},
     },
@@ -215,13 +226,13 @@ GENRE_ENGAGEMENT_WEIGHTS = {
 
 DEMO_CONTENT_INTERACTIONS = {
     ("kids", "action"):        {"MT": 1.15, "6a": 1.20, "OFC": 1.30},
-    ("kids", "emotional"):     {"OFC": 1.10, "PCC": 0.75},
+    ("kids", "emotional"):     {"OFC": 1.10, "v23ab": 0.75},
     ("genz", "humor"):         {"OFC": 1.50, "STSvp": 1.30, "TPOJ1": 1.35},
     ("genz", "horror"):        {"a24pr": 1.25, "OFC": 1.20},
     ("adults", "luxury"):      {"OFC": 1.40, "PGi": 1.35, "VMV3": 1.25},
-    ("adults", "emotional"):   {"PCC": 1.20, "EC": 1.15, "PGi": 1.15},
-    ("older", "emotional"):    {"PCC": 1.40, "EC": 1.30, "PGi": 1.35},
-    ("older", "informational"): {"IFSa": 1.25, "47": 1.20, "EC": 1.25},
+    ("adults", "emotional"):   {"v23ab": 1.20, "EC": 1.15, "PGi": 1.15},
+    ("older", "emotional"):    {"v23ab": 1.40, "EC": 1.30, "PGi": 1.35},
+    ("older", "informational"): {"IFSa": 1.25, "47l": 1.20, "EC": 1.25},
 }
 
 
@@ -249,28 +260,24 @@ def correlated_roi_noise(rng, network_rois, hcp_labels, T, base_sigma, rho):
     white = rng.standard_normal((T, n_nets))
     return white @ L.T # (T, n_nets)
 
-def nonlinear_saturate(x, saturation=1.2):
-    """Apply sigmoidal saturation (Logistic function) to mimic neural firing caps."""
-    return 2.0 / (1.0 + np.exp(-saturation * x)) - 1.0
+def nonlinear_saturate(x, ceiling=2.5):
+    """A soft ceiling: ceiling * tanh(x / ceiling). Slope 1 near zero, so ordinary responses pass unchanged
+    and only the largest ones are compressed. (The old form, 2 / (1 + e^(-s x)) - 1, scaled every response
+    by about s / 2, which made the saturation setting act as a per-cohort volume knob.)"""
+    return ceiling * np.tanh(x / ceiling)
 
 
-def canonical_hrf(tr=1.0, length=30, peak_delay=6.0):
-    """Double-gamma canonical HRF (SPM-style)."""
-    t = np.arange(0, length, tr)
-    h = gamma_dist.pdf(t, peak_delay) - 0.35 * gamma_dist.pdf(t, 16)
-    h_max = h.max()
-    return h / (h_max + 1e-8)
-
-
-def apply_hrf(signal, tr=1.0, peak_delay_jitter=0.0):
-    """Convolve each vertex timeseries with a (jittered) canonical HRF.
-    Introduces hemodynamic temporal blurring (~5-6s delay) matching real BOLD.
-    """
-    delay = max(4.0, 6.0 + peak_delay_jitter)
-    hrf = canonical_hrf(tr=tr, peak_delay=delay)
-    hrf /= hrf.sum()  # normalize to preserve amplitude
-    T = signal.shape[0]
-    return fftconvolve(signal, hrf.reshape(-1, 1), mode='full', axes=0)[:T]
+def shift_time(x, delay_s):
+    """Delays a (T, V) signal by a fraction of a second using linear interpolation. The start is held rather
+    than wrapped, and nothing is cut from the end beyond the delay itself."""
+    if abs(delay_s) < 1e-6:
+        return x.copy()
+    T = x.shape[0]
+    t = np.clip(np.arange(T) - delay_s, 0, T - 1)
+    i0 = np.floor(t).astype(int)
+    i1 = np.minimum(i0 + 1, T - 1)
+    w = (t - i0)[:, None].astype(x.dtype)
+    return x[i0] * (1 - w) + x[i1] * w
 
 
 def pink_noise_1f(rng, shape, alpha=1.0):
@@ -290,33 +297,38 @@ def pink_noise_1f(rng, shape, alpha=1.0):
     return pink
 
 
-def generate_subject_profile(rng, profile, n_latent=5):
-    """Generate multivariate individual differences via latent factor model.
-    Instead of a single global_scalar, each subject gets per-ROI variation
-    driven by latent factors (e.g., 'general amplitude', 'reward vs cognitive').
-    Returns adjusted profile dict + '_global_scalar' key.
+def cohort_arrays(profile):
+    """Per-region (scalar, sigma) arrays for every atlas region, from a cohort's sparse profile.
+
+    Scalars are normalised to an average of 1 over the listed regions, so a cohort's profile changes the
+    shape of the response (which regions lead) without making the whole cohort louder. Regions the profile
+    does not list keep a scalar of 1 and the profile's median noise level, so every region varies across
+    viewers, not only the listed ones.
     """
-    roi_names = list(profile.keys())
-    n_rois = len(roi_names)
+    listed = [r for r in profile if r in _hcp_labels]
+    mean_scalar = float(np.mean([profile[r][0] for r in listed])) if listed else 1.0
+    default_sigma = float(np.median([profile[r][1] for r in listed])) if listed else 0.09
+    scalars = np.ones(N_ROIS)
+    sigmas = np.full(N_ROIS, default_sigma)
+    for r in listed:
+        k = ROI_LABEL_NAMES.index(r)
+        scalars[k] = profile[r][0] / mean_scalar
+        sigmas[k] = profile[r][1]
+    return scalars, sigmas
 
-    # Latent factors: factor 0 = global amplitude, factors 1..N = network-specific
-    latent = rng.normal(0, 1, n_latent)
 
-    # Global amplitude (log-normal, replaces old scalar)
+def subject_profile(rng, scalars, sigmas, loadings):
+    """One simulated viewer's individual differences, from a latent factor model.
+
+    `loadings` (regions x factors) belongs to the cohort and is shared by all of its viewers; each viewer draws
+    their own factor scores. Factor 0 is overall responsiveness (log-normal); the rest move groups of regions
+    together, so viewers differ in structured, network-like ways rather than by independent per-region noise.
+    """
+    latent = rng.normal(0, 1, loadings.shape[1] + 1)
     global_scalar = float(np.exp(0.12 * latent[0]))
-
-    # Per-ROI offsets from remaining latent factors
-    loadings = rng.normal(0, 0.08, (n_rois, n_latent - 1))
-    subject_offsets = loadings @ latent[1:]  # (n_rois,)
-
-    adjusted = {"_global_scalar": global_scalar}
-    for i, roi in enumerate(roi_names):
-        base_scalar, sigma = profile[roi]
-        adjusted[roi] = (
-            base_scalar * np.exp(subject_offsets[i]),
-            sigma * (1.0 + rng.normal(0, 0.05)),  # slight sigma variability
-        )
-    return adjusted
+    roi_scalars = scalars * np.exp(loadings @ latent[1:])
+    roi_sigmas = sigmas * (1.0 + rng.normal(0, 0.05, len(sigmas)))
+    return global_scalar, roi_scalars, roi_sigmas
 
 
 def dynamic_network_covariance(T, base_rho, events, window_size=10):
@@ -436,6 +448,21 @@ def split_half_reliability(preds, demographic, n_subjects=50):
     return round(float(r), 4)
 
 
+# A contest is too close to call when the two scores differ by less than this share of the larger one, or by
+# less than CONTEST_MIN_GAP outright. The simulated viewers are synthetic, so a statistical test would only measure
+# the simulation's own noise; a practical-difference margin is the honest rule.
+CONTEST_MARGIN = 0.05
+CONTEST_MIN_GAP = 0.002
+
+
+def contest_winner(a: float, b: float) -> str:
+    """'A', 'B', or 'TIE' when the difference is too small to call."""
+    gap = b - a
+    if abs(gap) < max(CONTEST_MIN_GAP, CONTEST_MARGIN * max(abs(a), abs(b))):
+        return "TIE"
+    return "B" if gap > 0 else "A"
+
+
 def cohens_d(scores_a, scores_b):
     """Compute Cohen's d effect size for A/B comparison."""
     a, b = np.asarray(scores_a), np.asarray(scores_b)
@@ -447,6 +474,45 @@ def cohens_d(scores_a, scores_b):
 # ENSEMBLE GENERATOR  (Upgraded V4 — Content-Aware)
 # =============================================================================
 
+def cohort_setup(demographic: str, content_context: dict = None):
+    """A cohort's per-region scalars and noise levels, and its timing parameters, after any content rules.
+    Content rules multiply the (already normalised) pattern: genre and audio boosts apply to every cohort
+    alike; the few cohort x genre interactions are applied as given."""
+    scalars, sigmas = cohort_arrays(DEMOGRAPHIC_PROFILES[demographic])
+    params = dict(DEMOGRAPHICS_PARAMS[demographic])
+    if content_context:
+        boosted, params = apply_content_rules(
+            {r: (scalars[k], sigmas[k]) for k, r in enumerate(ROI_LABEL_NAMES)}, params, content_context, demographic,
+        )
+        scalars = np.array([boosted[r][0] for r in ROI_LABEL_NAMES])
+    return scalars, sigmas, params
+
+
+def hemisphere_bias(V: int) -> np.ndarray:
+    bias = np.ones(V, dtype=np.float32)
+    for r_name, (hemi, factor) in HEMISPHERE_BIAS.items():
+        if r_name in _hcp_labels:
+            idx = np.asarray(_hcp_labels[r_name])
+            bias[idx[idx < V // 2] if hemi == "L" else idx[idx >= V // 2]] *= factor
+    return bias
+
+
+def cohort_baseline_roi_matrix(base_preds, demographic, content_context=None, temporal_events=None):
+    """How a cohort responds to a content-neutral version of the video: the same overall level and timing
+    everywhere on the cortex, but no region-specific pattern. Passed through the cohort's deterministic
+    transforms (latency, fatigue, region scalars, ceiling) with no noise. A cohort's score above this baseline
+    is its lift: how much the video's regional pattern suits that cohort, independent of how strongly the
+    cohort's profile weights the scored regions. Returns (T, n_rois)."""
+    scalars, _, params = cohort_setup(demographic, content_context)
+    T, V = base_preds.shape
+    neutral = np.repeat(base_preds.mean(axis=1, keepdims=True), V, axis=1).astype(np.float32)
+    duration_cat = content_context.get("duration_category", "medium") if content_context else "medium"
+    fatigue_vec = compute_fatigue_curve(T, params["fatigue"], temporal_events or [], duration_cat).astype(np.float32)
+    resp = shift_time(neutral, params["latency_s"]) * fatigue_vec * scalars[VERTEX_ROI] * hemisphere_bias(V)
+    resp = nonlinear_saturate(resp, params["saturation"])
+    return np.asarray(resp @ ROI_AVERAGER)
+
+
 def generate_demographic_ensemble(
     base_preds: np.ndarray,
     demographic: str,
@@ -455,132 +521,76 @@ def generate_demographic_ensemble(
     n_subjects: int = 50,
     seed: int = 42,
 ) -> np.ndarray:
-    """Generate synthetic ensemble of brain predictions for a target demographic (V4).
+    """Simulated viewers of one cohort watching one video: an (n_subjects, T, V) float32 array.
 
-    Now content-aware: accepts content_context (genre/pacing/audio modifiers)
-    and temporal_events (scene cuts, brand reveals) for event-driven modeling.
-    Falls back to V3 behaviour when content_context is None.
+    Each viewer is the model's prediction, delayed by the cohort's (sub-second) latency plus personal jitter,
+    scaled by their overall responsiveness and per-region factors, given slow fatigue, plus noise with
+    realistic structure (1/f and AR(1) over time, correlated within functional networks), then passed through
+    a soft ceiling.
+
+    Seeding: the cohort is part of the seed, so each cohort has its own viewers; the variant is not, so the
+    same viewers watch Variant A and Variant B and A/B differences come from the videos, not the sampling.
     """
     assert demographic in DEMOGRAPHIC_PROFILES
+    cohort_index = DEMO_ORDER.index(demographic)
 
-    # Apply content rules if context provided (V4), else use raw profiles (V3)
-    if content_context:
-        profile, params = apply_content_rules(
-            DEMOGRAPHIC_PROFILES[demographic],
-            DEMOGRAPHICS_PARAMS[demographic],
-            content_context,
-            demographic,
-        )
-    else:
-        profile = DEMOGRAPHIC_PROFILES[demographic]
-        params = DEMOGRAPHICS_PARAMS[demographic]
+    scalars, sigmas, params = cohort_setup(demographic, content_context)
 
-    rng = np.random.default_rng(seed)
     T, V = base_preds.shape
-    V_split = V // 2
-    ensemble = []
+    base = base_preds.astype(np.float32)
 
-    # 1. Activation Envelope for State-Dependent Noise
-    activation_envelope = base_preds.mean(axis=1, keepdims=True)  # (T,1)
-    env_min, env_ptp = activation_envelope.min(), np.ptp(activation_envelope)
-    norm_envelope = (activation_envelope - env_min) / (env_ptp + 1e-8)
+    # Cohort-level structure, shared by all of this cohort's viewers
+    cohort_rng = np.random.default_rng([seed, cohort_index, 0])
+    loadings = cohort_rng.normal(0, 0.08, (N_ROIS, N_LATENT - 1))
+    rng = np.random.default_rng([seed, cohort_index, 1])
 
-    # 1b. Event-modulated envelope (V4 enhancement)
+    # Noise is louder when the brain is more active, and around detected events
+    envelope = base.mean(axis=1, keepdims=True)
+    envelope = (envelope - envelope.min()) / (np.ptp(envelope) + 1e-8)
     if temporal_events:
-        norm_envelope = build_event_envelope(T, temporal_events, norm_envelope)
+        envelope = build_event_envelope(T, temporal_events, envelope)
 
-    # 2. Determine AR(1) rho from content pacing (V4)
-    ar1_rho = 0.6  # V3 default
+    ar1_rho = 0.6
     if content_context:
-        pacing = content_context.get("pacing", "medium")
-        pacing_mods = CONTENT_RULES["pacing_noise_modifiers"].get(pacing, {})
-        ar1_rho = pacing_mods.get("ar1_rho", 0.6)
+        ar1_rho = CONTENT_RULES["pacing_noise_modifiers"].get(content_context.get("pacing", "medium"), {}).get("ar1_rho", 0.6)
 
-    # 3. Dynamic Functional Connectivity coupling (V5 enhancement)
-    dynamic_coupling = {}
-    for net_name, (rois, base_rho) in NETWORK_COVARIANCE.items():
-        dynamic_coupling[net_name] = dynamic_network_covariance(
-            T, base_rho, temporal_events or [], window_size=10
-        ).reshape(-1, 1)
+    # Within-network coupling over time, per region (0 for regions outside the listed networks)
+    networks = []
+    coupling = np.zeros((T, N_ROIS), dtype=np.float32)
+    for name, (rois, base_rho) in NETWORK_COVARIANCE.items():
+        idx = [ROI_LABEL_NAMES.index(r) for r in rois if r in _hcp_labels]
+        if len(idx) < 2:
+            continue
+        coupling[:, idx] = dynamic_network_covariance(T, base_rho, temporal_events or [], window_size=10)[:, None]
+        networks.append((idx, base_rho))
 
-    # 4. Fatigue curve (V4: nonlinear + event recovery)
     duration_cat = content_context.get("duration_category", "medium") if content_context else "medium"
-    fatigue_vec = compute_fatigue_curve(T, params["fatigue"], temporal_events or [], duration_cat)
+    fatigue_vec = compute_fatigue_curve(T, params["fatigue"], temporal_events or [], duration_cat).astype(np.float32)
+    coupling_v = coupling[:, VERTEX_ROI]
+    blend_sd = np.sqrt(0.6 ** 2 + 0.4 ** 2)        # pink and AR(1) are independent, unit variance each
 
-    for _ in range(n_subjects):
-        # A. Multivariate Subject Profile (V5: latent factor individual diffs)
-        subj_profile = generate_subject_profile(rng, profile)
-        global_scalar = subj_profile.pop("_global_scalar")
+    hemi_bias = hemisphere_bias(V)
 
-        # B. Temporal Shift (Processing Latency)
-        shift = params["latency_shift"]
-        if shift != 0:
-            subj = np.roll(base_preds, shift, axis=0) * global_scalar
-            if shift > 0: subj[:shift] = subj[shift]
-            else: subj[shift:] = subj[shift-1]
-        else:
-            subj = base_preds * global_scalar
+    ensemble = np.empty((n_subjects, T, V), dtype=np.float32)
+    for s_i in range(n_subjects):
+        global_scalar, roi_scalars, roi_sigmas = subject_profile(rng, scalars, sigmas, loadings)
+        delay = max(0.0, params["latency_s"] + rng.normal(0, LATENCY_JITTER_S))
+        subj = shift_time(base, delay) * global_scalar * fatigue_vec
 
-        # B2. HRF Convolution (V5: hemodynamic temporal blurring)
-        subj = apply_hrf(subj, tr=1.0, peak_delay_jitter=rng.normal(0, 0.5))
+        # Independent per-vertex noise: 1/f plus AR(1), unit variance
+        indep = (0.6 * pink_noise_1f(rng, (T, V)) + 0.4 * ar1_noise(rng, (T, V), 1.0, rho=ar1_rho)) / blend_sd
+        # Shared noise within each functional network, correlated at that network's own strength
+        shared = np.zeros((T, N_ROIS))
+        for idx, rho in networks:
+            shared[:, idx] = correlated_roi_noise(rng, idx, None, T, 1.0, rho)
+        noise = shared[:, VERTEX_ROI] * coupling_v + indep * (1 - coupling_v)
+        noise *= roi_sigmas[VERTEX_ROI] * (1.0 + 0.4 * envelope)
 
-        # C. Attention Fatigue (V4: nonlinear with event recovery)
-        subj *= fatigue_vec
+        subj = subj * roi_scalars[VERTEX_ROI] + noise
+        subj *= hemi_bias
+        ensemble[s_i] = nonlinear_saturate(subj, params["saturation"])
 
-        # D. Add 1/f + AR(1) Blended Noise with Dynamic FC (V5)
-        processed_rois = set()
-
-        # D1. Apply Network-Correlated Noise (per-subject, dynamic coupling)
-        for net_idx, (net_name, (net_rois, _)) in enumerate(NETWORK_COVARIANCE.items()):
-            # Per-subject network noise (not shared across subjects)
-            net_noise = correlated_roi_noise(rng, net_rois, _hcp_labels, T, 1.0, 0.8)
-            coupling_t = dynamic_coupling[net_name]  # (T, 1) time-varying
-
-            for i, r_name in enumerate(net_rois):
-                if r_name not in _hcp_labels: continue
-                idx = _hcp_labels[r_name]
-                scalar, sigma = subj_profile.get(r_name, (1.0, 0.08))
-
-                # Dynamic sigma (1.0x to 1.4x based on activation + events)
-                dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
-
-                # Blended 1/f pink + AR(1) noise (V5)
-                pink = pink_noise_1f(rng, (T, len(idx)))
-                ar1 = ar1_noise(rng, (T, len(idx)), 1.0, rho=ar1_rho)
-                roi_noise = 0.6 * pink + 0.4 * ar1
-
-                # Dynamic FC: time-varying network vs independent blend
-                final_noise = (net_noise[:, [i]] * coupling_t + roi_noise * (1 - coupling_t)) * dynamic_sigma
-
-                subj[:, idx] = (subj[:, idx] * scalar) + final_noise
-                processed_rois.add(r_name)
-
-        # D2. Apply Remaining Independent ROI Noise (1/f + AR(1) blend)
-        for r_name, val in subj_profile.items():
-            if r_name.startswith("_") or r_name in processed_rois or r_name not in _hcp_labels:
-                continue
-            scalar, sigma = val
-            idx = _hcp_labels[r_name]
-            dynamic_sigma = sigma * (1.0 + 0.4 * norm_envelope)
-            pink = pink_noise_1f(rng, (T, len(idx)))
-            ar1 = ar1_noise(rng, (T, len(idx)), 1.0, rho=ar1_rho)
-            raw_noise = (0.6 * pink + 0.4 * ar1) * dynamic_sigma
-            subj[:, idx] = (subj[:, idx] * scalar) + raw_noise
-
-        # E. Hemisphere Bias (Functional Lateralization)
-        for r_name, (hemi, bias) in HEMISPHERE_BIAS.items():
-            if r_name in _hcp_labels:
-                indices = _hcp_labels[r_name]
-                if hemi == "L": h_idx = [i for i in indices if i < V_split]
-                else: h_idx = [i for i in indices if i >= V_split]
-                if h_idx: subj[:, h_idx] *= bias
-
-        # F. Nonlinear Saturation (Firing Cap)
-        subj = nonlinear_saturate(subj, params["saturation"])
-
-        ensemble.append(subj)
-
-    return np.stack(ensemble)
+    return ensemble
 
 
 # =============================================================================
@@ -619,7 +629,7 @@ def compute_engagement_score(
 
 
 NETWORK_GROUPS = [
-    ("reward", ["OFC", "p47r", "Area_47"]),
+    ("reward", ["OFC", "p47r", "47m"]),
     ("auditory", ["LBelt", "PBelt", "A1"]),
     ("prefrontal", ["a24pr", "p32pr"]),
     ("memory", ["EC", "PHA1", "PHA2", "PHA3"]),
@@ -779,7 +789,18 @@ def run_full_analysis(
     for demo, roi_mat in demo_roi_matrices.items():
         engagement_scores[demo] = compute_engagement_score(roi_mat, weights=active_weights)
 
-    best_demo = max(engagement_scores, key=lambda d: engagement_scores[d]["overall"])
+    # Lift: each cohort's scores above its own content-neutral baseline. Absolute scores still drive the A/B
+    # contests (both variants share a cohort's baseline, so the comparison is unchanged); the best cohort is
+    # chosen by lift, so it reflects the video rather than which cohort's profile weights the scored regions.
+    engagement_lift = {}
+    for demo in DEMO_ORDER:
+        base_scores = compute_engagement_score(
+            cohort_baseline_roi_matrix(preds, demo, content_context, temporal_events), weights=active_weights)
+        engagement_lift[demo] = {k: round(engagement_scores[demo][k] - base_scores[k], 4) for k in engagement_scores[demo]}
+    ranked = sorted(engagement_lift, key=lambda d: engagement_lift[d]["overall"], reverse=True)
+    best_demo = ranked[0]
+    # Clear only if the leader beats the runner-up by more than the contest margin.
+    best_clear = contest_winner(engagement_lift[ranked[1]]["overall"], engagement_lift[best_demo]["overall"]) == "B"
 
     # ── 6b. Individual profiles for the ensemble explorer ─────────────────
     profiles = build_profiles(ensembles, active_weights)
@@ -851,7 +872,9 @@ def run_full_analysis(
         "timestep_metrics": timestep_metrics,
         "top_rois": top_rois,
         "engagement_scores": engagement_scores,
+        "engagement_lift": engagement_lift,
         "best_demographic": best_demo,
+        "best_demographic_clear": best_clear,
         "demo_timeseries": demo_timeseries,
         "heatmap": heatmap_data,
         "peak_timestep": peak_t,
