@@ -39,8 +39,10 @@ const TABS = [
   { id: 'ensemble', label: 'Ensemble', title: 'Neural ensemble explorer', desc: 'All 200 simulated viewers, grouped by how alike they respond. Find a group and see what sets it apart.' },
 ];
 
-/** The variant that takes more cohort and dimension contests; 'TIE' when they split evenly. */
+/** The variant with the higher overall score across the audiences ('TIE' within 5%), as the backend decides it.
+ * Older summaries without that verdict fall back to counting cohort and dimension contests. */
 function winnerOf(summary) {
+  if (summary?.overall?.winner) return summary.overall.winner;
   let a = 0, b = 0;
   Object.values(summary?.dimension_winners || {}).forEach(dims => Object.entries(dims).forEach(([dim, d]) => {
     if (dim === 'overall') return;

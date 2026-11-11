@@ -106,13 +106,15 @@ def summarise(results: dict) -> dict:
     summary = {"variants": per}
     if len(results) == 2 and {"A", "B"} <= set(results):
         a, b = results["A"]["engagement_scores"], results["B"]["engagement_scores"]
-        from analysis import contest_winner
+        from analysis import contest_winner, overall_verdict
         wins = {"A": 0, "B": 0, "TIE": 0}
         for demo in a:
             for dim in DIMENSIONS:
                 wins[contest_winner(a[demo].get(dim, 0), b[demo].get(dim, 0))] += 1
         summary["contests"] = wins
-        summary["winner"] = "A" if wins["A"] > wins["B"] else "B" if wins["B"] > wins["A"] else "TIE"
+        verdict = overall_verdict(a, b)
+        summary["winner"] = verdict["winner"]
+        summary["lead_pct"] = verdict["lead_pct"]
     return summary
 
 
@@ -141,7 +143,9 @@ def list_runs() -> list[dict]:
             "durations": info.get("durations", {}),
             "videos": {v: any(p.suffix.lower() in VIDEO_SUFFIXES for p in path.glob(f"{v}.*")) for v in variants},
             "thumbs": {v: (path / f"{v}.jpg").exists() for v in variants},
-            "summary": info.get("summary"),
+            # A comparison summarised before the overall verdict existed named its winner by contest count; leave it
+            # out until the run is opened again and re-summarised, rather than show a winner that may have changed.
+            "summary": None if len(variants) > 1 and "lead_pct" not in (info.get("summary") or {}) else info.get("summary"),
             "size_mb": round(sum(p.stat().st_size for p in path.iterdir() if p.is_file()) / 1e6, 1),
         })
     return out

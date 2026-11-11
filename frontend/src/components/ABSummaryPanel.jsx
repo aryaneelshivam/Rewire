@@ -52,14 +52,22 @@ const ABSummaryPanel = ({ data }) => {
     total++;
     if (d.winner === 'A') aWins++; else if (d.winner === 'B') bWins++;
   }));
-  const winner = aWins > bWins ? 'A' : bWins > aWins ? 'B' : 'TIE';
+  const verdict = data.overall;
+  const winner = verdict?.winner ?? (aWins > bWins ? 'A' : bWins > aWins ? 'B' : 'TIE');
   const lead = (a, b) => <span className={a >= b ? 'num-a' : 'num-b'}>{`Variant ${a >= b ? 'A' : 'B'} +${leadPct(a, b).toFixed(0)}%`}</span>;
 
   return (
     <section className="verdict" aria-labelledby="verdict-title">
       <div className="verdict-copy">
         <h2 id="verdict-title">{winner === 'TIE' ? 'The variants are evenly matched' : <><span className={winner === 'A' ? 'num-a' : 'num-b'}>Variant {winner}</span> drives stronger engagement</>}</h2>
-        <p>Predicted whole-brain response across 200 simulated viewers.</p>
+        <p>
+          {winner === 'TIE'
+            ? 'Their overall scores, averaged across the four audiences, are within 5% of each other.'
+            : verdict?.lead_pct != null
+              ? `A ${verdict.lead_pct.toFixed(0)}% higher overall score, averaged across the four audiences${verdict.cohorts_led?.[winner] === verdict.cohorts ? ', and ahead with every one of them' : ''}.`
+              : 'A higher overall score, averaged across the four audiences.'}
+          {' '}Predicted response of 200 simulated viewers.
+        </p>
       </div>
       <dl className="stat-strip">
         <div>

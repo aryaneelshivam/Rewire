@@ -33,8 +33,7 @@ function outcome(run) {
   if (!s) return 'Open it once to record its result';
   if (run.mode === 'compare' && s.winner) {
     if (s.winner === 'TIE') return 'Evenly matched';
-    const total = (s.contests?.A ?? 0) + (s.contests?.B ?? 0) + (s.contests?.TIE ?? 0);
-    return <><span className={s.winner === 'B' ? 'num-b' : 'num-a'}>Variant {s.winner}</span> wins {s.contests?.[s.winner]} of {total} contests</>;
+    return <><span className={s.winner === 'B' ? 'num-b' : 'num-a'}>Variant {s.winner}</span> {s.lead_pct != null ? `leads by ${Math.round(s.lead_pct)}% overall` : 'leads overall'}</>;
   }
   const v = s.variants?.A;
   if (!v) return '';

@@ -111,7 +111,8 @@ export function buildCard({ overview, engagement, abSummary, score, runInfo, vid
     };
   });
   const tally = compare ? contests(abSummary) : null;
-  const winner = tally ? (tally.A > tally.B ? 'A' : tally.B > tally.A ? 'B' : 'TIE') : 'A';
+  // The winner is the higher overall score across the audiences, the same verdict as the dashboard and report.
+  const winner = !compare ? 'A' : abSummary?.overall?.winner ?? (tally.A > tally.B ? 'A' : tally.B > tally.A ? 'B' : 'TIE');
   // The contest map: one cell per cohort and dimension, marked with the variant that took it.
   const map = compare ? COHORTS.filter(c => abSummary?.dimension_winners?.[c]).map(c => DIMENSIONS.map(d => {
     const w = abSummary.dimension_winners[c][d]?.winner;
@@ -126,6 +127,7 @@ export function buildCard({ overview, engagement, abSummary, score, runInfo, vid
     variants,
     winner,
     contests: tally,
+    overall: abSummary?.overall ?? null,
     benchmarked: variants.every(v => v.score != null),
     date: new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date()),
   };

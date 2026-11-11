@@ -24,7 +24,7 @@ from pipeline import JobManager
 from score import rewire_score
 import runs
 from runs import latest_run
-from analysis import run_full_analysis, contest_winner, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
+from analysis import run_full_analysis, contest_winner, overall_verdict, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
 
 # ---------------------------------------------------------------------------
 # Results — the analysed variants of the current run, in order (A, then B when comparing)
@@ -574,6 +574,7 @@ def get_ab_summary():
         "A_peak_activation": round(float(a["preds"].max()), 4),
         "B_peak_activation": round(float(b["preds"].max()), 4),
         "dimension_winners": dimension_winners,
+        "overall": overall_verdict(a_eng, b_eng),
         "n_timesteps_A": a["n_timesteps"],
         "n_timesteps_B": b["n_timesteps"],
     }

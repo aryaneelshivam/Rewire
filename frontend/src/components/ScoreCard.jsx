@@ -211,10 +211,10 @@ const ScoreCard = forwardRef(function ScoreCard({ card, format, theme, frames, b
               ) : card.winner === 'TIE' ? (
                 <p className="sc-verdict">Too close to call</p>
               ) : (
-                <p className="sc-verdict"><span className={`sc-ink-${card.winner.toLowerCase()}`}>Variant {card.winner}</span> wins {card.contests[card.winner]} of {card.contests.total}</p>
+                <p className="sc-verdict"><span className={`sc-ink-${card.winner.toLowerCase()}`}>Variant {card.winner}</span> {card.overall?.lead_pct != null ? `scores ${Math.round(card.overall.lead_pct)}% higher` : 'leads'}</p>
               )}
               <p className="sc-sub">
-                {card.winner === 'TIE' ? `${card.contests.A} contests each, ${card.contests.TIE} too close` : 'audience and dimension contests'}
+                {card.winner === 'TIE' ? 'Overall scores within 5% of each other' : `Overall response, averaged across ${card.overall?.cohorts ?? 4} audiences`}
                 {card.benchmarked && `, Rewire Score against ${a.bandLabel.toLowerCase()} ads`}
               </p>
             </div>

@@ -463,6 +463,27 @@ def contest_winner(a: float, b: float) -> str:
     return "B" if gap > 0 else "A"
 
 
+def overall_verdict(a_eng: dict, b_eng: dict) -> dict:
+    """The headline of a comparison: the variant with the higher overall score, averaged over the cohorts.
+
+    Every surface (dashboard, scorecard, report, workspace) names the winner from this, so they never disagree. The
+    same margin as the individual contests applies, so a difference under 5% is called a tie. The cohort and
+    dimension contests stay as supporting detail.
+    """
+    cohorts = [d for d in a_eng if d in b_eng]
+    a = float(np.mean([a_eng[d]["overall"] for d in cohorts]))
+    b = float(np.mean([b_eng[d]["overall"] for d in cohorts]))
+    winner = contest_winner(a, b)
+    lead = None
+    if winner != "TIE":
+        hi, lo = (a, b) if winner == "A" else (b, a)
+        lead = round(100 * (hi - lo) / abs(lo), 1) if abs(lo) > 1e-9 else None
+    led = {"A": 0, "B": 0, "TIE": 0}
+    for d in cohorts:
+        led[contest_winner(a_eng[d]["overall"], b_eng[d]["overall"])] += 1
+    return {"winner": winner, "A": round(a, 4), "B": round(b, 4), "lead_pct": lead, "cohorts_led": led, "cohorts": len(cohorts)}
+
+
 def cohens_d(scores_a, scores_b):
     """Compute Cohen's d effect size for A/B comparison."""
     a, b = np.asarray(scores_a), np.asarray(scores_b)

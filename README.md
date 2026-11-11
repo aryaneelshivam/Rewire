@@ -41,7 +41,7 @@ Videos are only read in the browser to build the filmstrip, find scene cuts and 
 The same simulated viewers watch both videos in a comparison, so A/B differences come from the videos. Each cohort is judged against its own content-neutral baseline (its *lift*), so the strongest audience reflects the video, not the cohort's profile. Contests within 5% are reported as too close to call.
 
 ### 3. Scoring
-Responses are averaged over 180 cortical regions and scored on eight dimensions: visual, auditory, reward, memory, attention, narrative, self-relevance and action, plus an overall score. Variants are compared on every cohort and dimension pair.
+Responses are averaged over 180 cortical regions and scored on eight dimensions: visual, auditory, reward, memory, attention, narrative, self-relevance and action, plus an overall score. The winner of a comparison is the variant with the higher overall score averaged across the four audiences (within 5% is a tie); the dashboard, scorecard, report and workspace all use this verdict. Variants are also compared on every cohort and dimension pair, as supporting detail.
 
 ### 4. Rewire Score
 One number from 0 to 100 that can be compared across ads. It is computed from the predicted response alone, so it is repeatable. Four measures (hook, depth, peak and hold) are each ranked against a benchmark library of ads of similar length, and combined. Until a length band holds 30 benchmark ads, the score is reported as provisional, without a number. See [docs/REWIRE_SCORE.md](docs/REWIRE_SCORE.md) for the method and how to build the benchmark.

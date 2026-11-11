@@ -18,10 +18,10 @@ const ReportView = ({ data, snapshots, onClose }) => {
     B: engagement.B.scores.adults[dim] || 0,
   }));
 
-  const winner = summary?.A_global_mean > summary?.B_global_mean ? 'A' : 'B';
-  const leadPct = summary?.A_global_mean && summary?.B_global_mean
-    ? (Math.abs(summary.B_global_mean / summary.A_global_mean - 1) * 100).toFixed(1)
-    : 0;
+  // The same verdict as the dashboard and the scorecard: the higher overall score across the audiences.
+  const verdict = summary?.overall;
+  const winner = verdict?.winner ?? (summary?.A_global_mean > summary?.B_global_mean ? 'A' : 'B');
+  const leadPct = verdict?.lead_pct != null ? verdict.lead_pct.toFixed(1) : null;
 
   // Time-Series Data Prep
   const overviewChartData = [];
@@ -148,10 +148,12 @@ const ReportView = ({ data, snapshots, onClose }) => {
                 PRIMARY CREATIVE RECOMMENDATION
               </span>
               <h3 style={{ fontSize: '22px', fontWeight: 600, margin: '6px 0 10px', color: '#ffffff', fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>
-                Variant {winner} Dominates Across Core Cognitive & Recall Pathways
+                {winner === 'TIE' ? 'The Variants Are Evenly Matched' : `Variant ${winner} Drives Stronger Overall Engagement`}
               </h3>
               <p style={{ fontSize: '13px', lineHeight: 1.6, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
-                Synthesized across 200 demographic human brains, <strong>Variant {winner}</strong> registers a <strong>+{leadPct}% overall advantage</strong> in mean whole-brain engagement. Neural activation in the orbitofrontal cortex and hippocampal recall networks demonstrates significantly higher brand memorability and purchase conversion probability.
+                {winner === 'TIE'
+                  ? <>Across 200 simulated viewers, the two variants' overall engagement scores, averaged over the four audiences, are within 5% of each other.</>
+                  : <>Across 200 simulated viewers, <strong>Variant {winner}</strong> scores {leadPct != null ? <strong>{leadPct}% higher</strong> : 'higher'} on overall engagement, averaged over the four audiences{verdict?.cohorts_led?.[winner] === verdict?.cohorts ? ', and leads with every one of them' : ''}. The cohort and dimension breakdown below shows where each variant is stronger.</>}
               </p>
             </div>
             <div style={{
