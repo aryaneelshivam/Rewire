@@ -456,6 +456,11 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
 
 .tl-film { height: 54px; overflow: hidden; border-radius: 8px; background: var(--surface-muted); cursor: crosshair; }
 .tl-frame { position: absolute; top: 0; bottom: 0; background-size: cover; background-position: center; }
+/* After a shorter video ends, on a time axis sized to the longest one. */
+.tl-ended { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; padding-left: var(--space-2); box-sizing: border-box;
+  border-left: 1px dashed var(--border-strong); border-radius: 0 8px 8px 0; color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; overflow: hidden;
+  background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in oklab, var(--foreground) 6%, transparent) 6px 7px), var(--surface-muted); }
+.tl-sections .tl-ended { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in oklab, var(--foreground) 6%, transparent) 6px 7px); }
 .tl-film-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 0 var(--space-3); color: var(--text-muted); font-size: var(--text-xs); text-align: center; }
 .tl-cut { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--foreground); box-shadow: 0 0 0 1px var(--background); }
 

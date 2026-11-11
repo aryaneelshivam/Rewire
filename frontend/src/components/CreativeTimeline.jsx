@@ -48,12 +48,15 @@ function stack(events, duration, gap = 2.4, rows = 2) {
  * The creative on a time axis: a filmstrip per variant, cut into scenes and narrative sections, with markers for
  * what happens and where the predicted response moves. It navigates and annotates; the charts live in the tabs.
  */
-export default function CreativeTimeline({ duration, currentTime, onSeek, tracks, onOpenTab, onPlayRange, loopRange, storageKey }) {
-  const videoOf = useVideoAnalyses(tracks.map(t => t.videoUrl), duration);
+export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, onOpenTab, onPlayRange, loopRange, storageKey }) {
+  const videoOf = useVideoAnalyses(tracks.map(t => t.videoUrl), fullDuration);
   const all = useMemo(() => tracks.map(track => {
     const video = videoOf(track.videoUrl);
-    return { ...track, video, ...buildTrack(track.overview, video, duration) };
-  }), [tracks, videoOf, duration]);
+    // Tracks share one time axis, as long as the longest video. Each is built to its own length, so a shorter
+    // video's scenes and sections stop where it ends instead of stretching to the end of the axis.
+    const end = Math.min(fullDuration, track.overview?.n_timesteps || fullDuration);
+    return { ...track, video, end, ...buildTrack(track.overview, video, end) };
+  }), [tracks, videoOf, fullDuration]);
 
   // Only the winner shows at first. Any set of variants can be shown; the set is never left empty.
   const winner = (tracks.find(t => t.isWinner) ?? tracks[0])?.variant;
@@ -61,6 +64,8 @@ export default function CreativeTimeline({ duration, currentTime, onSeek, tracks
   const shown = (picked ?? [winner]).filter(v => tracks.some(t => t.variant === v));
   const visible = shown.length ? shown : [winner];
   const built = all.filter(t => visible.includes(t.variant));
+  // The axis fits the longest variant on show: one video fills the width; several share the longest one's length.
+  const duration = Math.max(1, ...built.map(t => t.end));
   const variantOptions = tracks.map(t => ({ value: t.variant, label: `Variant ${t.variant}${t.isWinner ? ', winner' : ''}` }));
 
   const [filters, setFilters] = useState(FILTERS.map(f => f.id));
@@ -210,6 +215,7 @@ export default function CreativeTimeline({ duration, currentTime, onSeek, tracks
                       {s.label}
                     </button>
                   ))}
+                  {track.end < duration - 0.5 && <span className="tl-ended" aria-hidden="true" style={{ left: pct(track.end), width: pct(duration - track.end) }} />}
                 </div>
               </div>
 
@@ -217,9 +223,10 @@ export default function CreativeTimeline({ duration, currentTime, onSeek, tracks
                 <span className="tl-label tl-label-sub">{track.video.status === 'working' ? 'Reading video' : `${track.scenes.length} scene${track.scenes.length === 1 ? '' : 's'}`}</span>
                 <div className="tl-lane tl-film" aria-hidden="true">
                   {track.video.frames.length
-                    ? track.video.frames.map((f, i) => <span key={f.t} className="tl-frame" style={{ left: pct(f.t), width: pct(((track.video.frames[i + 1]?.t ?? duration) - f.t)), backgroundImage: `url(${f.src})` }} />)
+                    ? track.video.frames.map((f, i) => <span key={f.t} className="tl-frame" style={{ left: pct(f.t), width: pct(Math.max(0, (track.video.frames[i + 1]?.t ?? track.end) - f.t)), backgroundImage: `url(${f.src})` }} />)
                     : <span className="tl-film-empty">{track.videoUrl ? '' : 'Add this variant’s video to see its frames and scene cuts'}</span>}
                   {track.scenes.slice(1).map(s => <span key={s.start} className="tl-cut" style={{ left: pct(s.start) }} />)}
+                  {track.end < duration - 0.5 && <span className="tl-ended" style={{ left: pct(track.end), width: pct(duration - track.end) }}>Ends at {fmtClock(track.end)}</span>}
                 </div>
               </div>
 
