@@ -33,6 +33,7 @@ const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTime
     if (!videoUrl || peaks.length === 0) return;
     setIsProcessing(true);
     const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';   // saved runs stream from the backend; keeps the canvas readable
     video.src = videoUrl;
     video.muted = true;
     video.playsInline = true;

@@ -44,7 +44,7 @@ const MAX_MB = 500;
  * The start of every analysis: choose one video or two, drop them in, and run. The videos go to the backend
  * pipeline; a copy stays in the browser for playback on the dashboard.
  */
-const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, initialMode = 'single' }) => {
+const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspace, initialMode = 'single' }) => {
   const [mode, setMode] = useState(initialMode);
   const [videos, setVideos] = useState({ A: null, B: null });
   const [meta, setMeta] = useState({ A: DEFAULT_META, B: DEFAULT_META });
@@ -76,7 +76,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, initialMode = 
     try {
       await uploadPredictions(pkl.A, pkl.B, meta.A, meta.B);
       const status = await fetchStatus();
-      if (status.loaded) onDataLoaded(videos); else setError('The files loaded but returned no results.');
+      if (status.loaded) onDataLoaded(); else setError('The files loaded but returned no results.');
     } catch (err) {
       setError(err.response?.data?.detail || 'The prediction files could not be imported.');
     } finally { setBusy(null); }
@@ -86,7 +86,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, initialMode = 
     setBusy('sample'); setError(null);
     try {
       await loadSampleData();
-      onDataLoaded({});
+      onDataLoaded();
     } catch {
       setError('The sample data could not load. Check that the sample files are in the project folder.');
     } finally { setBusy(null); }
@@ -156,7 +156,10 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, initialMode = 
         {error && <Alert tone="danger" title="The analysis did not start">{error}</Alert>}
 
         <div className="onboard-actions">
-          <Button variant="secondary" loading={busy === 'sample'} disabled={busy && busy !== 'sample'} onClick={useSamples}>Use sample data</Button>
+          <div className="onboard-actions-end">
+            <Button variant="secondary" loading={busy === 'sample'} disabled={busy && busy !== 'sample'} onClick={useSamples}>Use sample data</Button>
+            {onOpenWorkspace && <Button variant="ghost" onClick={onOpenWorkspace}>Open workspace</Button>}
+          </div>
           <div className="onboard-actions-end">
             {onCancel && <Button variant="ghost" onClick={onCancel}>Back to results</Button>}
             <Button loading={busy === 'run'} disabled={!ready || (busy && busy !== 'run')} onClick={run}>

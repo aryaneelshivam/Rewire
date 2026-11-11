@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
   fetchStatus, fetchOverview, fetchEngagement, fetchTopRois,
-  fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary, createJob
+  fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary, createJob, runMediaUrl
 } from './api';
 import UploadDataScreen from './components/UploadDataScreen';
 import PipelineScreen from './components/PipelineScreen';
+import WorkspaceScreen from './components/WorkspaceScreen';
 import OverviewPanel from './components/OverviewPanel';
 import EngagementPanel from './components/EngagementPanel';
 import TopRoisPanel from './components/TopRoisPanel';
@@ -51,6 +52,8 @@ function App() {
   const [awaitingUpload, setAwaitingUpload] = useState(false);
   // The analysis in progress: its id, plus the files, mode and details it started with, so it can be retried.
   const [job, setJob] = useState(null);
+  const [showWorkspace, setShowWorkspace] = useState(false);
+  const [runInfo, setRunInfo] = useState(null);        // the saved run on screen: id, title, names
   const [overview, setOverview] = useState(null);
   const [engagement, setEngagement] = useState(null);
   const [topRois, setTopRois] = useState(null);
@@ -121,16 +124,17 @@ function App() {
     }
   };
 
-  // The analysed videos play from the browser's own copies. A new analysis replaces both slots.
+  // Each slot takes a File (played from the browser's copy) or a URL (a video kept with a saved run).
   const applyVideos = (videos = {}) => {
     ['A', 'B'].forEach(v => {
-      const file = videos[v];
-      const url = file ? URL.createObjectURL(file) : null;
-      (v === 'A' ? setVideoUrlA : setVideoUrlB)(old => { if (old) URL.revokeObjectURL(old); return url; });
+      const src = videos[v];
+      const url = typeof src === 'string' ? src : src ? URL.createObjectURL(src) : null;
+      (v === 'A' ? setVideoUrlA : setVideoUrlB)(old => { if (old?.startsWith('blob:')) URL.revokeObjectURL(old); return url; });
     });
   };
 
   const handleTimeUpdate = (e) => setCurrentTime(Math.floor(e.target.currentTime));
+  const videoPause = () => { playerRef.current?.pause(); setIsPlaying(false); };
 
   // With a video loaded the element is the clock; without one, the interval below steps the playhead.
   const togglePlayback = () => {
@@ -153,6 +157,9 @@ function App() {
       // An analysis already running on the backend (after a reload, say) is picked up where it is.
       if (status.active_job) { setJob(j => j ?? { id: status.active_job }); setLoading(false); return; }
       if (!status.loaded) { setAwaitingUpload(true); setLoading(false); return; }
+      // A saved run plays the videos it kept; samples and runs without them play nothing.
+      setRunInfo(status.run?.id && !status.run.deleted ? status.run : null);
+      applyVideos(Object.fromEntries(Object.entries(status.videos || {}).filter(([, kept]) => kept).map(([v]) => [v, runMediaUrl(status.run.id, v)])));
       setAwaitingUpload(false);
       const [ov, en, tr, ts, hm, dm, ab] = await Promise.all([
         fetchOverview(), fetchEngagement(), fetchTopRois(),
@@ -225,7 +232,7 @@ function App() {
       <PipelineScreen
         key={job.id}
         jobId={job.id}
-        onDone={() => { applyVideos(job.videos || {}); setJob(null); setAwaitingUpload(false); setActiveTab('overview'); setCurrentTime(0); loadData(); }}
+        onDone={() => { setJob(null); setAwaitingUpload(false); setActiveTab('overview'); setCurrentTime(0); loadData(); }}
         onBack={() => { setJob(null); loadData(); }}
         onRetry={job.videos ? async () => {
           const { job_id } = await createJob(job.mode, job.videos, job.meta);
@@ -235,13 +242,26 @@ function App() {
     );
   }
 
+  const openedRun = () => { setShowWorkspace(false); setAwaitingUpload(false); setActiveTab('overview'); setCurrentTime(0); setIsPlaying(false); loadData(); };
+
+  if (showWorkspace) {
+    return (
+      <WorkspaceScreen
+        onOpened={openedRun}
+        onNewAnalysis={() => { setShowWorkspace(false); setAwaitingUpload(true); }}
+        onClose={overview ? () => { setShowWorkspace(false); loadData(); } : undefined}
+      />
+    );
+  }
+
   if (awaitingUpload) {
     return (
       <UploadDataScreen
         initialMode={single ? 'single' : 'compare'}
         onJobStarted={(id, videos, mode, meta) => setJob({ id, videos, mode, meta })}
-        onDataLoaded={videos => { applyVideos(videos); loadData(); }}
+        onDataLoaded={() => loadData()}
         onCancel={overview ? () => setAwaitingUpload(false) : undefined}
+        onOpenWorkspace={() => { setAwaitingUpload(false); setShowWorkspace(true); }}
       />
     );
   }
@@ -275,11 +295,13 @@ function App() {
       <header className="app-header">
         <div className="brand">
           <span className="brand-name">Rewire</span>
+          {runInfo?.title && <span className="brand-run">{runInfo.title}</span>}
           <span className="brand-sub">{single ? 'One creative' : 'Two creatives'}, {maxTimesteps}s, 200 simulated viewers</span>
         </div>
         <div className="header-actions">
           <span className="theme-toggle"><ThemeSwitch theme={theme} variant="rise" iconOnly onThemeChange={changeTheme} /></span>
-          <Button variant="secondary" onClick={() => setAwaitingUpload(true)}>New analysis</Button>
+          <Button variant="ghost" onClick={() => { videoPause(); setShowWorkspace(true); }}>Workspace</Button>
+          <Button variant="secondary" onClick={() => { videoPause(); setAwaitingUpload(true); }}>New analysis</Button>
           {/* The printable report compares a pair; it is offered when two creatives are loaded. */}
           {!single && <ActionButton
             label="Export report"

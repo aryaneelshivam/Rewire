@@ -135,3 +135,11 @@ export const cancelJob = async (jobId) => {
   const response = await api.post(`/jobs/${jobId}/cancel`);
   return response.data;
 };
+
+// ── Workspace: saved analyses ────────────────────────────────────────────
+export const fetchRuns = async () => (await api.get('/runs')).data;              // { runs, current }
+export const openRun = async (id) => (await api.post(`/runs/${id}/open`)).data;
+export const renameRun = async (id, title) => (await api.patch(`/runs/${id}`, { title })).data;
+export const deleteRun = async (id) => (await api.delete(`/runs/${id}`)).data;
+/** URL of a saved run's video or thumbnail, for <video> and <img>. */
+export const runMediaUrl = (id, variant, kind = 'video') => `${API_BASE_URL}/runs/${id}/${kind}/${variant}`;

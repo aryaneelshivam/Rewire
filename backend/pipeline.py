@@ -4,13 +4,11 @@ simulate the audience, score, and hand the results to the API. The frontend poll
 
 One job runs at a time; this is a single-user local app. Runs are saved under backend/data/runs/<job id>/.
 """
-import json
 import shutil
 import subprocess
 import threading
 import time
 import traceback
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -19,9 +17,7 @@ from typing import Callable
 import joblib
 
 from engines import Cancelled, get_engine
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
-RUNS_DIR = DATA_DIR / "runs"
+from runs import RUNS_DIR, default_title, new_run_id, thumbnail, write
 MAX_SECONDS = 180
 MAX_BYTES = 500 * 1024 * 1024
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
@@ -129,7 +125,7 @@ class JobManager:
         """files: (variant, original name, bytes)."""
         if self.active:
             raise RuntimeError("Another analysis is still running. Wait for it or cancel it first.")
-        job_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
+        job_id = new_run_id()
         folder = RUNS_DIR / job_id
         folder.mkdir(parents=True, exist_ok=True)
         videos = []
@@ -213,13 +209,15 @@ class JobManager:
                 self._begin(job, "scoring")
             self._finish(job, "scoring", "Compared" if len(results) > 1 else "Scored")
 
-            (folder / "run.json").write_text(json.dumps({
-                "id": job.id, "mode": job.mode, "engine": job.engine, "created": job.created,
-                "variants": [v.variant for v in job.videos], "names": {v.variant: v.name for v in job.videos},
-                "metadata": job.metadata,
-            }, indent=2))
-            for v in job.videos:   # the browser keeps its own copy for playback; the uploads are not needed now
-                Path(v.path).unlink(missing_ok=True)
+            # The videos stay with the run, so it can be played back from the workspace later.
+            for v in job.videos:
+                thumbnail(Path(v.path), folder / f"{v.variant}.jpg", at=min(1.0, (v.duration or 2) / 2))
+            names = {v.variant: v.name for v in job.videos}
+            write(folder, {
+                "id": job.id, "title": default_title(names), "mode": job.mode, "source": "video", "engine": job.engine,
+                "created": job.created, "variants": [v.variant for v in job.videos], "names": names,
+                "durations": {v.variant: v.duration for v in job.videos}, "metadata": job.metadata,
+            })
             self.on_results(results, job.id)
             self._begin(job, "ready")
             self._finish(job, "ready")
@@ -257,11 +255,3 @@ class JobManager:
         v.stage, v.state, v.ended = "received", "done", time.time()
         v.detail = f"{preds.shape[0]} seconds predicted"
         return preds, transcript
-
-
-def latest_run() -> Path | None:
-    """The most recent completed run folder, if any."""
-    if not RUNS_DIR.exists():
-        return None
-    runs = sorted((p for p in RUNS_DIR.iterdir() if (p / "run.json").exists()), reverse=True)
-    return runs[0] if runs else None

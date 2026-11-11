@@ -20,6 +20,8 @@ function frameDistance(a, b) {
 
 async function sampleFrames(url, duration, signal) {
   const video = document.createElement('video');
+  // Saved runs stream from the backend's origin; CORS keeps the canvas readable so frames can be sampled.
+  video.crossOrigin = 'anonymous';
   video.src = url; video.muted = true; video.playsInline = true; video.preload = 'auto';
   await new Promise((resolve, reject) => { video.onloadeddata = resolve; video.onerror = reject; });
   const length = Math.min(duration, Math.floor(video.duration) || duration);

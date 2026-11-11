@@ -7,17 +7,22 @@ import os
 import sys
 import json
 import math
+import shutil
+import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 import joblib
 import numpy as np
-from fastapi import FastAPI, Form, HTTPException, Query, UploadFile, File
+from fastapi import Body, FastAPI, Form, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel
 
-from pipeline import JobManager, latest_run
+from pipeline import JobManager
+import runs
+from runs import latest_run
 from analysis import run_full_analysis, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
 
 # ---------------------------------------------------------------------------
@@ -72,6 +77,19 @@ def _set_results(results: dict, info: dict):
     global _results, _run_info
     _results = dict(results)
     _run_info = info
+    # A saved run keeps a summary of its results, so the workspace can list outcomes without reopening each run.
+    if info.get("source") in ("run", "import") and info.get("id"):
+        try:
+            runs.update(info["id"], summary=runs.summarise(_results))
+        except Exception as e:
+            print(f"⚠️  Could not save the run summary: {e}")
+
+
+def _open_run(run_id: str):
+    info = runs.read(run_id)
+    path = runs.folder(run_id)
+    files = {v: path / f"{v}.pkl" for v in info["variants"]}
+    _set_results(_load_files(files, info.get("metadata")), {**info, "source": "run"})
 
 
 @asynccontextmanager
@@ -80,10 +98,8 @@ async def lifespan(app: FastAPI):
     try:
         run = latest_run()
         if run:
-            info = json.loads((run / "run.json").read_text())
-            files = {v: run / f"{v}.pkl" for v in info["variants"]}
-            _set_results(_load_files(files, info.get("metadata")), {**info, "source": "run"})
-            print(f"✅  Loaded run {info['id']}.")
+            _open_run(run.name)
+            print(f"✅  Loaded run {run.name}.")
         elif all(p.exists() for p in SAMPLE_FILES.values()):
             _set_results(_load_files(SAMPLE_FILES), {"source": "sample", "variants": ["A", "B"], "mode": "compare"})
             print("✅  Loaded the sample pair.")
@@ -125,11 +141,7 @@ jobs = JobManager(on_results=lambda results, job_id: None, analyse=_analyse)
 
 
 def _on_job_results(results: dict, job_id: str):
-    job = jobs.get(job_id)
-    _set_results(results, {
-        "source": "run", "id": job_id, "mode": job.mode if job else "single",
-        "variants": list(results), "names": {v.variant: v.name for v in job.videos} if job else {},
-    })
+    _set_results(results, {**runs.read(job_id), "source": "run"})
 
 
 jobs.on_results = _on_job_results
@@ -141,7 +153,13 @@ jobs.on_results = _on_job_results
 
 @app.get("/api/status")
 def get_status():
-    return {"loaded": bool(_results), "variants": list(_results), "run": _run_info,
+    videos = {}
+    if _run_info.get("id") and not _run_info.get("deleted"):
+        try:
+            videos = {v: bool(runs.video_file(_run_info["id"], v)) for v in _results}
+        except KeyError:
+            pass
+    return {"loaded": bool(_results), "variants": list(_results), "run": _run_info, "videos": videos,
             "active_job": jobs.active.id if jobs.active else None}
 
 
@@ -202,21 +220,100 @@ async def upload_predictions(
     brand_reveal_A: int = Form(-1), brand_reveal_B: int = Form(-1),
 ):
     """Imports saved prediction files: one to analyse, or two to compare."""
-    import tempfile
     uploads = {"A": fileA, **({"B": fileB} if fileB is not None else {})}
     metadata = {
         "A": {"genre": genre_A, "content_type": content_type_A, "pacing": pacing_A, "audio_profile": audio_profile_A, "brand_reveal_timestamp": brand_reveal_A},
         "B": {"genre": genre_B, "content_type": content_type_B, "pacing": pacing_B, "audio_profile": audio_profile_B, "brand_reveal_timestamp": brand_reveal_B},
     }
-    with tempfile.TemporaryDirectory() as tmp:
+    # Imported predictions are saved as a run, so they appear in the workspace like any other analysis.
+    run_id = runs.new_run_id()
+    path = runs.RUNS_DIR / run_id
+    path.mkdir(parents=True, exist_ok=True)
+    try:
         paths = {}
         for v, up in uploads.items():
-            paths[v] = Path(tmp) / f"{v}.pkl"
+            paths[v] = path / f"{v}.pkl"
             paths[v].write_bytes(await up.read())
         results = _load_files(paths, metadata)
-    _set_results(results, {"source": "import", "variants": list(results), "mode": "compare" if len(results) > 1 else "single",
-                           "names": {v: up.filename for v, up in uploads.items()}})
-    return {"status": "success", "variants": list(results)}
+    except Exception as e:
+        shutil.rmtree(path, ignore_errors=True)
+        raise HTTPException(status_code=400, detail=f"These files could not be read as predictions: {e}")
+    names = {v: up.filename for v, up in uploads.items()}
+    metadata = {v: metadata[v] for v in uploads}
+    runs.write(path, {
+        "id": run_id, "title": runs.default_title(names), "mode": "compare" if len(results) > 1 else "single",
+        "source": "import", "engine": None, "created": time.time(), "variants": list(results), "names": names,
+        "durations": {v: int(c["n_timesteps"]) for v, c in results.items()}, "metadata": metadata,
+    })
+    _set_results(results, {**runs.read(run_id), "source": "import"})
+    return {"status": "success", "variants": list(results), "run_id": run_id}
+
+
+# ── Workspace: saved runs ─────────────────────────────────────────────────
+
+def _run_or_404(run_id: str):
+    try:
+        return runs.folder(run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No such analysis in the workspace")
+
+
+@app.get("/api/runs")
+def list_runs():
+    """Every saved analysis, newest first, with its title, files, length and result summary."""
+    current = _run_info.get("id")
+    return {"runs": runs.list_runs(), "current": current}
+
+
+@app.post("/api/runs/{run_id}/open")
+def open_run(run_id: str):
+    """Loads a saved analysis into the dashboard."""
+    _run_or_404(run_id)
+    if jobs.active:
+        raise HTTPException(status_code=409, detail="An analysis is running. Open saved work when it finishes.")
+    _open_run(run_id)
+    return {"status": "success", "variants": list(_results), "run": _run_info}
+
+
+@app.patch("/api/runs/{run_id}")
+def rename_run(run_id: str, title: str = Body(..., embed=True)):
+    _run_or_404(run_id)
+    title = title.strip()[:120]
+    if not title:
+        raise HTTPException(status_code=400, detail="A title cannot be empty")
+    info = runs.update(run_id, title=title)
+    if _run_info.get("id") == run_id:
+        _run_info["title"] = title
+    return {"id": run_id, "title": info["title"]}
+
+
+@app.delete("/api/runs/{run_id}")
+def delete_run(run_id: str):
+    """Deletes a saved analysis and its files. The dashboard keeps showing it until something else is opened."""
+    _run_or_404(run_id)
+    if jobs.active and jobs.active.id == run_id:
+        raise HTTPException(status_code=409, detail="This analysis is still running")
+    runs.delete(run_id)
+    if _run_info.get("id") == run_id:
+        _run_info["deleted"] = True
+    return {"deleted": run_id}
+
+
+@app.get("/api/runs/{run_id}/video/{variant}")
+def run_video(run_id: str, variant: str):
+    _run_or_404(run_id)
+    path = runs.video_file(run_id, variant)
+    if not path:
+        raise HTTPException(status_code=404, detail="This analysis kept no video for that variant")
+    return FileResponse(path)
+
+
+@app.get("/api/runs/{run_id}/thumb/{variant}")
+def run_thumb(run_id: str, variant: str):
+    path = _run_or_404(run_id) / f"{variant}.jpg"
+    if not path.exists() or variant not in ("A", "B"):
+        raise HTTPException(status_code=404, detail="No thumbnail")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @app.post("/api/load-sample-data")
