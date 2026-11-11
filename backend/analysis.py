@@ -743,6 +743,11 @@ def run_full_analysis(
             ROI_LABEL_NAMES[i]: roi_matrix[:, i].tolist()
             for i in top_roi_indices
         },
+        # Every region's peak, so a comparison can show one variant's top regions with the other's value.
+        "peaks": {
+            name: [round(float(peak_activation[i]), 4), int(peak_timestep[i])]
+            for i, name in enumerate(ROI_LABEL_NAMES)
+        },
     }
 
     # ── 4. Demographic ensembles (V4: content-aware) ──────────────────────

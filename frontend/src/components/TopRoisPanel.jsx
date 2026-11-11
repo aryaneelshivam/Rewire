@@ -65,28 +65,14 @@ const TopRoisPanel = ({ dataA, dataB }) => {
   if (!dataA || !dataA.rois) return null;
   if (!dataB?.rois) return <SingleRois rois={dataA.rois} selected={selectedRoi} onSelect={setSelectedRoi} />;
 
-  // Merge ROI data: combine A and B rois by name
-  const roiMap = {};
-  dataA.rois.forEach(r => {
-    roiMap[r.name] = { name: r.name, peakA: r.peak_activation, tsA: r.peak_timestep };
-  });
-  dataB.rois.forEach(r => {
-    if (!roiMap[r.name]) roiMap[r.name] = { name: r.name };
-    roiMap[r.name].peakB = r.peak_activation;
-    roiMap[r.name].tsB = r.peak_timestep;
-  });
-
-  // Sort by max of A/B peak
-  // Only regions both variants report can be compared; a missing value is not a zero.
-  const mergedRois = Object.values(roiMap)
+  // Compare the union of both variants' top regions. Each variant's value comes from its full table of
+  // regional peaks, so a region that is in only one top list still gets a real value for the other.
+  const peakOf = (data, name) => data.peaks?.[name]?.[0] ?? data.rois.find(r => r.name === name)?.peak_activation;
+  const names = [...new Set([...dataA.rois, ...dataB.rois].map(r => r.name))];
+  const mergedRois = names
+    .map(name => ({ name, peakA: peakOf(dataA, name), peakB: peakOf(dataB, name) }))
     .filter(r => r.peakA != null && r.peakB != null)
-    .map(r => ({
-      ...r,
-      peakA: r.peakA || 0,
-      peakB: r.peakB || 0,
-      diff: (r.peakA || 0) - (r.peakB || 0),
-      winner: (r.peakA || 0) >= (r.peakB || 0) ? 'A' : 'B'
-    }))
+    .map(r => ({ ...r, diff: r.peakA - r.peakB, winner: r.peakA >= r.peakB ? 'A' : 'B' }))
     .sort((a, b) => Math.max(b.peakA, b.peakB) - Math.max(a.peakA, a.peakB))
     .slice(0, 8);
 
@@ -114,7 +100,7 @@ const TopRoisPanel = ({ dataA, dataB }) => {
     <Card
       title="Top cortical regions"
       exportName="top-cortical-regions"
-      description="Peak activation in the strongest regions both variants share."
+      description="Peak activation in each variant’s strongest regions, set against the other variant in the same region."
     >
       <div className="split split-7-5">
         <div className="split-main">
