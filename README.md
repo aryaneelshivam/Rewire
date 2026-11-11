@@ -17,6 +17,7 @@ All results are predictions for simulated viewers, not measurements of real peop
 - **Creative timeline**: a filmstrip of each variant, split into scenes and narrative sections (opening hook, development, close), with markers for dialogue, scene cuts, sound changes, brand mentions, calls to action and sharp shifts in predicted response. Click to seek, drag to select a range, loop a range, bookmark moments, add notes, and jump from any moment into the matching analysis tab. It opens on the winner; more variants can be added to align them on one axis.
 - **Neural ensemble explorer**: all 200 simulated viewers as a 3D graph, each joined to the viewers who respond most like them. Groups are found by clustering on the response over time, the regional pattern, a chosen segment, or the analytical dimensions. Select a group to see its brain response, how its viewers are spread, its cohort mix, and the dimensions and regions that set it apart from everyone else.
 - **Analysis tabs**: Overview, Audiences, Key moments, Brain regions and Ensemble, covering whole-brain response, approach versus avoidance, engagement by cohort and dimension, the strongest moments with video frames, top regions, and how consistent the response is across viewers.
+- **Workspace**: every analysis is saved on your computer with its videos, thumbnails and result. Search, rename, delete, and reopen any of them in the dashboard.
 - **Exports**: every chart downloads as a PNG, and the full analysis exports as a printable report.
 - **Light and dark themes**, meeting WCAG AA contrast.
 
@@ -75,7 +76,7 @@ cd backend
 pip install -r requirements.txt modal
 uvicorn main:app --port 8000
 ```
-On start the backend opens the latest completed run, or the bundled sample pair. Runs are saved under `backend/data/runs/`.
+On start the backend opens the latest completed run, or the bundled sample pair. Every analysis is saved under `backend/data/runs/` (predictions, videos, thumbnails) and appears in the workspace.
 
 To try the whole flow without a GPU, start it with `REWIRE_ENGINE=replay`. Every stage runs, but the predictions come from the sample files.
 
@@ -102,7 +103,8 @@ streamlit run app.py
 4. **Watch and scrub**: play the creative; the brain, gauge and readouts follow the playhead. Use the timeline to jump to scenes, dialogue and response shifts.
 5. **Dig in**: compare cohorts and dimensions in Audiences, find the strongest seconds in Key moments, and check regions and consistency in Brain regions.
 6. **Explore the ensemble**: in the Ensemble tab, find groups of viewers who respond alike and see what makes each group different.
-7. **Share**: download any chart as a PNG, or export a printable report when comparing two creatives.
+7. **Come back later**: open **Workspace** from the header to find, rename, delete or reopen any earlier analysis.
+8. **Share**: download any chart as a PNG, or export a printable report when comparing two creatives.
 
 Saved prediction files (`.pkl`) can still be imported from the start screen, and **Use sample data** loads the bundled pair.
 
@@ -116,7 +118,11 @@ Saved prediction files (`.pkl`) can still be imported from the start screen, and
 | `POST /api/jobs` | Starts an analysis of one video (`mode=single`) or two (`mode=compare`) |
 | `GET /api/jobs/{id}` | The job's stages, each video's progress, and its status |
 | `POST /api/jobs/{id}/cancel` | Cancels a running analysis |
-| `POST /api/upload-predictions` | Imports one or two saved `.pkl` prediction files |
+| `POST /api/upload-predictions` | Imports one or two saved `.pkl` prediction files, saved as a run |
+| `GET /api/runs` | Every saved analysis, newest first, with title, files, length and result summary |
+| `POST /api/runs/{id}/open` | Loads a saved analysis into the dashboard |
+| `PATCH /api/runs/{id}`, `DELETE /api/runs/{id}` | Renames or deletes a saved analysis |
+| `GET /api/runs/{id}/video/{variant}`, `.../thumb/{variant}` | A saved run's video and thumbnail |
 | `POST /api/load-sample-data` | Loads the bundled sample pair |
 | `GET /api/overview` | Per-second metrics, peak and transcript for each variant |
 | `GET /api/ab-summary` | Verdict data and every cohort and dimension contest, or a summary when one creative is loaded |
@@ -140,6 +146,7 @@ Rewire/
 │   ├── main.py              # FastAPI app and endpoints
 │   ├── pipeline.py          # Analysis jobs: checks, GPU prediction, synthesis, scoring
 │   ├── engines.py           # Inference engines: Modal GPU, or replay for testing
+│   ├── runs.py              # The workspace: saved runs, thumbnails, summaries
 │   ├── analysis.py          # Audience synthesis, scoring and ensemble profiles
 │   └── requirements.txt
 ├── frontend/
