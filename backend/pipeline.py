@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 import traceback
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -31,6 +32,19 @@ STAGES = [
     ("scoring", "Scored and compared"),
     ("ready", "Ready"),
 ]
+# How each stage reads in the event log while it runs; finished stages use their label from STAGES.
+STAGE_STARTS = {
+    "checked": "Checking the videos",
+    "predicting": "Predicting brain response",
+    "synthesis": "Simulating 200 viewers",
+    "scoring": "Scoring the results",
+}
+# Per-video events complete the video's name: "Variant A is being transcribed".
+VIDEO_EVENTS = {
+    "starting": "is waiting for a GPU and the model",
+    "transcribing": "is being transcribed and its frames read",
+    "predicting": "is going through the model",
+}
 VIDEO_STAGES = [
     ("queued", "Waiting for the GPU"),
     ("starting", "Starting the GPU and loading the model"),
@@ -77,6 +91,15 @@ class Job:
     created: float = field(default_factory=time.time)
     finished: float | None = None
     cancel_requested: bool = False
+    events: list[dict] = field(default_factory=list)
+
+    def log(self, title: str, actor: str | None = None, meta: str | None = None, tone: str = "neutral", detail: str | None = None):
+        """Appends to the job's event log, which the progress screen shows newest first."""
+        self.events.append({"id": uuid.uuid4().hex[:10], "at": time.time(), "actor": actor, "title": title,
+                            "meta": meta, "tone": tone, "detail": detail})
+
+    def who(self, v: "VideoTask") -> str:
+        return "Your video" if self.mode == "single" else f"Variant {v.variant}"
 
     def stage(self, key: str) -> Stage:
         return next(s for s in self.stages if s.key == key)
@@ -89,6 +112,11 @@ class Job:
         data["video_stages"] = [{"key": k, "label": label} for k, label in VIDEO_STAGES]
         data["now"] = time.time()
         return data
+
+
+def took(seconds: float) -> str:
+    s = max(0, round(seconds))
+    return f"took {s // 60}m {s % 60:02d}s" if s >= 60 else f"took {s}s"
 
 
 def short_error(exc: Exception) -> str:
@@ -136,7 +164,9 @@ class JobManager:
             videos.append(VideoTask(variant=variant, name=name, path=str(path), size=len(data)))
         job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata)
         self._begin(job, "received", f"{len(videos)} video{'s' if len(videos) > 1 else ''}")
-        self._finish(job, "received")
+        mb = sum(v.size for v in videos) / (1024 * 1024)
+        job.log("Upload received", meta=f"{', '.join(v.name for v in videos)}, {mb:.1f} MB")
+        self._finish(job, "received", quiet=True)
         with self.lock:
             self.jobs[job_id] = job
         threading.Thread(target=self._run, args=(job,), daemon=True).start()
@@ -155,12 +185,17 @@ class JobManager:
     def _begin(self, job: Job, key: str, detail: str = ""):
         s = job.stage(key)
         s.state, s.started, s.detail = "running", time.time(), detail
+        if key in STAGE_STARTS:
+            job.log(STAGE_STARTS[key], meta=detail or None)
 
-    def _finish(self, job: Job, key: str, detail: str | None = None):
+    def _finish(self, job: Job, key: str, detail: str | None = None, quiet: bool = False):
         s = job.stage(key)
         s.state, s.ended = "done", time.time()
         if detail is not None:
             s.detail = detail
+        if not quiet:
+            meta = ", ".join(x for x in [s.detail, took(s.ended - s.started) if s.started else ""] if x)
+            job.log(s.label, meta=meta or None, tone="success")
 
     def _check_stop(self, job: Job):
         if job.cancel_requested:
@@ -220,16 +255,21 @@ class JobManager:
             })
             self.on_results(results, job.id)
             self._begin(job, "ready")
-            self._finish(job, "ready")
+            self._finish(job, "ready", quiet=True)
+            job.log("Analysis ready", meta=f"Saved to the workspace, {took(time.time() - job.created)} in all", tone="success")
             job.status = "done"
         except Cancelled:
             job.status, job.error = "cancelled", "The analysis was cancelled."
             self._fail(job, current, "Cancelled")
+            job.log("Analysis cancelled", meta="Nothing was saved")
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         except Exception as exc:
             traceback.print_exc()
             job.status, job.error = "failed", short_error(exc)
             self._fail(job, current, job.error)
+            # The short message is the title's context; the full error opens in place for whoever needs it.
+            full = (str(exc) or exc.__class__.__name__).strip()
+            job.log("Analysis stopped", meta=job.error, tone="danger", detail=full[-4000:] if full != job.error else None)
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         finally:
             job.finished = time.time()
@@ -243,9 +283,21 @@ class JobManager:
 
     def _predict(self, job: Job, engine, v: VideoTask):
         v.state, v.started, v.stage = "running", time.time(), "starting"
+        who = job.who(v)
+        seen = {"stage": None, "waiting": False, "model": False}
 
         def progress(stage: str, detail: str):
             v.stage, v.detail = stage, detail
+            # Log changes of stage, not every refresh of a detail line (a waiting timer ticks every poll).
+            if stage != seen["stage"] and stage in VIDEO_EVENTS:
+                seen["stage"] = stage
+                job.log(VIDEO_EVENTS[stage], actor=who)
+            if detail.startswith("Waiting for a free GPU") and not seen["waiting"]:
+                seen["waiting"] = True
+                job.log("is queued: no GPU is free yet", actor=who, meta="Modal is finding capacity")
+            if detail.startswith("Model loaded") and not seen["model"]:
+                seen["model"] = True
+                job.log("got a GPU and the model is ready", actor=who, meta=detail, tone="success")
 
         try:
             preds, transcript = engine.run(Path(v.path), progress, lambda: job.cancel_requested)
@@ -254,4 +306,5 @@ class JobManager:
             raise
         v.stage, v.state, v.ended = "received", "done", time.time()
         v.detail = f"{preds.shape[0]} seconds predicted"
+        job.log("came back from the GPU", actor=who, meta=f"{v.detail}, {took(v.ended - v.started)}", tone="success")
         return preds, transcript

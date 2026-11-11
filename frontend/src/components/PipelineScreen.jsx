@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Stepper } from '@/components/arc/stepper/stepper';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Upload, ScanSearch, Cpu, Users, ChartColumn, CircleCheck, CircleX, Ban, AudioLines, Hourglass, Brain } from 'lucide-react';
+import { Timeline } from '@/components/arc/timeline/timeline';
 import { Progress } from '@/components/arc/progress/progress';
 import { Button } from '@/components/arc/button/button';
 import { Alert } from '@/components/arc/alert/alert';
@@ -11,10 +12,30 @@ const clock = s => {
   return t >= 60 ? `${Math.floor(t / 60)}m ${String(t % 60).padStart(2, '0')}s` : `${t}s`;
 };
 const mb = bytes => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+// An icon for each kind of event, so the feed reads at a glance. The title always says the outcome as well.
+const iconFor = e => {
+  const t = `${e.title} ${e.meta ?? ''}`.toLowerCase();
+  const I = e.tone === 'danger' ? CircleX
+    : t.includes('cancel') ? Ban
+    : t.includes('ready') || t.includes('came back') ? CircleCheck
+    : t.includes('upload') ? Upload
+    : t.includes('check') ? ScanSearch
+    : t.includes('queued') || t.includes('waiting') ? Hourglass
+    : t.includes('transcrib') ? AudioLines
+    : t.includes('gpu') || t.includes('model') ? Cpu
+    : t.includes('predict') ? Brain
+    : t.includes('viewer') ? Users
+    : t.includes('scor') ? ChartColumn
+    : null;
+  return I ? <I size={14} strokeWidth={1.75} aria-hidden="true" /> : undefined;
+};
 
 /**
- * Follows an analysis job until it finishes: the whole run as a stepper, and each video's trip through the GPU
- * as a progress row. Opens the dashboard when the results are ready.
+ * Follows an analysis job until it finishes. The run unfolds as an activity feed, newest first: each stage as it
+ * starts and finishes, each video's trip through the GPU, and any error, which opens in place. Above it, overall
+ * progress and a row per video keep parallel work visible. The dashboard opens when the results are ready.
  */
 export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
   const [job, setJob] = useState(null);
@@ -22,38 +43,58 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
   const [gone, setGone] = useState(false);      // the backend no longer knows this job (it restarted)
   const [cancelling, setCancelling] = useState(false);
   const doneRef = useRef(false);
-  const offset = useRef(0);        // local clock minus server clock, so elapsed times use the server's timestamps
+  const offset = useRef(0);                      // local clock minus server clock, so times use the server's timestamps
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
 
   useEffect(() => {
     let live = true, timer;
-    const tick = async () => {
+    const poll = async () => {
       try {
         const next = await fetchJob(jobId);
         if (!live) return;
         offset.current = Date.now() / 1000 - next.now;
         setJob(next); setLost(false);
-        if (next.status === 'done' && !doneRef.current) { doneRef.current = true; setTimeout(onDone, 700); return; }
+        if (next.status === 'done' && !doneRef.current) { doneRef.current = true; setTimeout(onDone, 1200); return; }
         if (next.status !== 'running') return;
       } catch (err) {
         if (!live) return;
         if (err.response?.status === 404) { setGone(true); return; }
         setLost(true);
       }
-      timer = setTimeout(tick, 1000);
+      timer = setTimeout(poll, 1000);
     };
-    tick();
+    poll();
     return () => { live = false; clearTimeout(timer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
+
+  // Server timestamps shifted onto this machine's clock, so "just now" and the day group match the feed's `now`.
+  // Events within the same millisecond would sort arbitrarily, so each one is kept at least 1ms after the one before.
+  const events = useMemo(() => {
+    let last = 0;
+    return (job?.events ?? []).map(e => {
+      last = Math.max(last + 1, Math.round((e.at + offset.current) * 1000));
+      return {
+        id: e.id,
+        at: last,
+        actor: e.actor ?? undefined,
+        title: e.title,
+        meta: e.meta ?? undefined,
+        tone: e.tone,
+        icon: iconFor(e),
+        detail: e.detail ? <pre className="feed-error">{e.detail}</pre> : undefined,
+      };
+    });
+  }, [job]);
+  const failureIds = useMemo(() => events.filter(e => e.tone === 'danger' && e.detail).map(e => e.id), [events]);
 
   if (gone) {
     return (
       <main className="onboard"><div className="onboard-inner">
         <p className="onboard-brand">Rewire</p>
         <h1>This analysis is no longer running</h1>
-        <Alert tone="warning" title="The backend restarted">Analyses in progress do not survive a restart. Completed runs are kept and open on their own.</Alert>
+        <Alert tone="warning" title="The backend restarted">Analyses in progress do not survive a restart. Completed runs are kept in the workspace.</Alert>
         <div className="onboard-actions"><span /><div className="onboard-actions-end"><Button variant="secondary" onClick={onBack}>Back</Button>{onRetry && <Button onClick={() => { setGone(false); onRetry(); }}>Run it again</Button>}</div></div>
       </div></main>
     );
@@ -64,18 +105,13 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
   }
 
   const now = Date.now() / 1000 - offset.current;
-  const firstOpen = job.stages.findIndex(s => s.state !== 'done');
-  const current = firstOpen === -1 ? job.stages.length : firstOpen;
-  const steps = job.stages.map(s => ({
-    id: s.key,
-    label: s.label,
-    description: s.state === 'running' && s.started ? [s.detail, clock(now - s.started)].filter(Boolean).join(', ') : s.detail || undefined,
-    error: s.state === 'failed' ? s.detail : undefined,
-  }));
-  const videoStageIndex = key => Math.max(0, job.video_stages.findIndex(st => st.key === key));
-  const stageLabel = key => job.video_stages.find(st => st.key === key)?.label ?? key;
   const running = job.status === 'running';
+  const done = job.stages.filter(s => s.state === 'done').length;
+  const active = job.stages.find(s => s.state === 'running');
+  const stageLabel = key => job.video_stages.find(st => st.key === key)?.label ?? key;
+  const videoStageIndex = key => Math.max(0, job.video_stages.findIndex(st => st.key === key));
   const title = { running: 'Analysing', done: 'Analysis complete', failed: 'The analysis stopped', cancelled: 'Analysis cancelled' }[job.status];
+  const activeText = active ? { checked: 'Checking the videos', predicting: 'Predicting brain response', synthesis: 'Simulating 200 viewers', scoring: 'Scoring the results' }[active.key] ?? active.label : title;
 
   return (
     <main className="onboard pipeline">
@@ -89,9 +125,15 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
           </p>
         </header>
 
-        <div className="pipeline-body">
-          <Stepper steps={steps} current={current} orientation="vertical" label="Analysis stages" completeLabel="Analysis complete" />
+        <section className="pipeline-overall" aria-label="Overall progress">
+          <div className="pipeline-overall-head">
+            <strong>{activeText}</strong>
+            <span className="num-key">{done} of {job.stages.length} stages{active?.started ? `, ${clock(now - active.started)} on this one` : ''}</span>
+          </div>
+          <Progress value={(done / job.stages.length) * 100} label={`Analysis progress: ${done} of ${job.stages.length} stages done`} />
+        </section>
 
+        <div className="pipeline-body">
           <section className="pipeline-videos" aria-label="Videos">
             {job.videos.map(v => {
               const idx = videoStageIndex(v.stage);
@@ -101,31 +143,41 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
                 <div key={v.variant} className="pipeline-video">
                   <div className="pipeline-video-head">
                     <strong>{job.mode === 'compare' ? `Variant ${v.variant}` : 'Your video'}</strong>
-                    <span className="pipeline-file">{v.name}</span>
                     <Badge size="sm" tone={v.state === 'done' ? 'success' : v.state === 'failed' ? 'danger' : 'neutral'}>
                       {v.state === 'done' ? 'Done' : v.state === 'failed' ? 'Failed' : v.state === 'running' ? 'Running' : 'Waiting'}
                     </Badge>
                   </div>
+                  <span className="pipeline-file">{v.name}</span>
                   <Progress value={pct} label={`${v.name}: ${stageLabel(v.stage)}`} />
                   <p className="pipeline-video-meta">
-                    <span>{stageLabel(v.stage)}{v.detail ? `. ${v.detail}` : ''}</span>
-                    <span className="num-key">{[v.duration && `${Math.round(v.duration)}s video`, mb(v.size), elapsed].filter(Boolean).join(' · ')}</span>
+                    <span>{stageLabel(v.stage)}</span>
+                    <span className="num-key">{[v.duration && `${Math.round(v.duration)}s`, mb(v.size), elapsed].filter(Boolean).join(' · ')}</span>
                   </p>
                 </div>
               );
             })}
             <p className="pipeline-note">
               {job.engine === 'modal'
-                ? 'Prediction runs on a cloud GPU. The first run after a while starts the GPU and loads the model, which takes a few minutes; later runs are faster.'
+                ? 'Prediction runs on a cloud GPU. After a quiet spell a GPU starts first, which can take a few minutes when GPUs are busy.'
                 : 'Replay engine: sample predictions are used instead of the GPU, for testing.'}
             </p>
+          </section>
+
+          <section className="pipeline-feed" aria-label="Activity">
+            <Timeline
+              key={`${job.id}-${failureIds.join('')}`}   // remount when an error arrives, so it opens expanded
+              events={events}
+              now={Date.now()}
+              label="Analysis activity, newest first"
+              timeZone={timeZone}
+              maxHeight={440}
+              defaultExpanded={failureIds}
+              headingLevel={2}
+            />
           </section>
         </div>
 
         {lost && running && <Alert tone="warning" title="The backend is not answering">Still trying. The analysis keeps running on the backend.</Alert>}
-        {(job.status === 'failed' || job.status === 'cancelled') && (
-          <Alert tone={job.status === 'failed' ? 'danger' : 'neutral'} title={job.status === 'failed' ? 'Something went wrong' : 'Cancelled'}>{job.error}</Alert>
-        )}
 
         <div className="onboard-actions">
           <span />
