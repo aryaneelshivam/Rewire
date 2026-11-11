@@ -22,6 +22,8 @@ import ABSummaryPanel from './components/ABSummaryPanel';
 import DimensionalLeadPanel, { ContestsPanel } from './components/DimensionalLeadPanel';
 import KeyMetricsPanel from './components/KeyMetricsPanel';
 import ReportView from './components/ReportView';
+import ShareDialog from './components/ShareDialog';
+import { Share2 } from 'lucide-react';
 import { Button } from '@/components/arc/button/button';
 import { ActionButton } from '@/components/arc/action-button/action-button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/arc/tabs/tabs';
@@ -73,6 +75,7 @@ function App() {
   const playerRef = useRef(null);
   const brainRef = useRef(null);
 
+  const [sharing, setSharing] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [reportSnapshots, setReportSnapshots] = useState({ A: null, B: null });
@@ -183,6 +186,7 @@ function App() {
   const winner = single ? 'A' : winnerOf(abSummary);
   const shown = winner === 'B' ? 'B' : 'A';
   const winnerVideo = shown === 'B' ? videoUrlB : videoUrlA;
+  const shareVideos = useMemo(() => ({ A: videoUrlA, B: videoUrlB }), [videoUrlA, videoUrlB]);
 
   // The brain opens on the winning variant once the summary arrives.
   useEffect(() => { if (abSummary) setBrainVariant(abSummary.mode !== 'single' && winnerOf(abSummary) === 'B' ? 'B' : 'A'); }, [abSummary]);
@@ -301,6 +305,9 @@ function App() {
           <span className="theme-toggle"><ThemeSwitch theme={theme} variant="rise" iconOnly onThemeChange={changeTheme} /></span>
           <Button variant="ghost" onClick={() => { videoPause(); setShowWorkspace(true); }}>Workspace</Button>
           <Button variant="secondary" onClick={() => { videoPause(); setAwaitingUpload(true); }}>New analysis</Button>
+          <Button variant={single ? 'primary' : 'secondary'} onClick={() => { videoPause(); setSharing(true); }}>
+            <Share2 size={16} strokeWidth={1.75} aria-hidden="true" /> Share scorecard
+          </Button>
           {/* The printable report compares a pair; it is offered when two creatives are loaded. */}
           {!single && <ActionButton
             label="Export report"
@@ -311,6 +318,17 @@ function App() {
           />}
         </div>
       </header>
+
+      {sharing && (
+        <ShareDialog
+          onClose={() => setSharing(false)}
+          overview={overview}
+          engagement={engagement}
+          abSummary={abSummary}
+          runInfo={runInfo}
+          videos={shareVideos}
+        />
+      )}
 
       <main className="app-main">
         <div className="stage">

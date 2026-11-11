@@ -142,4 +142,7 @@ export const openRun = async (id) => (await api.post(`/runs/${id}/open`)).data;
 export const renameRun = async (id, title) => (await api.patch(`/runs/${id}`, { title })).data;
 export const deleteRun = async (id) => (await api.delete(`/runs/${id}`)).data;
 /** URL of a saved run's video or thumbnail, for <video> and <img>. */
+/** The Rewire Score per variant: measures, ranks once benchmarked, and the per-second response. */
+export const fetchScore = async () => (await api.get('/score')).data;
+
 export const runMediaUrl = (id, variant, kind = 'video') => `${API_BASE_URL}/runs/${id}/${kind}/${variant}`;

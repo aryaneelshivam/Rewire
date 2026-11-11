@@ -1,25 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
+import { inlineSvgPaint } from '@/lib/export-image';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/arc/button/button';
 import { Tooltip } from '@/components/arc/tooltip/tooltip';
 import { Badge } from '@/components/arc/badge/badge';
 import { Progress } from '@/components/arc/progress/progress';
 import { leadPct } from '@/lib/chart-data';
-
-// Chart marks get their paint from CSS-module classes and custom properties, which do not survive the
-// export's clone of SVG elements. Copy the resolved paint onto each SVG element for the moment of capture.
-const SVG_PAINT = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'opacity', 'font-family', 'font-size', 'font-weight', 'letter-spacing', 'text-anchor', 'dominant-baseline', 'visibility'];
-function inlineSvgPaint(root) {
-  const saved = [];
-  root.querySelectorAll('svg, svg *').forEach(el => {
-    const before = el.getAttribute('style');
-    const cs = getComputedStyle(el);
-    saved.push([el, before]);
-    el.setAttribute('style', `${before ?? ''};${SVG_PAINT.map(p => `${p}:${cs.getPropertyValue(p)}`).join(';')}`);
-  });
-  return () => saved.forEach(([el, before]) => (before === null ? el.removeAttribute('style') : el.setAttribute('style', before)));
-}
 
 /** Saves a node as a 2x PNG named after the chart. The button itself is left out of the image. */
 export function ExportButton({ target, name }) {

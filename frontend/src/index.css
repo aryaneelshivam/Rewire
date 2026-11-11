@@ -632,3 +632,133 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
 .asset-swap { display: flex; justify-content: center; margin: calc(var(--space-2) * -1) 0; position: relative; z-index: 1; }
 .meta-file { color: var(--text-muted); font-weight: 400; font-size: var(--text-xs); margin-left: var(--space-2); }
 @media (max-width: 520px) { .asset-row { grid-template-columns: 80px minmax(0, 1fr) auto; } .asset-thumb { width: 80px; } }
+
+/* ── Shareable scorecard ─────────────────────────────────────────────────────────────────────────────
+   The card is a fixed-size picture with its own light or dark palette, whatever the app's theme. Arc's tokens are
+   custom properties, so redefining them on the card restyles every Arc part inside it. */
+.scorecard {
+  --sc-pad: 28px;
+  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 16px;
+  padding: var(--sc-pad); box-sizing: border-box;
+  font-family: var(--font-body); color: var(--foreground); background: var(--background);
+  border-radius: 0;
+}
+.scorecard[data-card-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(17% .012 290); --surface: oklch(21% .012 290); --surface-muted: oklch(25% .012 290);
+  --foreground: oklch(97% 0 0); --text-secondary: oklch(80% .01 290); --text-muted: oklch(70% .01 290);
+  --border: oklch(31% .012 290); --border-subtle: oklch(26% .012 290);
+  --accent: #6ba3ff; --accent-strong: #a4c7ff; --success: oklch(79% .14 162);
+  --control-track: oklch(32% .012 290);
+  --sc-a: #6ba3ff; --sc-b: oklch(74% .15 50);
+  --sc-ink: linear-gradient(100deg, oklch(84% .09 290), oklch(88% .08 65));
+  --sc-glow: radial-gradient(120% 70% at 100% 0%, oklch(32% .07 295 / .9), transparent 60%), radial-gradient(90% 60% at 0% 100%, oklch(30% .06 60 / .55), transparent 60%);
+}
+.scorecard[data-card-theme="light"] {
+  color-scheme: light;
+  --background: oklch(99% .004 300); --surface: #fff; --surface-muted: oklch(95.5% .006 300);
+  --foreground: oklch(16% .01 290); --text-secondary: oklch(40% .01 290); --text-muted: oklch(48% .01 290);
+  --border: oklch(91% .008 290); --border-subtle: oklch(95% .006 290);
+  --accent: #0562ef; --accent-strong: #074db7; --success: oklch(50% .12 162);
+  --control-track: oklch(91% .008 290);
+  --sc-a: #0562ef; --sc-b: oklch(56% .17 45);
+  --sc-ink: linear-gradient(100deg, oklch(45% .14 295), oklch(52% .13 50));
+  --sc-glow: radial-gradient(120% 70% at 100% 0%, oklch(92% .05 300 / .9), transparent 60%), radial-gradient(90% 60% at 0% 100%, oklch(94% .045 65 / .9), transparent 60%);
+}
+.scorecard::before { content: ""; position: absolute; inset: 0; background: var(--sc-glow); pointer-events: none; }
+.scorecard > * { position: relative; }
+
+.sc-head { display: flex; align-items: baseline; justify-content: space-between; }
+.sc-brand { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.sc-kicker { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+
+.sc-media { display: grid; gap: 10px; }
+.sc-media.is-pair { grid-template-columns: 1fr 1fr; }
+.sc-thumb { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: var(--surface-muted); border: 1px solid var(--border); }
+.sc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sc-thumb-empty { display: grid; place-items: center; height: 100%; padding: 12px; text-align: center; font-family: var(--font-display); font-size: 18px; color: var(--text-secondary); background: var(--sc-glow), var(--surface-muted); }
+.sc-thumb figcaption { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; justify-content: space-between; align-items: center; }
+.sc-tag { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; font-size: 13px; font-weight: 600; color: #fff; }
+.sc-tag-a { background: #0562ef; }
+.sc-tag-b { background: oklch(56% .17 45); }
+
+.sc-body { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+.sc-body > * { flex-shrink: 0; }
+.sc-title { margin: 0; font-family: var(--font-display); font-size: 15px; font-weight: 500; color: var(--text-secondary); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-hero { display: flex; flex-direction: column; gap: 4px; }
+.sc-verdict { margin: 0; font-family: var(--font-display); font-size: 34px; font-weight: 600; letter-spacing: -.025em; line-height: 1.08; }
+.sc-ink { background: var(--sc-ink); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sc-ink-a { color: var(--sc-a); }
+.sc-ink-b { color: var(--sc-b); }
+.sc-sub { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.sc-score { margin: 0; display: flex; align-items: baseline; gap: 8px; }
+.sc-score-num { font-family: var(--font-display); font-size: 88px; font-weight: 600; letter-spacing: -.05em; line-height: .9; background: var(--sc-ink); -webkit-background-clip: text; background-clip: text; color: transparent; font-variant-numeric: tabular-nums; }
+.sc-score-of { font-size: 15px; color: var(--text-muted); }
+.sc-pair-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sc-pair-scores .sc-score-num { font-size: 64px; }
+.sc-score-a .sc-score-num { background: none; color: var(--sc-a); }
+.sc-score-b .sc-score-num { background: none; color: var(--sc-b); }
+
+.sc-label { margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.sc-label strong { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sc-measures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sc-measures:has(> :nth-child(4)) { grid-template-columns: repeat(4, 1fr); }
+.sc-measure [role="progressbar"] { --accent: var(--sc-a); --success: var(--sc-a); }
+/* The row above each bar already names it; the bar keeps its accessible name but not a second visible label. */
+.sc-measure [role="progressbar"] > div:not(:last-child) { display: none; }
+.sc-curves { display: grid; gap: 10px; }
+.sc-curve-a { --accent: var(--sc-a); --accent-strong: var(--sc-a); }
+.sc-curve-b { --accent: var(--sc-b); --accent-strong: var(--sc-b); }
+.sc-facts { margin: auto 0 0; font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-foot { display: flex; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 10.5px; color: var(--text-muted); }
+
+/* Portrait, one video: a wide still keeps room for the score, the measures and the curve. */
+.scorecard[data-format="portrait"][data-mode="single"] .sc-thumb { aspect-ratio: 2.2 / 1; }
+.scorecard[data-format="portrait"] .sc-score-num { font-size: 76px; }
+
+/* Square: no room for the curve on a single card. */
+.scorecard[data-format="square"] .sc-verdict { font-size: 28px; }
+.scorecard[data-format="square"][data-mode="single"] .sc-curve { display: none; }
+.scorecard[data-format="square"][data-mode="single"] .sc-thumb { aspect-ratio: 3 / 1; }
+.scorecard[data-format="square"] .sc-score-num { font-size: 64px; }
+.scorecard[data-format="square"][data-mode="compare"] .sc-facts,
+.scorecard[data-format="square"][data-mode="compare"] .sc-curve:not(.is-lead) { display: none; }
+/* Story: a taller frame, so everything grows. */
+.scorecard[data-format="story"] { --sc-pad: 36px; gap: 22px; }
+.scorecard[data-format="story"] .sc-verdict { font-size: 42px; }
+.scorecard[data-format="story"] .sc-body { gap: 22px; }
+.scorecard[data-format="story"] .sc-media:not(.is-pair) .sc-thumb { aspect-ratio: 4 / 3; }
+.scorecard[data-format="story"] .sc-media.is-pair .sc-thumb { aspect-ratio: 2 / 3; }
+/* Wide: media on the left, the verdict on the right. */
+.scorecard[data-format="link"] { --sc-pad: 22px; display: grid; grid-template-columns: 260px 1fr; grid-template-rows: auto 1fr auto; gap: 10px 20px; }
+.scorecard[data-format="link"] .sc-head { grid-column: 1 / -1; }
+.scorecard[data-format="link"] .sc-media { align-content: center; }
+.scorecard[data-format="link"] .sc-media.is-pair { grid-template-columns: 1fr 1fr; gap: 8px; }
+.scorecard[data-format="link"] .sc-media.is-pair .sc-thumb { aspect-ratio: 4 / 5; }
+.scorecard[data-format="link"] .sc-body { gap: 8px; }
+.scorecard[data-format="link"] .sc-verdict { font-size: 25px; }
+.scorecard[data-format="link"] .sc-score-num { font-size: 60px; }
+.scorecard[data-format="link"] .sc-measures { display: none; }
+.scorecard[data-format="link"][data-mode="compare"] .sc-curve:not(.is-lead) { display: none; }
+.scorecard[data-format="link"] .sc-facts { display: none; }
+.scorecard[data-format="link"] .sc-foot { grid-column: 1 / -1; padding-top: 8px; }
+
+/* The share dialog */
+.share-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: oklch(10% 0 0 / .55); backdrop-filter: blur(6px); }
+.share-panel { display: grid; grid-template-columns: minmax(0, 1fr) 320px; width: min(1120px, 100%); height: min(820px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: var(--rounded-lg, 16px); box-shadow: var(--shadow-floating); overflow: hidden; }
+.share-stage { display: grid; place-items: center; min-height: 0; background: var(--surface-muted); }
+.share-fit { box-shadow: 0 18px 50px oklch(0% 0 0 / .28); border-radius: 6px; overflow: hidden; }
+.share-skeleton { width: min(360px, 80%); }
+.share-side { display: flex; flex-direction: column; gap: 18px; padding: 22px; border-left: 1px solid var(--border); overflow-y: auto; }
+.share-side-head { display: flex; align-items: center; justify-content: space-between; }
+.share-side-head h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+.share-lede, .share-note { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.share-note { color: var(--text-muted); margin-top: 6px; }
+.share-field { display: flex; flex-direction: column; }
+.share-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.share-actions > * { width: 100%; }
+@media (max-width: 760px) {
+  .share-overlay { padding: 0; }
+  .share-panel { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; height: 100%; border-radius: 0; }
+  .share-side { border-left: 0; border-top: 1px solid var(--border); }
+}

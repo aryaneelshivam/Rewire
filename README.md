@@ -99,16 +99,16 @@ streamlit run app.py
 
 ## Using Rewire
 
-1. **Start an analysis**: choose **One video** to analyse a single creative, or **Two videos** to compare them. Drop the files in (MP4 or MOV, up to 3 minutes and 500 MB each), optionally set the creative details, and choose **Run analysis**.
+1. **Start an analysis**: drop one video to analyse a single creative, or two to compare them, into the one drop zone (MP4, MOV, M4V, WebM or MKV, up to 3 minutes each). Two files become Variant A and Variant B in the order added; **Swap** reverses them. Then choose **Run analysis**.
 2. **Follow the pipeline**: a progress screen shows each stage (upload, checks, prediction on the GPU, audience simulation, scoring) and each video's progress. The dashboard opens when the results are ready.
 3. **Read the verdict**: the Overview tab names the winner and the numbers behind it, or summarises the single creative.
 4. **Watch and scrub**: play the creative; the brain, gauge and readouts follow the playhead. Use the timeline to jump to scenes, dialogue and response shifts.
 5. **Dig in**: compare cohorts and dimensions in Audiences, find the strongest seconds in Key moments, and check regions and consistency in Brain regions.
 6. **Explore the ensemble**: in the Ensemble tab, find groups of viewers who respond alike and see what makes each group different.
 7. **Come back later**: open **Workspace** from the header to find, rename, delete or reopen any earlier analysis.
-8. **Share**: download any chart as a PNG, or export a printable report when comparing two creatives.
+8. **Share**: **Share scorecard** in the header makes a branded image of the result, in portrait (1080 × 1350), square, story (1080 × 1920) or wide (1200 × 630), light or dark, to download, copy or share. It shows a frame from each video at its peak, the verdict, the response curve and the strongest audience, and the 0 to 100 Rewire Score once the benchmark can rank it. Any chart also downloads as a PNG, and comparisons export as a printable report.
 
-Saved prediction files (`.pkl`) can still be imported from the start screen, and **Use sample data** loads the bundled pair.
+**Use sample data** on the start screen loads the bundled pair.
 
 ---
 
