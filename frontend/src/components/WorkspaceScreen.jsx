@@ -52,7 +52,7 @@ export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose }) {
   const [filter, setFilter] = useState('all');
   const [opening, setOpening] = useState(null);
 
-  const load = () => fetchRuns().then(setData).catch(() => setError('The workspace could not load. Check that the backend is running.'));
+  const load = () => fetchRuns().then(setData).catch(() => setError('The workspace could not load. Check your connection and try again.'));
   useEffect(() => { load(); }, []);
 
   const shown = useMemo(() => {

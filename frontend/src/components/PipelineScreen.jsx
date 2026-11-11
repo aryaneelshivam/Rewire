@@ -93,15 +93,15 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
     return (
       <main className="onboard"><div className="onboard-inner">
         <p className="onboard-brand">Rewire</p>
-        <h1>This analysis is no longer running</h1>
-        <Alert tone="warning" title="The backend restarted">Analyses in progress do not survive a restart. Completed runs are kept in the workspace.</Alert>
+        <h1>This analysis was interrupted</h1>
+        <Alert tone="warning" title="It stopped before finishing">Nothing was saved from it. Completed analyses are safe in the workspace.</Alert>
         <div className="onboard-actions"><span /><div className="onboard-actions-end"><Button variant="secondary" onClick={onBack}>Back</Button>{onRetry && <Button onClick={() => { setGone(false); onRetry(); }}>Run it again</Button>}</div></div>
       </div></main>
     );
   }
 
   if (!job) {
-    return <main className="onboard"><div className="onboard-inner"><p className="onboard-brand">Rewire</p><h1>Starting the analysis</h1>{lost && <Alert tone="warning" title="The backend is not answering">Retrying every second.</Alert>}</div></main>;
+    return <main className="onboard"><div className="onboard-inner"><p className="onboard-brand">Rewire</p><h1>Starting the analysis</h1>{lost && <Alert tone="warning" title="Connection lost">Reconnecting.</Alert>}</div></main>;
   }
 
   const now = Date.now() / 1000 - offset.current;
@@ -174,11 +174,7 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
                 </div>
               );
             })}
-            <p className="pipeline-note">
-              {job.engine === 'modal'
-                ? 'Prediction runs on a cloud GPU. After a quiet spell a GPU starts first, which can take a few minutes when GPUs are busy.'
-                : 'Replay engine: sample predictions are used instead of the GPU, for testing.'}
-            </p>
+            <p className="pipeline-note">Most videos take a few minutes; longer videos take longer. You can leave this page open.</p>
           </section>
 
           <section className="pipeline-feed" aria-label="Activity">
@@ -195,7 +191,7 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
           </section>
         </div>
 
-        {lost && running && <Alert tone="warning" title="The backend is not answering">Still trying. The analysis keeps running on the backend.</Alert>}
+        {lost && running && <Alert tone="warning" title="Connection lost">Reconnecting. Your analysis keeps running in the meantime.</Alert>}
 
         <div className="onboard-actions">
           <span />

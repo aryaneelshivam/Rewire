@@ -58,7 +58,7 @@ export default function EnsembleExplorer({ variants, winner, currentTime, theme 
     let live = true;
     fetchEnsemble(variant)
       .then(d => { if (live) setStore(s => ({ ...s, [variant]: d })); })
-      .catch(() => { if (live) setError('The viewer profiles could not load. Check that the backend is running.'); });
+      .catch(() => { if (live) setError('The viewer profiles could not load. Check your connection and try again.'); });
     return () => { live = false; };
   }, [variant, store]);
 

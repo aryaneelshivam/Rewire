@@ -28,16 +28,16 @@ function VideoThumb({ file, onDuration }) {
  * The files dropped on the start screen, as they will be analysed: one is "Your video", two are Variant A and B in
  * the order they were added. Swap fixes the order; remove takes a file out.
  */
-export default function AssetList({ files, kind = 'video', durations = {}, onDuration, onSwap, onRemove }) {
+export default function AssetList({ files, durations = {}, onDuration, onSwap, onRemove }) {
   if (!files.length) return null;
   const single = files.length === 1;
-  const labelFor = i => (single ? (kind === 'video' ? 'Your video' : 'Your predictions') : `Variant ${i === 0 ? 'A' : 'B'}`);
+  const labelFor = i => (single ? 'Your video' : `Variant ${i === 0 ? 'A' : 'B'}`);
 
   return (
-    <div className="asset-list" aria-label={kind === 'video' ? 'Videos to analyse' : 'Prediction files to import'}>
+    <div className="asset-list" aria-label="Videos to analyse">
       {files.map(({ id, file }, i) => {
         const seconds = durations[id];
-        const tooLong = kind === 'video' && seconds > MAX_VIDEO_SECONDS;
+        const tooLong = seconds > MAX_VIDEO_SECONDS;
         return (
           <React.Fragment key={id}>
             {i === 1 && (
@@ -48,14 +48,12 @@ export default function AssetList({ files, kind = 'video', durations = {}, onDur
               </div>
             )}
             <div className={`asset-row ${i === 1 ? 'is-b' : ''}`}>
-              {kind === 'video'
-                ? <VideoThumb file={file} onDuration={d => onDuration?.(id, d)} />
-                : <span className="asset-thumb asset-thumb-file" aria-hidden="true">.pkl</span>}
+              <VideoThumb file={file} onDuration={d => onDuration?.(id, d)} />
               <div className="asset-info">
                 <strong className={single ? 'num-key' : i === 1 ? 'num-b' : 'num-a'}>{labelFor(i)}</strong>
                 <span className="asset-name">{file.name}</span>
                 <span className="asset-meta">
-                  {[seconds ? clock(seconds) : kind === 'video' ? 'Reading length' : null, mb(file.size)].filter(Boolean).join(' · ')}
+                  {[seconds ? clock(seconds) : 'Reading length', mb(file.size)].filter(Boolean).join(' · ')}
                 </span>
                 {tooLong && <span className="asset-warn">Runs over 3 minutes, the longest Rewire analyses. Trim it first.</span>}
               </div>

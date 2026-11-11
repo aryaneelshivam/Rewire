@@ -277,8 +277,8 @@ function App() {
   if (!overview || !engagement || !topRois || !demographics) {
     return (
       <div className="splash">
-        <Alert tone="danger" title="The analysis engine is not responding">
-          Start the backend on port 8000, then try again.
+        <Alert tone="danger" title="Rewire can't be reached right now">
+          Check your connection, then try again.
         </Alert>
         <Button variant="secondary" onClick={loadData}>Try again</Button>
       </div>

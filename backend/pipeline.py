@@ -40,17 +40,18 @@ STAGE_STARTS = {
     "scoring": "Scoring the results",
 }
 # Per-video events complete the video's name: "Variant A is being transcribed".
+# Shown to people, so they describe the work, never the infrastructure behind it.
 VIDEO_EVENTS = {
-    "starting": "is waiting for a GPU and the model",
-    "transcribing": "is being transcribed and its frames read",
-    "predicting": "is going through the model",
+    "starting": "is queued for processing",
+    "transcribing": "is being read: speech and frames",
+    "predicting": "is being analysed",
 }
 VIDEO_STAGES = [
-    ("queued", "Waiting for the GPU"),
-    ("starting", "Starting the GPU and loading the model"),
-    ("transcribing", "Transcribing speech and reading frames"),
+    ("queued", "Queued"),
+    ("starting", "Getting ready"),
+    ("transcribing", "Reading speech and frames"),
     ("predicting", "Predicting brain response"),
-    ("received", "Results received"),
+    ("received", "Done"),
 ]
 
 
@@ -218,11 +219,12 @@ class JobManager:
                 v.duration = round(probe_duration(Path(v.path)), 1)
                 if v.duration > MAX_SECONDS:
                     raise ValueError(f"{v.name} runs {v.duration:.0f} seconds; the limit is {MAX_SECONDS // 60} minutes.")
-            self._finish(job, "checked", ", ".join(f"{v.variant}: {v.duration:.0f}s" for v in job.videos))
+            lengths = [f"{v.duration:.0f}s" if job.mode == "single" else f"{v.variant}: {v.duration:.0f}s" for v in job.videos]
+            self._finish(job, "checked", ", ".join(lengths))
 
             self._check_stop(job)
             current = "predicting"
-            self._begin(job, "predicting", "On the cloud GPU" if job.engine == "modal" else "Replay engine")
+            self._begin(job, "predicting")
             engine = get_engine()
             with ThreadPoolExecutor(max_workers=len(job.videos)) as pool:
                 outputs = list(pool.map(lambda v: self._predict(job, engine, v), job.videos))
@@ -267,15 +269,16 @@ class JobManager:
         except Cancelled:
             job.status, job.error = "cancelled", "The analysis was cancelled."
             self._fail(job, current, "Cancelled")
-            job.log("Analysis cancelled", meta="Nothing was saved; the GPU call was stopped" if job.engine == "modal" else "Nothing was saved")
+            job.log("Analysis cancelled", meta="Nothing was saved")
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         except Exception as exc:
             traceback.print_exc()
-            job.status, job.error = "failed", short_error(exc)
-            self._fail(job, current, job.error)
-            # The short message is the title's context; the full error opens in place for whoever needs it.
-            full = (str(exc) or exc.__class__.__name__).strip()
-            job.log("Analysis stopped", meta=job.error, tone="danger", detail=full[-4000:] if full != job.error else None)
+            # Problems with the uploaded videos are worth telling people; anything else stays in the server log,
+            # because its wording can expose how Rewire works inside.
+            message = short_error(exc) if current == "checked" else "Something went wrong while processing. Try again in a few minutes."
+            job.status, job.error = "failed", message
+            self._fail(job, current, message)
+            job.log("Analysis stopped", meta=message, tone="danger")
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         finally:
             job.finished = time.time()
@@ -300,10 +303,10 @@ class JobManager:
                 job.log(VIDEO_EVENTS[stage], actor=who)
             if detail.startswith("Waiting for a free GPU") and not seen["waiting"]:
                 seen["waiting"] = True
-                job.log("is queued: no GPU is free yet", actor=who, meta="Modal is finding capacity")
+                job.log("is waiting for processing capacity", actor=who, meta="It starts as soon as capacity frees up")
             if detail.startswith("Model loaded") and not seen["model"]:
                 seen["model"] = True
-                job.log("got a GPU and the model is ready", actor=who, meta=detail, tone="success")
+                job.log("started processing", actor=who, tone="success")
 
         try:
             preds, transcript = engine.run(Path(v.path), progress, lambda: job.cancel_requested)
@@ -312,5 +315,5 @@ class JobManager:
             raise
         v.stage, v.state, v.ended = "received", "done", time.time()
         v.detail = f"{preds.shape[0]} seconds predicted"
-        job.log("came back from the GPU", actor=who, meta=f"{v.detail}, {took(v.ended - v.started)}", tone="success")
+        job.log("finished processing", actor=who, meta=f"{v.detail}, {took(v.ended - v.started)}", tone="success")
         return preds, transcript

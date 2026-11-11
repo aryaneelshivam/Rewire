@@ -1,39 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { Button } from '@/components/arc/button/button';
-import { Select } from '@/components/arc/select/select';
 import { FileDropzone } from '@/components/arc/file-dropzone/file-dropzone';
-import { Accordion } from '@/components/arc/accordion/accordion';
 import { Alert } from '@/components/arc/alert/alert';
-import { createJob, uploadPredictions, fetchStatus, loadSampleData } from '../api';
+import { createJob, loadSampleData } from '../api';
 import AssetList from './AssetList';
 import { releaseUrl } from '@/lib/object-urls';
 
-const GENRE_OPTIONS = [
-  { value: 'general', label: 'General' },
-  { value: 'emotional', label: 'Emotional' },
-  { value: 'humor', label: 'Humor' },
-  { value: 'action', label: 'Action' },
-  { value: 'informational', label: 'Informational' },
-  { value: 'luxury', label: 'Luxury' },
-];
-const PACING_OPTIONS = [
-  { value: 'fast_cut', label: 'Fast cut (under 2s a shot)' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'slow_burn', label: 'Slow burn (over 5s a shot)' },
-];
-const AUDIO_OPTIONS = [
-  { value: 'music_heavy', label: 'Music heavy' },
-  { value: 'dialogue_heavy', label: 'Dialogue heavy' },
-  { value: 'mixed', label: 'Mixed' },
-  { value: 'silent', label: 'Silent or ambient' },
-];
-const CONTENT_TYPE_OPTIONS = [
-  { value: 'video_ad', label: 'Video ad' },
-  { value: 'music_video', label: 'Music video' },
-  { value: 'trailer', label: 'Trailer' },
-  { value: 'short_form', label: 'Short form' },
-];
-const DEFAULT_META = { genre: 'general', content_type: 'video_ad', pacing: 'medium', audio_profile: 'mixed' };
 const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv';
 const MAX_MB = 500;
 const MAX_SECONDS = 180;
@@ -75,19 +47,15 @@ function useFileSlots() {
  */
 const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspace }) => {
   const videos = useFileSlots();
-  const pkls = useFileSlots();
   const [durations, setDurations] = useState({});
-  const [metaById, setMetaById] = useState({});    // creative details follow the file, so a swap keeps them right
-  const [busy, setBusy] = useState(null);           // 'run', 'import' or 'sample'
+  const [busy, setBusy] = useState(null);           // 'run' or 'sample'
   const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState(null);
   const upload = useRef(null);    // aborts the upload when the person cancels it
 
   const mode = videos.files.length === 2 ? 'compare' : 'single';
-  const labelAt = (i, count) => (count === 1 ? 'Your video' : `Variant ${i === 0 ? 'A' : 'B'}`);
   const tooLong = videos.files.some(f => durations[f.id] > MAX_SECONDS);
   const ready = videos.files.length > 0 && !tooLong;
-  const metaOf = id => metaById[id] ?? DEFAULT_META;
   const bySlot = (slots, pick) => Object.fromEntries(slots.files.map((f, i) => [i === 0 ? 'A' : 'B', pick(f)]));
 
   const run = async () => {
@@ -96,31 +64,17 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
     upload.current = new AbortController();
     try {
       const chosen = bySlot(videos, f => f.file);
-      const meta = bySlot(videos, f => metaOf(f.id));
-      const { job_id } = await createJob(mode, chosen, meta, e => e.total && setUploadPct(Math.round((e.loaded / e.total) * 100)), upload.current.signal);
-      onJobStarted(job_id, chosen, mode, meta);
+      const { job_id } = await createJob(mode, chosen, {}, e => e.total && setUploadPct(Math.round((e.loaded / e.total) * 100)), upload.current.signal);
+      onJobStarted(job_id, chosen, mode, {});
     } catch (err) {
       // A cancelled upload is the person's choice, not an error to report.
       if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
-        setError(err.response?.data?.detail || 'The videos could not be sent. Check that the backend is running and try again.');
+        setError(err.response?.data?.detail || 'The videos could not be sent. Check your connection and try again.');
       }
       setBusy(null);
     } finally {
       upload.current = null;
     }
-  };
-
-  const importPredictions = async () => {
-    if (!pkls.files.length || busy) return;
-    setBusy('import'); setError(null);
-    try {
-      const [a, b] = pkls.files;
-      await uploadPredictions(a.file, b?.file, DEFAULT_META, DEFAULT_META);
-      const status = await fetchStatus();
-      if (status.loaded) onDataLoaded(); else setError('The files loaded but returned no results.');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'The prediction files could not be imported.');
-    } finally { setBusy(null); }
   };
 
   const useSamples = async () => {
@@ -129,18 +83,9 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
       await loadSampleData();
       onDataLoaded();
     } catch {
-      setError('The sample data could not load. Check that the sample files are in the project folder.');
+      setError('The sample could not load. Try again in a moment.');
     } finally { setBusy(null); }
   };
-
-  const metaFields = ({ id, file }, i) => (
-    <div className="meta-col" key={id}>
-      <h3 className="aside-title"><span className={videos.files.length === 1 ? '' : i === 0 ? 'num-a' : 'num-b'}>{labelAt(i, videos.files.length)}</span> <span className="meta-file">{file.name}</span></h3>
-      {[['Genre', 'genre', GENRE_OPTIONS], ['Format', 'content_type', CONTENT_TYPE_OPTIONS], ['Pacing', 'pacing', PACING_OPTIONS], ['Audio', 'audio_profile', AUDIO_OPTIONS]].map(([label, key, options]) => (
-        <Select key={key} label={label} options={options} value={metaOf(id)[key]} onValueChange={val => setMetaById(m => ({ ...m, [id]: { ...metaOf(id), [key]: val } }))} />
-      ))}
-    </div>
-  );
 
   return (
     <main className="onboard">
@@ -173,39 +118,6 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
             onRemove={videos.remove}
           />
         </section>
-
-        <Accordion
-          defaultOpen={-1}
-          items={[
-            {
-              title: 'Creative details (optional)',
-              content: videos.files.length
-                ? <div className={`meta-grid ${videos.files.length === 1 ? 'is-single' : ''}`}>{videos.files.map(metaFields)}</div>
-                : <p className="onboard-lede">Add a video first; its details appear here.</p>,
-            },
-            {
-              title: 'Import saved predictions (.pkl)',
-              content: (
-                <div className="pkl-import single-drop">
-                  <p className="onboard-lede">Already have prediction files from an earlier run? Drop one to analyse it, or two to compare, and skip the GPU step.</p>
-                  <FileDropzone
-                    key={`pkls-${pkls.zoneKey}`}
-                    accept=".pkl"
-                    multiple
-                    maxFiles={2}
-                    defaultItems={pkls.defaultItems}
-                    label="Add one or two .pkl files"
-                    description="Drop the prediction files here"
-                    compactAt={1}
-                    onFilesChange={pkls.fromZone}
-                  />
-                  <AssetList files={pkls.files} kind="pkl" onSwap={pkls.swap} onRemove={pkls.remove} />
-                  <Button variant="secondary" loading={busy === 'import'} disabled={!pkls.files.length || (busy && busy !== 'import')} onClick={importPredictions}>Import and open</Button>
-                </div>
-              ),
-            },
-          ]}
-        />
 
         {error && <Alert tone="danger" title="The analysis did not start">{error}</Alert>}
 
