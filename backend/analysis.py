@@ -32,6 +32,14 @@ ROI_AVERAGER = sparse.csr_matrix(
 )
 LABELLED_ROIS = [i for i, name in enumerate(ROI_LABEL_NAMES) if name != "?"]
 
+# Dorsolateral prefrontal cortex and frontal pole, per hemisphere: the regions frontal-asymmetry research refers to.
+# Hemisphere labels index the full mesh (left 0-10241, right 10242-20483).
+PREFRONTAL_REGIONS = ["46", "9-46d", "a9-46v", "p9-46v", "9a", "9p", "8Av", "8BL", "10p", "a10p", "p10p"]
+def _region_vertices(hemi):
+    labels = get_hcp_labels(mesh="fsaverage5", combine=False, hemi=hemi)
+    return np.concatenate([np.asarray(labels[n]) for n in PREFRONTAL_REGIONS if n in labels])
+PREFRONTAL_LEFT, PREFRONTAL_RIGHT = _region_vertices("left"), _region_vertices("right")
+
 # Hemisphere-Aware Bias (Functional Lateralization)
 # Many ROI asymmetries are documented (language L>R, spatial attention R>L)
 HEMISPHERE_BIAS = {
@@ -734,6 +742,8 @@ def run_full_analysis(
         "left_max": left_preds.max(axis=1).tolist(),
         "right_max": right_preds.max(axis=1).tolist(),
         "hemisphere_asymmetry": (left_preds.mean(axis=1) - right_preds.mean(axis=1)).tolist(),
+        # Left minus right over the prefrontal regions only; positive means the left side responds more.
+        "prefrontal_asymmetry": (preds[:, PREFRONTAL_LEFT].mean(axis=1) - preds[:, PREFRONTAL_RIGHT].mean(axis=1)).tolist(),
         "active_fraction": (preds >= active_threshold).mean(axis=1).tolist(),
         "active_threshold": active_threshold,
     }
