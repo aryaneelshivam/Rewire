@@ -98,6 +98,11 @@ def summarise(results: dict) -> dict:
             "best_cohort_label": c.get("demo_labels", {}).get(best, best),
             "top_dimension": top_dim,
         }
+        rs = c.get("rewire_score")
+        if rs:
+            per[v]["rewire_score"] = rs["score"]
+            per[v]["rewire_status"] = rs["status"]
+            per[v]["rewire_measures"] = {k: rs["measures"][k] for k in ("hook", "depth", "peak", "hold")}
     summary = {"variants": per}
     if len(results) == 2 and {"A", "B"} <= set(results):
         a, b = results["A"]["engagement_scores"], results["B"]["engagement_scores"]

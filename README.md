@@ -43,7 +43,10 @@ The same simulated viewers watch both videos in a comparison, so A/B differences
 ### 3. Scoring
 Responses are averaged over 180 cortical regions and scored on eight dimensions: visual, auditory, reward, memory, attention, narrative, self-relevance and action, plus an overall score. Variants are compared on every cohort and dimension pair.
 
-### 4. Dashboard
+### 4. Rewire Score
+One number from 0 to 100 that can be compared across ads. It is computed from the predicted response alone, so it is repeatable. Four measures (hook, depth, peak and hold) are each ranked against a benchmark library of ads of similar length, and combined. Until a length band holds 30 benchmark ads, the score is reported as provisional, without a number. See [docs/REWIRE_SCORE.md](docs/REWIRE_SCORE.md) for the method and how to build the benchmark.
+
+### 5. Dashboard
 A FastAPI backend serves the analysis; a React frontend presents it.
 
 ---
@@ -127,6 +130,7 @@ Saved prediction files (`.pkl`) can still be imported from the start screen, and
 | `GET /api/ab-summary` | Verdict data and every cohort and dimension contest, or a summary when one creative is loaded |
 | `GET /api/engagement` | Engagement scores by cohort and dimension |
 | `GET /api/timeseries` | Network response over time by cohort |
+| `GET /api/score` | The Rewire Score: four measures, their ranks within the video's length band, and the per-second response |
 | `GET /api/top-rois` | Top regions with their time series |
 | `GET /api/heatmap` | Response variance across viewers by region and cohort |
 | `GET /api/demographics` | Cohort labels and colours |
@@ -147,6 +151,7 @@ Rewire/
 │   ├── engines.py           # Inference engines: Modal GPU, or replay for testing
 │   ├── runs.py              # The workspace: saved runs, thumbnails, summaries
 │   ├── analysis.py          # Audience synthesis, scoring and ensemble profiles
+│   ├── score.py             # Rewire Score, method v1
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -157,7 +162,10 @@ Rewire/
 │   │   ├── lib/             # Chart data, timeline detection, video analysis, clustering
 │   │   └── index.css        # Layout on top of Arc's tokens
 │   └── package.json
-├── docs/SAAS_ARCHITECTURE.md  # Plan for the hosted, multi-tenant product
+├── docs/
+│   ├── SAAS_ARCHITECTURE.md # Plan for the hosted, multi-tenant product
+│   └── REWIRE_SCORE.md      # The score's method and benchmark
+├── scripts/build_benchmark.py  # Builds the benchmark library the score ranks against
 ├── app.py                   # Streamlit explorer
 ├── modal_inference.py       # Cloud inference service (deployed to Modal)
 └── process.md               # Technical notes

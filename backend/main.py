@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from pipeline import JobManager
+from score import rewire_score
 import runs
 from runs import latest_run
 from analysis import run_full_analysis, contest_winner, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
@@ -60,6 +61,7 @@ def _analyse(preds, transcript, metadata=None, seed=42, on_step=None) -> dict:
     cache = run_full_analysis(np.asarray(preds), content_metadata=metadata or None, transcript=transcript,
                               n_subjects=50, seed=seed, on_step=on_step)
     cache["transcript"] = transcript
+    cache["rewire_score"] = rewire_score(preds)
     return cache
 
 
@@ -338,6 +340,13 @@ def get_overview():
             "transcript": c.get("transcript", []),
         }
     return _each(_build)
+
+
+@app.get("/api/score")
+def get_score():
+    """Per variant: the Rewire Score, its four measures (ranked within the video's length band once the benchmark
+    is large enough) and the per-second response curve."""
+    return _each(lambda c: c.setdefault("rewire_score", rewire_score(c["preds"])))
 
 
 @app.get("/api/top-rois")
