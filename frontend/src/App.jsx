@@ -257,7 +257,6 @@ function App() {
   if (awaitingUpload) {
     return (
       <UploadDataScreen
-        initialMode={single ? 'single' : 'compare'}
         onJobStarted={(id, videos, mode, meta) => setJob({ id, videos, mode, meta })}
         onDataLoaded={() => loadData()}
         onCancel={overview ? () => setAwaitingUpload(false) : undefined}

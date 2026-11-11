@@ -614,3 +614,21 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
 }
 .pipeline-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-6); flex-wrap: wrap; }
 .pipeline-head > div { min-width: 0; flex: 1 1 360px; }
+
+/* ---------- One drop zone, files identified below it ---------- */
+/* The drop zone's own list is replaced by the identification list, which can swap and label files. */
+.single-drop ul[aria-label="Files"] { display: none; }
+.single-drop { display: grid; gap: var(--space-4); }
+.asset-list { display: grid; }
+.asset-row { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border); }
+.asset-list > .asset-row:last-child { border-bottom: 1px solid var(--border); }
+.asset-thumb { width: 112px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--space-2); background: var(--surface-muted); display: block; }
+.asset-thumb-file { display: grid; place-items: center; color: var(--text-muted); font-size: var(--text-xs); font-family: var(--font-mono, ui-monospace, Menlo, monospace); }
+.asset-info { display: grid; gap: 2px; min-width: 0; }
+.asset-info strong { font-weight: 500; }
+.asset-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground); }
+.asset-meta { color: var(--text-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.asset-warn { color: var(--danger, oklch(52% .18 25)); font-size: var(--text-xs); }
+.asset-swap { display: flex; justify-content: center; margin: calc(var(--space-2) * -1) 0; position: relative; z-index: 1; }
+.meta-file { color: var(--text-muted); font-weight: 400; font-size: var(--text-xs); margin-left: var(--space-2); }
+@media (max-width: 520px) { .asset-row { grid-template-columns: 80px minmax(0, 1fr) auto; } .asset-thumb { width: 80px; } }
