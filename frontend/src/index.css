@@ -612,3 +612,5 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
   .run-thumbs { width: 96px; }
   .run-actions { grid-column: 1 / -1; }
 }
+.pipeline-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-6); flex-wrap: wrap; }
+.pipeline-head > div { min-width: 0; flex: 1 1 360px; }

@@ -177,8 +177,11 @@ class JobManager:
 
     def cancel(self, job_id: str) -> Job | None:
         job = self.jobs.get(job_id)
-        if job and job.status == "running":
+        if job and job.status == "running" and not job.cancel_requested:
             job.cancel_requested = True
+            active = next((s for s in job.stages if s.state == "running"), None)
+            doing = STAGE_STARTS.get(active.key) if active else None
+            job.log("Cancel requested", meta=f"Stopping while {doing[0].lower()}{doing[1:]}" if doing else None)
         return job
 
     # ── stage bookkeeping ─────────────────────────────────────────────
@@ -207,6 +210,7 @@ class JobManager:
         try:
             self._begin(job, "checked")
             for v in job.videos:
+                self._check_stop(job)
                 if Path(v.name).suffix.lower() not in VIDEO_SUFFIXES:
                     raise ValueError(f"{v.name} is not a supported video. Use MP4, MOV, M4V, WebM or MKV.")
                 if v.size > MAX_BYTES:
@@ -216,6 +220,7 @@ class JobManager:
                     raise ValueError(f"{v.name} runs {v.duration:.0f} seconds; the limit is {MAX_SECONDS // 60} minutes.")
             self._finish(job, "checked", ", ".join(f"{v.variant}: {v.duration:.0f}s" for v in job.videos))
 
+            self._check_stop(job)
             current = "predicting"
             self._begin(job, "predicting", "On the cloud GPU" if job.engine == "modal" else "Replay engine")
             engine = get_engine()
@@ -244,6 +249,7 @@ class JobManager:
                 self._begin(job, "scoring")
             self._finish(job, "scoring", "Compared" if len(results) > 1 else "Scored")
 
+            self._check_stop(job)
             # The videos stay with the run, so it can be played back from the workspace later.
             for v in job.videos:
                 thumbnail(Path(v.path), folder / f"{v.variant}.jpg", at=min(1.0, (v.duration or 2) / 2))
@@ -261,7 +267,7 @@ class JobManager:
         except Cancelled:
             job.status, job.error = "cancelled", "The analysis was cancelled."
             self._fail(job, current, "Cancelled")
-            job.log("Analysis cancelled", meta="Nothing was saved")
+            job.log("Analysis cancelled", meta="Nothing was saved; the GPU call was stopped" if job.engine == "modal" else "Nothing was saved")
             shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
         except Exception as exc:
             traceback.print_exc()

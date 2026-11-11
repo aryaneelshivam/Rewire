@@ -5,6 +5,7 @@ import { Progress } from '@/components/arc/progress/progress';
 import { Button } from '@/components/arc/button/button';
 import { Alert } from '@/components/arc/alert/alert';
 import { Badge } from '@/components/arc/badge/badge';
+import { ConfirmMorph } from '@/components/arc/confirm-morph/confirm-morph';
 import { fetchJob, cancelJob } from '../api';
 
 const clock = s => {
@@ -41,7 +42,6 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
   const [job, setJob] = useState(null);
   const [lost, setLost] = useState(false);
   const [gone, setGone] = useState(false);      // the backend no longer knows this job (it restarted)
-  const [cancelling, setCancelling] = useState(false);
   const doneRef = useRef(false);
   const offset = useRef(0);                      // local clock minus server clock, so times use the server's timestamps
   const [, setTick] = useState(0);
@@ -117,12 +117,30 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
     <main className="onboard pipeline">
       <div className="onboard-inner">
         <p className="onboard-brand">Rewire</p>
-        <header className="onboard-head">
-          <h1>{title}</h1>
-          <p className="onboard-lede">
-            {job.mode === 'compare' ? 'Two videos' : 'One video'}, started {clock(now - job.created)} ago.
-            {running && ' You can leave this page open; the dashboard opens on its own when the results are ready.'}
-          </p>
+        <header className="onboard-head pipeline-head">
+          <div>
+            <h1>{title}</h1>
+            <p className="onboard-lede">
+              {job.mode === 'compare' ? 'Two videos' : 'One video'}, started {clock(now - job.created)} ago.
+              {running && ' You can leave this page open; the dashboard opens on its own when the results are ready.'}
+            </p>
+          </div>
+          {running && (
+            // Stopping throws away GPU work already done, so it asks first. The feed shows the request and the outcome.
+            <ConfirmMorph
+              label="Cancel analysis"
+              icon={<Ban size={16} strokeWidth={1.75} aria-hidden="true" />}
+              prompt="Stop this analysis? Nothing will be saved."
+              confirmLabel="Stop it"
+              cancelLabel="Keep going"
+              pendingLabel="Stopping"
+              doneLabel="Stopping"
+              tone="danger"
+              confirmTimeout={8000}
+              resultTimeout={0}
+              onConfirm={() => cancelJob(jobId)}
+            />
+          )}
         </header>
 
         <section className="pipeline-overall" aria-label="Overall progress">
@@ -182,9 +200,7 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
         <div className="onboard-actions">
           <span />
           <div className="onboard-actions-end">
-            {running ? (
-              <Button variant="secondary" loading={cancelling} onClick={async () => { setCancelling(true); try { await cancelJob(jobId); } finally { setCancelling(false); } }}>Cancel</Button>
-            ) : job.status !== 'done' && (
+            {!running && job.status !== 'done' && (
               <>
                 <Button variant="ghost" onClick={onBack}>Back</Button>
                 {onRetry && <Button onClick={onRetry}>Try again</Button>}

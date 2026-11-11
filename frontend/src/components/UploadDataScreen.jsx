@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button } from '@/components/arc/button/button';
 import { Select } from '@/components/arc/select/select';
 import { FileDropzone } from '@/components/arc/file-dropzone/file-dropzone';
@@ -52,6 +52,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   const [busy, setBusy] = useState(null);           // 'run', 'import' or 'sample'
   const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState(null);
+  const upload = useRef(null);    // aborts the upload when the person cancels it
 
   const variants = mode === 'compare' ? ['A', 'B'] : ['A'];
   const ready = variants.every(v => videos[v]);
@@ -60,13 +61,19 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   const run = async () => {
     if (!ready || busy) return;
     setBusy('run'); setError(null); setUploadPct(0);
+    upload.current = new AbortController();
     try {
       const chosen = Object.fromEntries(variants.map(v => [v, videos[v]]));
-      const { job_id } = await createJob(mode, chosen, meta, e => e.total && setUploadPct(Math.round((e.loaded / e.total) * 100)));
+      const { job_id } = await createJob(mode, chosen, meta, e => e.total && setUploadPct(Math.round((e.loaded / e.total) * 100)), upload.current.signal);
       onJobStarted(job_id, chosen, mode, meta);
     } catch (err) {
-      setError(err.response?.data?.detail || 'The videos could not be sent. Check that the backend is running and try again.');
+      // A cancelled upload is the person's choice, not an error to report.
+      if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
+        setError(err.response?.data?.detail || 'The videos could not be sent. Check that the backend is running and try again.');
+      }
       setBusy(null);
+    } finally {
+      upload.current = null;
     }
   };
 
@@ -161,7 +168,9 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
             {onOpenWorkspace && <Button variant="ghost" onClick={onOpenWorkspace}>Open workspace</Button>}
           </div>
           <div className="onboard-actions-end">
-            {onCancel && <Button variant="ghost" onClick={onCancel}>Back to results</Button>}
+            {busy === 'run'
+              ? <Button variant="ghost" onClick={() => upload.current?.abort()}>Cancel upload</Button>
+              : onCancel && <Button variant="ghost" onClick={onCancel}>Back to results</Button>}
             <Button loading={busy === 'run'} disabled={!ready || (busy && busy !== 'run')} onClick={run}>
               {busy === 'run' ? `Uploading ${uploadPct}%` : 'Run analysis'}
             </Button>

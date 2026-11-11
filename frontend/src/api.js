@@ -115,13 +115,13 @@ const appendDetails = (formData, meta = {}) => {
 };
 
 /** Starts an analysis of one video ("single") or two ("compare"). Resolves to { job_id }. */
-export const createJob = async (mode, videos, meta = {}, onUploadProgress) => {
+export const createJob = async (mode, videos, meta = {}, onUploadProgress, signal) => {
   const formData = new FormData();
   formData.append('mode', mode);
   formData.append('videoA', videos.A);
   if (mode === 'compare') formData.append('videoB', videos.B);
   appendDetails(formData, meta);
-  const response = await api.post('/jobs', formData, { onUploadProgress });
+  const response = await api.post('/jobs', formData, { onUploadProgress, signal });
   return response.data;
 };
 
