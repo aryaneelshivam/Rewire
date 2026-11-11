@@ -106,7 +106,7 @@ streamlit run app.py
 5. **Dig in**: compare cohorts and dimensions in Audiences, find the strongest seconds in Key moments, and check regions and consistency in Brain regions.
 6. **Explore the ensemble**: in the Ensemble tab, find groups of viewers who respond alike and see what makes each group different.
 7. **Come back later**: open **Workspace** from the header to find, rename, delete or reopen any earlier analysis.
-8. **Share**: **Share scorecard** in the header makes a branded image of the result, in portrait (1080 × 1350), square, story (1080 × 1920) or wide (1200 × 630), light or dark, to download, copy or share. It shows a frame from each video at its peak, the verdict, the response curve and the strongest audience, and the 0 to 100 Rewire Score once the benchmark can rank it. Any chart also downloads as a PNG, and comparisons export as a printable report.
+8. **Share**: **Share scorecard** in the header makes a branded image of the result, in portrait (1080 × 1350), square, story (1080 × 1920) or wide (1200 × 630), light or dark, to download, copy or share. It shows a frame from each video at its peak, the verdict, and the 0 to 100 Rewire Score once the benchmark can rank it, plus mini visuals you pick: the response curve, the 3D cortex at the peak, the brain-network stream, a cohort-by-dimension contest or audience map, audience bars, the share of cortex engaged, and the line of dialogue at the peak. Portrait holds four, story six, square two and wide one. Any chart also downloads as a PNG, and comparisons export as a printable report.
 
 **Use sample data** on the start screen loads the bundled pair.
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import {
   fetchStatus, fetchOverview, fetchEngagement, fetchTopRois,
@@ -187,6 +187,19 @@ function App() {
   const shown = winner === 'B' ? 'B' : 'A';
   const winnerVideo = shown === 'B' ? videoUrlB : videoUrlA;
   const shareVideos = useMemo(() => ({ A: videoUrlA, B: videoUrlB }), [videoUrlA, videoUrlB]);
+  // The scorecard's brain: show one variant at one second in the 3D viewer, take its picture, then put it back.
+  const viewRef = useRef({});
+  viewRef.current = { variant: brainVariant, time: currentTime };
+  const captureBrain = useCallback(async (variant, t) => {
+    const before = viewRef.current;
+    setBrainVariant(variant);
+    setCurrentTime(t);
+    await new Promise(r => setTimeout(r, 1400));
+    const image = brainRef.current?.getSnapshot() ?? null;
+    setBrainVariant(before.variant);
+    setCurrentTime(before.time);
+    return image;
+  }, []);
 
   // The brain opens on the winning variant once the summary arrives.
   useEffect(() => { if (abSummary) setBrainVariant(abSummary.mode !== 'single' && winnerOf(abSummary) === 'B' ? 'B' : 'A'); }, [abSummary]);
@@ -327,6 +340,8 @@ function App() {
           abSummary={abSummary}
           runInfo={runInfo}
           videos={shareVideos}
+          timeSeries={timeSeries}
+          captureBrain={captureBrain}
         />
       )}
 

@@ -4,10 +4,11 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/arc/button/button';
 import { ActionButton } from '@/components/arc/action-button/action-button';
 import SegmentedControl from '@/components/arc/segmented-control/segmented-control';
+import { ChipGroup } from '@/components/arc/chip-group/chip-group';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import { Alert } from '@/components/arc/alert/alert';
 import ScoreCard from './ScoreCard';
-import { buildCard, captureFrame, CARD_FORMATS } from '@/lib/scorecard';
+import { buildCard, captureFrame, cropToContent, tilesFor, CARD_FORMATS, TILES, TILE_SLOTS, DEFAULT_TILES } from '@/lib/scorecard';
 import { inlineSvgPaint } from '@/lib/export-image';
 import { fetchScore } from '../api';
 
@@ -23,9 +24,11 @@ const canShareFiles = () => {
  * Builds a shareable image of the open analysis: pick a size and a theme, then download, copy or share it.
  * The preview is the image itself, scaled to fit.
  */
-export default function ShareDialog({ onClose, overview, engagement, abSummary, runInfo, videos }) {
+export default function ShareDialog({ onClose, overview, engagement, abSummary, runInfo, videos, timeSeries, captureBrain }) {
   const [score, setScore] = useState(undefined);
   const [frames, setFrames] = useState(null);
+  const [brains, setBrains] = useState({});
+  const [picked, setPicked] = useState(null);   // tiles chosen per size, once the card is known
   const [format, setFormat] = useState('portrait');
   const [theme, setTheme] = useState('dark');
   const [notice, setNotice] = useState(null);
@@ -36,8 +39,8 @@ export default function ShareDialog({ onClose, overview, engagement, abSummary, 
   const closeRef = useRef(null);
 
   useEffect(() => { fetchScore().then(setScore).catch(() => setScore(null)); }, []);
-  const card = useMemo(() => (score === undefined ? null : buildCard({ overview, engagement, abSummary, score, runInfo, videos })),
-    [score, overview, engagement, abSummary, runInfo, videos]);
+  const card = useMemo(() => (score === undefined ? null : buildCard({ overview, engagement, abSummary, score, runInfo, videos, timeSeries })),
+    [score, overview, engagement, abSummary, runInfo, videos, timeSeries]);
 
   // A frame from each video, at the moment its response peaks.
   useEffect(() => {
@@ -48,9 +51,31 @@ export default function ShareDialog({ onClose, overview, engagement, abSummary, 
     return () => { live = false; };
   }, [card]);
 
+  // The brain at the leading variant's peak second, rendered by the dashboard's 3D viewer.
+  useEffect(() => {
+    if (!card || !frames || !captureBrain) return;
+    let live = true;
+    const lead = card.variants.find(v => v.key === card.winner) ?? card.variants[0];
+    captureBrain(lead.key, lead.peakIndex).then(img => (img ? cropToContent(img) : null))
+      .then(cut => { if (live && cut) setBrains({ [lead.key]: cut.src }); }).catch(() => {});
+    return () => { live = false; };
+  }, [card, frames, captureBrain]);
+
   const f = CARD_FORMATS.find(x => x.value === format);
   const ready = card && frames;
-  useEffect(() => { if (ready) drawnAt.current = performance.now(); }, [ready, format, theme]);
+  const mode = card?.compare ? 'compare' : 'single';
+  const slots = TILE_SLOTS[format];
+  const tiles = picked?.[format] ?? DEFAULT_TILES[mode];
+  const available = card ? tilesFor(card, TILES.map(t => t.key), format, brains, Infinity) : [];
+  const shownTiles = card ? tilesFor(card, tiles, format, brains) : [];
+  const chooseTiles = next => {
+    // Keep the order tiles were chosen in; a new pick past the slot count replaces the last of the earlier ones.
+    const added = next.filter(k => !shownTiles.includes(k));
+    let kept = shownTiles.filter(k => next.includes(k));
+    if (kept.length + added.length > slots) kept = kept.slice(0, Math.max(0, slots - added.length));
+    setPicked(p => ({ ...p, [format]: [...kept, ...added].slice(0, slots) }));
+  };
+  useEffect(() => { if (ready) drawnAt.current = performance.now(); }, [ready, format, theme, brains, picked]);
 
   // Fit the card into the preview area.
   useLayoutEffect(() => {
@@ -112,7 +137,7 @@ export default function ShareDialog({ onClose, overview, engagement, abSummary, 
           {ready ? (
             <div className="share-fit" style={{ width: f.width * scale, height: f.height * scale }}>
               <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                <ScoreCard ref={cardRef} card={card} format={format} theme={theme} frames={frames} />
+                <ScoreCard ref={cardRef} card={card} format={format} theme={theme} frames={frames} brains={brains} tiles={shownTiles} />
               </div>
             </div>
           ) : (
@@ -125,7 +150,7 @@ export default function ShareDialog({ onClose, overview, engagement, abSummary, 
             <h2 id="share-title">Share scorecard</h2>
             <Button ref={closeRef} variant="ghost" size="sm" onClick={onClose} aria-label="Close"><X size={16} strokeWidth={1.75} aria-hidden="true" /></Button>
           </div>
-          <p className="share-lede">An image of this analysis, ready to post. It shows the verdict, the response curve and who it lands with.</p>
+          <p className="share-lede">An image of this analysis, ready to post: the verdict, the creative, and the visuals you pick.</p>
 
           <div className="share-field">
             <SegmentedControl label="Size" options={CARD_FORMATS.map(({ value, label }) => ({ value, label }))} value={format} onValueChange={setFormat} />
@@ -134,6 +159,18 @@ export default function ShareDialog({ onClose, overview, engagement, abSummary, 
           <div className="share-field">
             <SegmentedControl label="Theme" options={THEMES} value={theme} onValueChange={setTheme} />
           </div>
+          {card && (
+            <div className="share-field">
+              <ChipGroup
+                label="Visuals"
+                multiple
+                options={TILES.filter(t => available.includes(t.key)).map(t => ({ value: t.key, label: !card.compare && t.singleLabel ? t.singleLabel : t.label }))}
+                value={shownTiles}
+                onValueChange={chooseTiles}
+              />
+              <p className="share-note">{slots === 1 ? 'One visual fits this size.' : `Up to ${slots} visuals fit this size; they appear in the order you pick them.`}</p>
+            </div>
+          )}
 
           {notice && <Alert tone={notice.tone} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
 
