@@ -70,7 +70,12 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [brainDemographic, setBrainDemographic] = useState('baseline');
+  // The variant in focus: the brain, the player and the single-track timeline all show it. The winner opens first.
   const [brainVariant, setBrainVariant] = useState('A');
+  // A snapshot for the report or scorecard can point the brain at another variant without moving the focus.
+  const [brainOverride, setBrainOverride] = useState(null);
+  // Where to pick up when the focus moves to another variant's video: the same second, playing if it was.
+  const resumeRef = useRef(null);
 
   const [videoUrlA, setVideoUrlA] = useState(null);
   const [videoUrlB, setVideoUrlB] = useState(null);
@@ -110,7 +115,7 @@ function App() {
       const snaps = { A: null, B: null };
       for (const v of ['A', 'B']) {
         try {
-          setBrainVariant(v);
+          setBrainOverride(v);
           const peak = rois[v].rois?.[0]?.peak_timestep || 0;
           const max = overview[v].n_timesteps || 1;
           setCurrentTime(Math.max(0, Math.min(Math.floor(peak), max - 1)));
@@ -118,6 +123,7 @@ function App() {
           snaps[v] = brainRef.current?.getSnapshot();
         } catch (e) { console.warn(`${v} snapshot failed`, e); }
       }
+      setBrainOverride(null);
       setReportSnapshots(snaps);
       setReportData({ summary: sum, engagement: eng, topRois: rois, overview, demographics, videoUrlA, videoUrlB });
     } catch (err) {
@@ -186,19 +192,29 @@ function App() {
   const variants = overview ? Object.keys(overview) : [];
   const single = variants.length === 1;
   const winner = single ? 'A' : winnerOf(abSummary);
-  const shown = winner === 'B' ? 'B' : 'A';
-  const winnerVideo = shown === 'B' ? videoUrlB : videoUrlA;
+  const focus = single ? 'A' : brainVariant === 'B' && variants.includes('B') ? 'B' : 'A';
+  const focusVideo = focus === 'B' ? videoUrlB : videoUrlA;
+  // Moving the focus keeps the playhead's second (clamped to the new video's length) and whether it was playing.
+  const changeFocus = useCallback(next => {
+    if (next === brainVariant) return;
+    const length = overview?.[next]?.n_timesteps ?? 1;
+    const at = Math.max(0, Math.min(currentTime, length - 1));
+    // Only a video picks this up when it loads; without one, the stepping playhead just carries on.
+    resumeRef.current = (next === 'B' ? videoUrlB : videoUrlA) ? { time: at, play: isPlaying } : null;
+    setCurrentTime(at);
+    setBrainVariant(next);
+  }, [brainVariant, overview, currentTime, isPlaying, videoUrlA, videoUrlB]);
   const shareVideos = useMemo(() => ({ A: videoUrlA, B: videoUrlB }), [videoUrlA, videoUrlB]);
   // The scorecard's brain: show one variant at one second in the 3D viewer, take its picture, then put it back.
   const viewRef = useRef({});
-  viewRef.current = { variant: brainVariant, time: currentTime };
+  viewRef.current = { time: currentTime };
   const captureBrain = useCallback(async (variant, t) => {
     const before = viewRef.current;
-    setBrainVariant(variant);
+    setBrainOverride(variant);
     setCurrentTime(t);
     await new Promise(r => setTimeout(r, 1400));
     const image = brainRef.current?.getSnapshot() ?? null;
-    setBrainVariant(before.variant);
+    setBrainOverride(null);
     setCurrentTime(before.time);
     return image;
   }, []);
@@ -238,13 +254,13 @@ function App() {
     setTimeout(() => contentRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 0);
   };
 
-  // Without the winner's video, playback steps through the timeline once a second.
+  // Without the focused variant's video, playback steps through its seconds once a second.
   useEffect(() => {
-    if (!isPlaying || !overview || winnerVideo) return;
-    const maxT = Math.max(...Object.values(overview).map(o => o.n_timesteps));
+    if (!isPlaying || !overview || focusVideo) return;
+    const maxT = overview[focus]?.n_timesteps ?? 1;
     const interval = setInterval(() => setCurrentTime(t => (t + 1) % maxT), 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, overview, winnerVideo]);
+  }, [isPlaying, overview, focusVideo, focus]);
 
   if (job) {
     return (
@@ -352,19 +368,21 @@ function App() {
           <CortexMonitor
             ref={brainRef}
             currentTime={currentTime}
-            variant={brainVariant}
+            variant={brainOverride ?? focus}
             variants={variants}
-            onVariantChange={setBrainVariant}
+            onVariantChange={changeFocus}
             cohort={brainDemographic}
             onCohortChange={setBrainDemographic}
           />
           <WinnerPlayer
             winner={single ? 'SINGLE' : winner}
-            videoUrl={winnerVideo}
+            focus={focus}
+            videoUrl={focusVideo}
             videoRef={playerRef}
+            resumeRef={resumeRef}
             currentTime={currentTime}
-            duration={maxTimesteps}
-            peakTime={overview[shown].peak_timestep}
+            duration={overview[focus].n_timesteps}
+            peakTime={overview[focus].peak_timestep}
             isPlaying={isPlaying}
             onTogglePlay={togglePlayback}
             onSeek={handleSeekToTimestamp}
@@ -377,6 +395,8 @@ function App() {
             currentTime={currentTime}
             onSeek={handleSeekToTimestamp}
             tracks={tracks}
+            focus={focus}
+            onFocusChange={changeFocus}
             onOpenTab={openTab}
             onPlayRange={playRange}
             loopRange={loopRange}

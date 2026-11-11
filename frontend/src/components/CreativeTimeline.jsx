@@ -48,7 +48,7 @@ function stack(events, duration, gap = 2.4, rows = 2) {
  * The creative on a time axis: a filmstrip per variant, cut into scenes and narrative sections, with markers for
  * what happens and where the predicted response moves. It navigates and annotates; the charts live in the tabs.
  */
-export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, onOpenTab, onPlayRange, loopRange, storageKey }) {
+export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, focus, onFocusChange, onOpenTab, onPlayRange, loopRange, storageKey }) {
   const videoOf = useVideoAnalyses(tracks.map(t => t.videoUrl), fullDuration);
   const all = useMemo(() => tracks.map(track => {
     const video = videoOf(track.videoUrl);
@@ -58,11 +58,18 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
     return { ...track, video, end, ...buildTrack(track.overview, video, end) };
   }), [tracks, videoOf, fullDuration]);
 
-  // Only the winner shows at first. Any set of variants can be shown; the set is never left empty.
+  // One track shows the variant in focus (the winner at first) and follows it as it changes. Picking several
+  // variants shows them together; going back to one moves the focus there. The set is never left empty.
   const winner = (tracks.find(t => t.isWinner) ?? tracks[0])?.variant;
+  const lead = tracks.some(t => t.variant === focus) ? focus : winner;
   const [picked, setPicked] = useState(null);
-  const shown = (picked ?? [winner]).filter(v => tracks.some(t => t.variant === v));
-  const visible = shown.length ? shown : [winner];
+  const shown = (picked ?? [lead]).filter(v => tracks.some(t => t.variant === v));
+  const visible = shown.length ? shown : [lead];
+  const pickVariants = next => {
+    if (!next.length) return;
+    if (next.length === 1) { setPicked(null); onFocusChange?.(next[0]); return; }
+    setPicked(tracks.map(t => t.variant).filter(v => next.includes(v)));
+  };
   const built = all.filter(t => visible.includes(t.variant));
   // The axis fits the longest variant on show: one video fills the width; several share the longest one's length.
   const duration = Math.max(1, ...built.map(t => t.end));
@@ -163,7 +170,7 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
               label="Variants on the timeline"
               options={variantOptions}
               value={visible}
-              onValueChange={next => setPicked(next.length ? tracks.map(t => t.variant).filter(v => next.includes(v)) : visible)}
+              onValueChange={pickVariants}
               maxVisible={4}
             />
           )}
@@ -204,8 +211,13 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
             <div key={track.variant} className={`tl-track ${track.variant === 'B' ? 'is-b' : ''}`}>
               <div className="tl-row">
                 <span className="tl-label">
-                  <strong className={track.variant === 'B' ? 'num-b' : 'num-a'}>{tracks.length === 1 ? 'Your creative' : `Variant ${track.variant}`}</strong>
-                  {track.isWinner && <span className="tl-label-note">Winner</span>}
+                  {built.length > 1 ? (
+                    <button type="button" className={`tl-focus ${track.variant === lead ? 'is-on' : ''}`} aria-pressed={track.variant === lead} onClick={() => onFocusChange?.(track.variant)}
+                      aria-label={track.variant === lead ? `Variant ${track.variant}, in the player` : `Watch Variant ${track.variant} in the player`}>
+                      <strong className={track.variant === 'B' ? 'num-b' : 'num-a'}>Variant {track.variant}</strong>
+                    </button>
+                  ) : <strong className={track.variant === 'B' ? 'num-b' : 'num-a'}>{tracks.length === 1 ? 'Your creative' : `Variant ${track.variant}`}</strong>}
+                  {[track.isWinner && 'Winner', built.length > 1 && track.variant === lead && 'In player'].filter(Boolean).map(note => <span key={note} className="tl-label-note">{note}</span>)}
                 </span>
                 <div className="tl-lane tl-sections">
                   {track.sections.map(s => (

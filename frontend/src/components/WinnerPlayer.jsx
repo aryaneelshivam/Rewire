@@ -11,10 +11,11 @@ const SPEEDS = [1, 1.5, 2, 0.5];
 const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /**
- * A large player for the winning creative. It owns the playhead: its video drives the time,
- * and without a video the same controls step through the predictions second by second.
+ * A large player for the variant in focus (the winner, until another is picked). It owns the playhead: its video
+ * drives the time, and without a video the same controls step through the predictions second by second. When the
+ * focus moves to another variant, the new video picks up at the same second, playing if the last one was.
  */
-export default function WinnerPlayer({ winner, videoUrl, currentTime, duration, isPlaying, onTogglePlay, onSeek, onTimeUpdate, onPlayingChange, onAddVideo, peakTime, videoRef }) {
+export default function WinnerPlayer({ winner, focus = 'A', videoUrl, currentTime, duration, isPlaying, onTogglePlay, onSeek, onTimeUpdate, onPlayingChange, onAddVideo, peakTime, videoRef, resumeRef }) {
   const [muted, setMuted] = useState(true);
   const [speed, setSpeed] = useState(1);
   const fallbackRef = useRef(null);
@@ -25,15 +26,20 @@ export default function WinnerPlayer({ winner, videoUrl, currentTime, duration, 
 
   // SINGLE: one creative was analysed, so there is no winner to announce.
   const single = winner === 'SINGLE';
-  const label = single ? 'Your creative' : winner === 'TIE' ? 'Variant A' : `Variant ${winner}`;
+  const label = single ? 'Your creative' : `Variant ${focus}`;
+  const isWinner = !single && winner === focus;
   const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
   const max = Math.max(1, duration - 1);
 
   return (
     <section className="player-panel" aria-labelledby="player-title">
       <header className="player-head">
-        <h2 id="player-title">{single || winner === 'TIE' ? label : <span className={winner === 'B' ? 'num-b' : 'num-a'}>{label}</span>}</h2>
-        {!single && <Badge size="sm" tone={winner === 'TIE' ? 'neutral' : 'success'}>{winner === 'TIE' ? 'Evenly matched' : 'Winning creative'}</Badge>}
+        <h2 id="player-title">{single ? label : <span className={focus === 'B' ? 'num-b' : 'num-a'}>{label}</span>}</h2>
+        {!single && (winner === 'TIE'
+          ? <Badge size="sm" tone="neutral">Evenly matched</Badge>
+          : isWinner
+            ? <Badge size="sm" tone="success">Winning creative</Badge>
+            : <Badge size="sm" tone="neutral">{`Variant ${winner} won`}</Badge>)}
       </header>
 
       <div className="player-stage">
@@ -45,6 +51,15 @@ export default function WinnerPlayer({ winner, videoUrl, currentTime, duration, 
             muted={muted}
             onClick={onTogglePlay}
             onTimeUpdate={onTimeUpdate}
+            onLoadedMetadata={e => {
+              // A new variant's video: continue from the same second, and keep playing if the last one was.
+              const resume = resumeRef?.current;
+              if (!resume) return;
+              resumeRef.current = null;
+              const el = e.currentTarget;
+              el.currentTime = Math.min(resume.time, Math.max(0, el.duration - 0.05));
+              if (resume.play) el.play().catch(() => onPlayingChange(false));
+            }}
             onPlay={() => onPlayingChange(true)}
             onPause={() => onPlayingChange(false)}
             onEnded={() => onPlayingChange(false)}
