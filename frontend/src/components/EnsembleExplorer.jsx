@@ -127,7 +127,7 @@ export default function EnsembleExplorer({ variants, winner, currentTime, theme 
       <Card
         title="Neural ensemble"
         exportName="neural-ensemble"
-        description={`${data.n_profiles} simulated viewers of Variant ${variant}, grouped by how alike their predicted responses are.`}
+        description={`${data.n_profiles} simulated viewers${variants.length > 1 ? ` of Variant ${variant}` : ''}, grouped by how alike their predicted responses are.`}
         actions={variants.length > 1 && (
           <div className="ensemble-variant">
             <Select label="Variant" options={variants.map(v => ({ value: v, label: `Variant ${v}${v === winner ? ', winner' : ''}` }))} value={variant} onValueChange={regroup(setVariant)} />

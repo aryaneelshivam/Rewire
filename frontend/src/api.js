@@ -58,7 +58,7 @@ export const fetchStatus = async () => {
 export const uploadPredictions = async (fileA, fileB, metadataA = {}, metadataB = {}) => {
   const formData = new FormData();
   formData.append('fileA', fileA);
-  formData.append('fileB', fileB);
+  if (fileB) formData.append('fileB', fileB);
   
   // V4: Append content metadata for each variant
   formData.append('genre_A', metadataA.genre || 'general');
@@ -101,5 +101,37 @@ export const fetchEnsemble = async (variant = 'A') => {
 /** A group of viewers' mean regional response at one second, per vertex. mode: cluster, rest or difference. */
 export const fetchEnsembleActivation = async (variant, timestep, ids, mode = 'cluster') => {
   const response = await api.post('/ensemble/activation', { variant, timestep, ids, mode });
+  return response.data;
+};
+
+const appendDetails = (formData, meta = {}) => {
+  ['A', 'B'].forEach(v => {
+    const m = meta[v] || {};
+    formData.append(`genre_${v}`, m.genre || 'general');
+    formData.append(`content_type_${v}`, m.content_type || 'video_ad');
+    formData.append(`pacing_${v}`, m.pacing || 'medium');
+    formData.append(`audio_profile_${v}`, m.audio_profile || 'mixed');
+  });
+};
+
+/** Starts an analysis of one video ("single") or two ("compare"). Resolves to { job_id }. */
+export const createJob = async (mode, videos, meta = {}, onUploadProgress) => {
+  const formData = new FormData();
+  formData.append('mode', mode);
+  formData.append('videoA', videos.A);
+  if (mode === 'compare') formData.append('videoB', videos.B);
+  appendDetails(formData, meta);
+  const response = await api.post('/jobs', formData, { onUploadProgress });
+  return response.data;
+};
+
+/** The job's stages, per-video progress and status. */
+export const fetchJob = async (jobId) => {
+  const response = await api.get(`/jobs/${jobId}`);
+  return response.data;
+};
+
+export const cancelJob = async (jobId) => {
+  const response = await api.post(`/jobs/${jobId}/cancel`);
   return response.data;
 };

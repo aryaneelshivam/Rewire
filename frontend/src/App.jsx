@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
   fetchStatus, fetchOverview, fetchEngagement, fetchTopRois,
-  fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary
+  fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary, createJob
 } from './api';
 import UploadDataScreen from './components/UploadDataScreen';
+import PipelineScreen from './components/PipelineScreen';
 import OverviewPanel from './components/OverviewPanel';
 import EngagementPanel from './components/EngagementPanel';
 import TopRoisPanel from './components/TopRoisPanel';
@@ -29,7 +30,7 @@ import { ThemeSwitch } from '@/components/arc/theme-switch/theme-switch';
 
 const TABS = [
   { id: 'overview', label: 'Overview', title: 'A/B overview', desc: 'Which creative drives stronger predicted cortical response, and when.' },
-  { id: 'audiences', label: 'Audiences', title: 'Audience dynamics', desc: 'How each age cohort responds to the two variants across eight cognitive dimensions.' },
+  { id: 'audiences', label: 'Audiences', title: 'Audience dynamics', desc: 'How each age cohort responds across eight cognitive dimensions.' },
   { id: 'scenes', label: 'Key moments', title: 'High-impact moments', desc: 'The seconds where each variant drives the strongest response.' },
   { id: 'regions', label: 'Brain regions', title: 'Brain regions', desc: 'Top cortical regions and how consistent the response is across simulated viewers.' },
   { id: 'ensemble', label: 'Ensemble', title: 'Neural ensemble explorer', desc: 'All 200 simulated viewers, grouped by how alike they respond. Find a group and see what sets it apart.' },
@@ -48,6 +49,8 @@ function winnerOf(summary) {
 function App() {
   const [loading, setLoading] = useState(true);
   const [awaitingUpload, setAwaitingUpload] = useState(false);
+  // The analysis in progress: its id, plus the files, mode and details it started with, so it can be retried.
+  const [job, setJob] = useState(null);
   const [overview, setOverview] = useState(null);
   const [engagement, setEngagement] = useState(null);
   const [topRois, setTopRois] = useState(null);
@@ -118,15 +121,12 @@ function App() {
     }
   };
 
-  // Videos are chosen on the data screen. A new file replaces the current one; leaving a slot empty keeps what is loaded.
-  const [videoNames, setVideoNames] = useState({ A: null, B: null });
+  // The analysed videos play from the browser's own copies. A new analysis replaces both slots.
   const applyVideos = (videos = {}) => {
     ['A', 'B'].forEach(v => {
       const file = videos[v];
-      if (!file) return;
-      const url = URL.createObjectURL(file);
+      const url = file ? URL.createObjectURL(file) : null;
       (v === 'A' ? setVideoUrlA : setVideoUrlB)(old => { if (old) URL.revokeObjectURL(old); return url; });
-      setVideoNames(names => ({ ...names, [v]: file.name }));
     });
   };
 
@@ -140,7 +140,7 @@ function App() {
   };
 
   const handleSeekToTimestamp = (t) => {
-    const maxT = Math.max(overview?.A?.n_timesteps || 1, overview?.B?.n_timesteps || 1) - 1;
+    const maxT = Math.max(1, ...Object.values(overview || {}).map(o => o.n_timesteps || 1)) - 1;
     const clampedT = Math.max(0, Math.min(t, maxT));
     if (playerRef.current) playerRef.current.currentTime = clampedT;
     setCurrentTime(clampedT);
@@ -150,6 +150,8 @@ function App() {
     setLoading(true);
     try {
       const status = await fetchStatus();
+      // An analysis already running on the backend (after a reload, say) is picked up where it is.
+      if (status.active_job) { setJob(j => j ?? { id: status.active_job }); setLoading(false); return; }
       if (!status.loaded) { setAwaitingUpload(true); setLoading(false); return; }
       setAwaitingUpload(false);
       const [ov, en, tr, ts, hm, dm, ab] = await Promise.all([
@@ -168,22 +170,25 @@ function App() {
 
   useEffect(() => { loadData(); }, []);
 
-  const winner = winnerOf(abSummary);
+  // One variant (a single creative) or two (a comparison). Everything below follows the loaded data.
+  const variants = overview ? Object.keys(overview) : [];
+  const single = variants.length === 1;
+  const winner = single ? 'A' : winnerOf(abSummary);
   const shown = winner === 'B' ? 'B' : 'A';
   const winnerVideo = shown === 'B' ? videoUrlB : videoUrlA;
 
   // The brain opens on the winning variant once the summary arrives.
-  useEffect(() => { if (abSummary) setBrainVariant(winnerOf(abSummary) === 'B' ? 'B' : 'A'); }, [abSummary]);
+  useEffect(() => { if (abSummary) setBrainVariant(abSummary.mode !== 'single' && winnerOf(abSummary) === 'B' ? 'B' : 'A'); }, [abSummary]);
 
   // The timeline's two tracks, and a key for its saved notes that changes when the data does.
-  const tracks = useMemo(() => overview ? ['A', 'B'].map(v => ({
+  const tracks = useMemo(() => overview ? Object.keys(overview).map(v => ({
     variant: v,
     overview: overview[v],
     videoUrl: v === 'A' ? videoUrlA : videoUrlB,
     isWinner: v === (winner === 'B' ? 'B' : 'A'),
   })) : [], [overview, videoUrlA, videoUrlB, winner]);
   const notesKey = overview
-    ? `rewire-notes:${overview.A.n_timesteps}-${overview.A.peak_timestep}-${overview.B.peak_timestep}-${overview.A.transcript?.length ?? 0}-${overview.B.transcript?.length ?? 0}`
+    ? `rewire-notes:${Object.values(overview).map(o => `${o.n_timesteps}-${o.peak_timestep}-${o.transcript?.length ?? 0}`).join('|')}`
     : 'rewire-notes';
 
   // A looped range sends the playhead back to its start whenever it reaches the end.
@@ -210,17 +215,33 @@ function App() {
   // Without the winner's video, playback steps through the timeline once a second.
   useEffect(() => {
     if (!isPlaying || !overview || winnerVideo) return;
-    const maxT = Math.max(overview.A.n_timesteps, overview.B.n_timesteps);
+    const maxT = Math.max(...Object.values(overview).map(o => o.n_timesteps));
     const interval = setInterval(() => setCurrentTime(t => (t + 1) % maxT), 1000);
     return () => clearInterval(interval);
   }, [isPlaying, overview, winnerVideo]);
 
+  if (job) {
+    return (
+      <PipelineScreen
+        key={job.id}
+        jobId={job.id}
+        onDone={() => { applyVideos(job.videos || {}); setJob(null); setAwaitingUpload(false); setActiveTab('overview'); setCurrentTime(0); loadData(); }}
+        onBack={() => { setJob(null); setAwaitingUpload(true); }}
+        onRetry={job.videos ? async () => {
+          const { job_id } = await createJob(job.mode, job.videos, job.meta);
+          setJob(j => ({ ...j, id: job_id }));
+        } : undefined}
+      />
+    );
+  }
+
   if (awaitingUpload) {
     return (
       <UploadDataScreen
-        currentVideos={videoNames}
-        onUploadComplete={videos => { applyVideos(videos); loadData(); }}
-        onCancel={overview ? videos => { applyVideos(videos); setAwaitingUpload(false); } : undefined}
+        initialMode={single ? 'single' : 'compare'}
+        onJobStarted={(id, videos, mode, meta) => setJob({ id, videos, mode, meta })}
+        onDataLoaded={videos => { applyVideos(videos); loadData(); }}
+        onCancel={overview ? () => setAwaitingUpload(false) : undefined}
       />
     );
   }
@@ -245,7 +266,7 @@ function App() {
     );
   }
 
-  const maxTimesteps = Math.max(overview.A.n_timesteps, overview.B.n_timesteps);
+  const maxTimesteps = Math.max(...variants.map(v => overview[v].n_timesteps));
   const tab = TABS.find(t => t.id === activeTab);
 
 
@@ -254,18 +275,19 @@ function App() {
       <header className="app-header">
         <div className="brand">
           <span className="brand-name">Rewire</span>
-          <span className="brand-sub">{maxTimesteps}s stimulus, 200 simulated viewers</span>
+          <span className="brand-sub">{single ? 'One creative' : 'Two creatives'}, {maxTimesteps}s, 200 simulated viewers</span>
         </div>
         <div className="header-actions">
           <span className="theme-toggle"><ThemeSwitch theme={theme} variant="rise" iconOnly onThemeChange={changeTheme} /></span>
-          <Button variant="secondary" onClick={() => setAwaitingUpload(true)}>Change data</Button>
-          <ActionButton
+          <Button variant="secondary" onClick={() => setAwaitingUpload(true)}>New analysis</Button>
+          {/* The printable report compares a pair; it is offered when two creatives are loaded. */}
+          {!single && <ActionButton
             label="Export report"
             pendingLabel="Building report"
             successLabel="Report ready"
             onAction={handleGenerateReport}
             onActionError={() => {}}
-          />
+          />}
         </div>
       </header>
 
@@ -275,12 +297,13 @@ function App() {
             ref={brainRef}
             currentTime={currentTime}
             variant={brainVariant}
+            variants={variants}
             onVariantChange={setBrainVariant}
             cohort={brainDemographic}
             onCohortChange={setBrainDemographic}
           />
           <WinnerPlayer
-            winner={winner}
+            winner={single ? 'SINGLE' : winner}
             videoUrl={winnerVideo}
             videoRef={playerRef}
             currentTime={currentTime}
@@ -332,8 +355,8 @@ function App() {
 
             <TabsContent value="audiences">
               <div className="bento">
-                <div className="span-7"><EngagementPanel dataA={engagement.A} dataB={engagement.B} /></div>
-                <div className="span-5">{abSummary && <ContestsPanel data={abSummary} />}</div>
+                <div className={single ? 'span-12' : 'span-7'}><EngagementPanel dataA={engagement.A} dataB={engagement.B} /></div>
+                {!single && <div className="span-5">{abSummary && <ContestsPanel data={abSummary} />}</div>}
                 <div className="span-12">{abSummary && <DimensionalLeadPanel data={abSummary} />}</div>
                 <div className="span-12">
                   <DemoTimeSeries
@@ -341,7 +364,7 @@ function App() {
                     dataB={timeSeries?.B?.timeseries || timeSeries?.B}
                     labels={demographics.A.labels}
                     transcriptA={overview.A.transcript}
-                    transcriptB={overview.B.transcript}
+                    transcriptB={overview.B?.transcript}
                   />
                 </div>
               </div>
@@ -352,7 +375,7 @@ function App() {
             </TabsContent>
 
             <TabsContent value="ensemble">
-              {activeTab === 'ensemble' && <EnsembleExplorer variants={['A', 'B']} winner={winner === 'B' ? 'B' : 'A'} currentTime={currentTime} theme={theme} />}
+              {activeTab === 'ensemble' && <EnsembleExplorer variants={variants} winner={winner === 'B' ? 'B' : 'A'} currentTime={currentTime} theme={theme} />}
             </TabsContent>
 
             <TabsContent value="regions">

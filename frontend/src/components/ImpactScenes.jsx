@@ -95,17 +95,17 @@ const ImpactScenes = ({ videoUrlA, videoUrlB, overviewA, overviewB, onSeekToTime
         </span>
       ),
     },
-    { key: 'variant', label: 'Variant', render: v => <VariantTag v={v}>{`Variant ${v}`}</VariantTag> },
+    ...(overviewB ? [{ key: 'variant', label: 'Variant', render: v => <VariantTag v={v}>{`Variant ${v}`}</VariantTag> }] : []),
     { key: 'peak', label: 'Peak z', numeric: true, render: (v, r) => <span className={r.variant === 'B' ? 'num-b' : 'num-a'}>{v.toFixed(3)}</span> },
   ];
 
   return (
     <Card
-      title="Strongest moments per variant"
+      title={overviewB ? 'Strongest moments per variant' : 'Strongest moments'}
       exportName="key-moments"
       description={videoUrlA || videoUrlB
-        ? 'Six highest-activation seconds per variant. Select a time to move the playhead there.'
-        : 'Six highest-activation seconds per variant. Select a time to move the playhead there. Add the videos under Change data to see each frame.'}
+        ? `Six highest-activation seconds${overviewB ? ' per variant' : ''}. Select a time to move the playhead there.`
+        : `Six highest-activation seconds${overviewB ? ' per variant' : ''}. Select a time to move the playhead there. Run a new analysis with the video to see each frame.`}
     >
       {processing ? (
         <Skeleton lines={4} label="Capturing frames" />

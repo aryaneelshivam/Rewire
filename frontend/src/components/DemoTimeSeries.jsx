@@ -23,6 +23,7 @@ const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcrip
   const [activeDemographic, setActiveDemographic] = useState('kids');
   const [streamVariant, setStreamVariant] = useState('A');
   const [view, setView] = useState('network');
+  const single = !dataB;
 
   // For the selected demographic + group, build A vs B comparison
   const seriesA = useMemo(() => dataA?.[activeDemographic]?.[activeGroup] || [], [dataA, activeDemographic, activeGroup]);
@@ -30,14 +31,14 @@ const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcrip
   const maxLen = Math.max(seriesA.length, seriesB.length);
 
   const chartData = useMemo(
-    () => timeSeriesData(maxLen, i => ({ A: seriesA[i], B: seriesB[i] })),
-    [seriesA, seriesB, maxLen]
+    () => timeSeriesData(maxLen, i => (single ? { A: seriesA[i] } : { A: seriesA[i], B: seriesB[i] })),
+    [seriesA, seriesB, maxLen, single]
   );
 
 
   // Every network for the selected cohort and variant, stacked as one stream.
   const streamData = useMemo(() => {
-    const source = (streamVariant === 'A' ? dataA : dataB)?.[activeDemographic] || {};
+    const source = (streamVariant === 'A' || !dataB ? dataA : dataB)?.[activeDemographic] || {};
     const length = Math.max(0, ...GROUPS.map(g => source[g.id]?.length || 0));
     const stride = Math.max(1, Math.ceil(length / 8));
     return Array.from({ length }, (_, i) => ({
@@ -99,8 +100,8 @@ const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcrip
     <Card
       title="Response over time"
       exportName="response-over-time"
-      description="Compare the variants second by second for one cohort."
-      actions={correlationR !== null && <span className="card-meta">A and B correlation <span className="num-key">r = {correlationR}</span></span>}
+description={single ? 'The response second by second for one cohort.' : 'Compare the variants second by second for one cohort.'}
+      actions={!single && correlationR !== null && <span className="card-meta">A and B correlation <span className="num-key">r = {correlationR}</span></span>}
     >
       <div className="split split-3-9">
         <div className="split-aside filters">
@@ -108,22 +109,22 @@ const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcrip
           <Select label="Cohort" options={demos.map(d => ({ value: d.id, label: d.label }))} value={activeDemographic} onValueChange={setActiveDemographic} />
           {view === 'network'
             ? <Select label="Brain network" options={GROUPS.map(g => ({ value: g.id, label: g.label }))} value={activeGroup} onValueChange={setActiveGroup} description={GROUPS.find(g => g.id === activeGroup)?.desc} />
-            : <SegmentedControl label="Variant" options={VARIANT_OPTIONS} value={streamVariant} onValueChange={setStreamVariant} />}
+            : !single && <SegmentedControl label="Variant" options={VARIANT_OPTIONS} value={streamVariant} onValueChange={setStreamVariant} />}
         </div>
 
         <div className="split-main">
           <p className="block-label">
-            <span><strong>{view === 'network' ? groupLabel : `All networks, Variant ${streamVariant}`}</strong> · {cohortLabel}</span>
+            <span><strong>{view === 'network' ? groupLabel : single ? 'All networks' : `All networks, Variant ${streamVariant}`}</strong> · {cohortLabel}</span>
             <span>BOLD z-score</span>
           </p>
           {view === 'network' ? (
             <LineChart
               data={chartData}
-              series={[
+              series={single ? [{ key: 'A', label: 'Response', color: VARIANT_A, area: true }] : [
                 { key: 'A', label: 'Variant A', color: VARIANT_A, area: true },
                 { key: 'B', label: 'Variant B', color: VARIANT_B, dashed: true, area: false },
               ]}
-              label={`${groupLabel} response, Variant A vs B`}
+              label={single ? `${groupLabel} response` : `${groupLabel} response, Variant A vs B`}
               height={200}
               categoryLabel="Time"
               formatValue={z4Format}
@@ -133,7 +134,7 @@ const DemoTimeSeries = ({ dataA, dataB, labels = {}, transcriptA = [], transcrip
             <Streamgraph
               data={streamData}
               series={streamSeries}
-              label={`Network activation mix, Variant ${streamVariant}`}
+              label={single ? 'Network activation mix' : `Network activation mix, Variant ${streamVariant}`}
               unit="z"
               height={200}
               categoryLabel="Time"

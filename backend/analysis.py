@@ -669,9 +669,11 @@ def run_full_analysis(
     transcript: list = None,
     n_subjects: int = 50,
     seed: int = 42,
+    on_step=None,
 ) -> dict:
     """
     Run the entire analysis pipeline on raw predictions (V4).
+    on_step, when given, is called with "synthesis" before the audience ensembles and "scoring" after them.
     Now accepts content_metadata and transcript for content-aware modeling.
     Falls back to V3 behaviour when content_metadata is None.
     """
@@ -734,6 +736,8 @@ def run_full_analysis(
     }
 
     # ── 4. Demographic ensembles (V4: content-aware) ──────────────────────
+    if on_step:
+        on_step("synthesis")
     ensembles = {}
     for demo in DEMO_ORDER:
         ensembles[demo] = generate_demographic_ensemble(
@@ -744,6 +748,9 @@ def run_full_analysis(
             n_subjects=n_subjects,
             seed=seed,
         )
+
+    if on_step:
+        on_step("scoring")
 
     # ── 5. Per-demographic ROI summary matrices (T x n_rois) ──────────────
     demo_roi_matrices = {}

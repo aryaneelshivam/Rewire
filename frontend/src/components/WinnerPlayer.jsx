@@ -23,15 +23,17 @@ export default function WinnerPlayer({ winner, videoUrl, currentTime, duration, 
   useEffect(() => { if (ref.current) ref.current.playbackRate = speed; }, [speed, ref, videoUrl]);
   useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted, ref, videoUrl]);
 
-  const label = winner === 'TIE' ? 'Variant A' : `Variant ${winner}`;
+  // SINGLE: one creative was analysed, so there is no winner to announce.
+  const single = winner === 'SINGLE';
+  const label = single ? 'Your creative' : winner === 'TIE' ? 'Variant A' : `Variant ${winner}`;
   const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
   const max = Math.max(1, duration - 1);
 
   return (
     <section className="player-panel" aria-labelledby="player-title">
       <header className="player-head">
-        <h2 id="player-title">{winner === 'TIE' ? 'Variant A' : <span className={winner === 'B' ? 'num-b' : 'num-a'}>{label}</span>}</h2>
-        <Badge size="sm" tone={winner === 'TIE' ? 'neutral' : 'success'}>{winner === 'TIE' ? 'Evenly matched' : 'Winning creative'}</Badge>
+        <h2 id="player-title">{single || winner === 'TIE' ? label : <span className={winner === 'B' ? 'num-b' : 'num-a'}>{label}</span>}</h2>
+        {!single && <Badge size="sm" tone={winner === 'TIE' ? 'neutral' : 'success'}>{winner === 'TIE' ? 'Evenly matched' : 'Winning creative'}</Badge>}
       </header>
 
       <div className="player-stage">

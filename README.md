@@ -2,7 +2,7 @@
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/aryaneelshivam/Rewire)
 
-Rewire compares two video creatives by their predicted brain response. A neural encoder predicts cortical activity second by second across 20,484 points on the brain's surface, and Rewire expands that prediction into 200 simulated viewers across four age cohorts. The dashboard then shows which creative wins, for whom, and at which moments, before any media is bought.
+Rewire analyses a video creative, or compares two, by their predicted brain response. A neural encoder predicts cortical activity second by second across 20,484 points on the brain's surface, and Rewire expands that prediction into 200 simulated viewers across four age cohorts. The dashboard then shows how it lands, for whom, and at which moments (and which creative wins, when comparing) before any media is bought.
 
 All results are predictions for simulated viewers, not measurements of real people.
 
@@ -10,6 +10,7 @@ All results are predictions for simulated viewers, not measurements of real peop
 
 ## What it does
 
+- **One video or two**: drop in a single creative to analyse it, or two to compare them; a progress screen follows every stage of the pipeline.
 - **Head-to-head verdict**: names the stronger creative across eight cognitive dimensions and four age cohorts (32 contests), with mean activation, peak activation and contests won.
 - **Cortex monitor**: a 3D brain showing the predicted response at the playhead, with the active share of the surface, mean and peak response, and the left-right balance. Filter by variant and cohort.
 - **Winning-creative player**: the winning video plays beside the brain and drives the playhead for the whole dashboard.
@@ -26,7 +27,7 @@ Videos are only read in the browser to build the filmstrip, find scene cuts and 
 ## How it works
 
 ### 1. Prediction
-`modal_inference.py` runs the neural encoder on a cloud GPU (via Modal). It turns a video's frames and audio into per-second z-scores of predicted cortical activity, saved as a `.pkl` file per creative.
+`modal_inference.py` deploys the neural encoder as a GPU service on Modal. The backend sends each uploaded video to it and streams back progress, then per-second z-scores of predicted cortical activity and a transcript.
 
 ### 2. Audience synthesis
 `backend/analysis.py` expands one prediction into 200 simulated viewers: 50 for each cohort (Kids 6 to 12, Gen Z 13 to 24, Adults 25 to 54, Older 55+). Each viewer gets:
@@ -57,15 +58,28 @@ A FastAPI backend serves the analysis; a React frontend presents it.
 
 ## Getting started
 
-### 1. Backend
+Rewire runs on your machine. Only the prediction step runs on a cloud GPU (Modal), which the backend calls for you.
+
+### 1. Cloud GPU (once)
+```bash
+pip install modal
+modal token new                       # sign in to Modal
+modal secret create hf-secret HF_TOKEN=<your Hugging Face token>
+modal deploy modal_inference.py       # deploys the inference service
+```
+The first run downloads the model weights into a persistent Modal volume. Later runs reuse them, and a container stays warm for five minutes between videos.
+
+### 2. Backend
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r requirements.txt modal
 uvicorn main:app --port 8000
 ```
-On start, the backend loads the sample predictions (`brand_A_predictions.pkl`, `brand_B_predictions.pkl`) so the dashboard has data straight away. Building the 200-viewer ensembles takes a short while.
+On start the backend opens the latest completed run, or the bundled sample pair. Runs are saved under `backend/data/runs/`.
 
-### 2. Frontend
+To try the whole flow without a GPU, start it with `REWIRE_ENGINE=replay`. Every stage runs, but the predictions come from the sample files.
+
+### 3. Frontend
 ```bash
 cd frontend
 npm install
@@ -73,8 +87,7 @@ npm run dev
 ```
 Then open http://localhost:5173.
 
-### 3. Optional: Streamlit explorer
-For exploring the synthesis engine directly:
+### Optional: Streamlit explorer
 ```bash
 streamlit run app.py
 ```
@@ -83,13 +96,15 @@ streamlit run app.py
 
 ## Using Rewire
 
-1. **Predict**: run `modal_inference.py` on each video to produce its `.pkl` predictions.
-2. **Add data**: on the start screen, add the `.pkl` file for Variant A and Variant B, and optionally each variant's MP4. Or choose **Use sample data**.
-3. **Read the verdict**: the Overview tab names the winner and the numbers behind it.
-4. **Watch and scrub**: play the winning creative; the brain, gauge and readouts follow the playhead. Use the timeline to jump to scenes, dialogue and response shifts.
+1. **Start an analysis**: choose **One video** to analyse a single creative, or **Two videos** to compare them. Drop the files in (MP4 or MOV, up to 3 minutes and 500 MB each), optionally set the creative details, and choose **Run analysis**.
+2. **Follow the pipeline**: a progress screen shows each stage (upload, checks, prediction on the GPU, audience simulation, scoring) and each video's progress. The dashboard opens when the results are ready.
+3. **Read the verdict**: the Overview tab names the winner and the numbers behind it, or summarises the single creative.
+4. **Watch and scrub**: play the creative; the brain, gauge and readouts follow the playhead. Use the timeline to jump to scenes, dialogue and response shifts.
 5. **Dig in**: compare cohorts and dimensions in Audiences, find the strongest seconds in Key moments, and check regions and consistency in Brain regions.
 6. **Explore the ensemble**: in the Ensemble tab, find groups of viewers who respond alike and see what makes each group different.
-7. **Share**: download any chart as a PNG, or choose **Export report**.
+7. **Share**: download any chart as a PNG, or export a printable report when comparing two creatives.
+
+Saved prediction files (`.pkl`) can still be imported from the start screen, and **Use sample data** loads the bundled pair.
 
 ---
 
@@ -97,11 +112,14 @@ streamlit run app.py
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/status` | Whether an analysis is loaded |
-| `POST /api/upload-predictions` | Runs the analysis on two uploaded `.pkl` files and optional creative details |
+| `GET /api/status` | Loaded variants, the current run, and any analysis in progress |
+| `POST /api/jobs` | Starts an analysis of one video (`mode=single`) or two (`mode=compare`) |
+| `GET /api/jobs/{id}` | The job's stages, each video's progress, and its status |
+| `POST /api/jobs/{id}/cancel` | Cancels a running analysis |
+| `POST /api/upload-predictions` | Imports one or two saved `.pkl` prediction files |
 | `POST /api/load-sample-data` | Loads the bundled sample pair |
 | `GET /api/overview` | Per-second metrics, peak and transcript for each variant |
-| `GET /api/ab-summary` | Verdict data and every cohort and dimension contest |
+| `GET /api/ab-summary` | Verdict data and every cohort and dimension contest, or a summary when one creative is loaded |
 | `GET /api/engagement` | Engagement scores by cohort and dimension |
 | `GET /api/timeseries` | Network response over time by cohort |
 | `GET /api/top-rois` | Top regions with their time series |
@@ -120,6 +138,8 @@ streamlit run app.py
 Rewire/
 ├── backend/
 │   ├── main.py              # FastAPI app and endpoints
+│   ├── pipeline.py          # Analysis jobs: checks, GPU prediction, synthesis, scoring
+│   ├── engines.py           # Inference engines: Modal GPU, or replay for testing
 │   ├── analysis.py          # Audience synthesis, scoring and ensemble profiles
 │   └── requirements.txt
 ├── frontend/
@@ -131,8 +151,9 @@ Rewire/
 │   │   ├── lib/             # Chart data, timeline detection, video analysis, clustering
 │   │   └── index.css        # Layout on top of Arc's tokens
 │   └── package.json
+├── docs/SAAS_ARCHITECTURE.md  # Plan for the hosted, multi-tenant product
 ├── app.py                   # Streamlit explorer
-├── modal_inference.py       # Cloud inference
+├── modal_inference.py       # Cloud inference service (deployed to Modal)
 └── process.md               # Technical notes
 ```
 

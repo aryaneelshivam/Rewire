@@ -4,9 +4,11 @@ import { Card } from './ui';
 
 const mean = (list = []) => list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0;
 
-/** The headline numbers side by side in Arc's data table. */
+/** The headline numbers in Arc's data table: side by side when comparing, one column for a single creative. */
 const KeyMetricsPanel = ({ overview, engagement, demographics }) => {
-  const s = ['A', 'B'].reduce((acc, v) => {
+  const variants = Object.keys(overview);
+  const single = variants.length === 1;
+  const s = variants.reduce((acc, v) => {
     const o = overview[v], m = o.timestep_metrics;
     acc[v] = {
       peak: m.global_max[o.peak_timestep] ?? 0,
@@ -20,13 +22,16 @@ const KeyMetricsPanel = ({ overview, engagement, demographics }) => {
 
   const pct = v => `${(v * 100).toFixed(1)}%`;
   // Raw values stay in the row so the columns sort as numbers; the cells render them formatted and coloured.
-  const row = (id, metric, a, b, fmt, compare = true) => ({ id, metric, a, b, fmt, win: compare ? (a > b ? 'A' : b > a ? 'B' : null) : null });
+  const row = (id, metric, key, fmt, compare = true) => {
+    const a = s.A[key], b = s.B?.[key];
+    return { id, metric, a, b, fmt, win: compare && !single ? (a > b ? 'A' : b > a ? 'B' : null) : null };
+  };
   const rows = [
-    row('peak', 'Peak z', s.A.peak, s.B.peak, v => v.toFixed(3)),
-    row('mean', 'Mean z', s.A.mean, s.B.mean, v => v.toFixed(3)),
-    row('active', 'Active at peak', s.A.active, s.B.active, pct),
-    row('peakAt', 'Peak moment', s.A.peakAt, s.B.peakAt, v => `${v}s`, false),
-    row('audience', 'Top audience', s.A.audience, s.B.audience, v => v, false),
+    row('peak', 'Peak z', 'peak', v => v.toFixed(3)),
+    row('mean', 'Mean z', 'mean', v => v.toFixed(3)),
+    row('active', 'Active at peak', 'active', pct),
+    row('peakAt', 'Peak moment', 'peakAt', v => `${v}s`, false),
+    row('audience', 'Top audience', 'audience', v => v, false),
   ];
   // Each column wears its variant's colour; the higher value of a pair is set heavier and named for screen readers.
   const cell = side => (value, r) => (
@@ -34,14 +39,14 @@ const KeyMetricsPanel = ({ overview, engagement, demographics }) => {
   );
   const columns = [
     { key: 'metric', label: 'Metric', sortable: false },
-    { key: 'a', label: 'Variant A', sortable: false, numeric: true, render: cell('A') },
-    { key: 'b', label: 'Variant B', sortable: false, numeric: true, render: cell('B') },
+    { key: 'a', label: single ? 'Value' : 'Variant A', sortable: false, numeric: true, render: cell('A') },
+    ...(single ? [] : [{ key: 'b', label: 'Variant B', sortable: false, numeric: true, render: cell('B') }]),
   ];
 
   return (
     <Card title="Key numbers" exportName="key-numbers" className="fill">
       <div className="flat-table">
-        <SortableDataTable rows={rows} columns={columns} rowKey="id" caption="Key numbers for Variant A and Variant B. The higher value is marked." itemName={{ one: 'metric', other: 'metrics' }} />
+        <SortableDataTable rows={rows} columns={columns} rowKey="id" caption={single ? 'Key numbers for this creative' : 'Key numbers for Variant A and Variant B. The higher value is marked.'} itemName={{ one: 'metric', other: 'metrics' }} />
       </div>
     </Card>
   );

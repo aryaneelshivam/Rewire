@@ -1,0 +1,9 @@
+# Saved analysis runs and uploaded videos stay on this machine
+backend/data/
+
+__pycache__/
+*.pyc
+.DS_Store
+frontend/node_modules/
+frontend/dist/
+.claude/

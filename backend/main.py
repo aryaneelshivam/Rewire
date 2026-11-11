@@ -5,6 +5,7 @@ Serves pre-computed analysis from brand_A_predictions.pkl & brand_B_predictions.
 
 import os
 import sys
+import json
 import math
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -16,13 +17,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel
 
+from pipeline import JobManager, latest_run
 from analysis import run_full_analysis, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
 
 # ---------------------------------------------------------------------------
-# Global cache — computed once at startup, holds both variants
+# Results — the analysed variants of the current run, in order (A, then B when comparing)
 # ---------------------------------------------------------------------------
-_cache_A: dict = {}
-_cache_B: dict = {}
+_results: dict = {}
+_run_info: dict = {}
+
+ROOT = Path(__file__).resolve().parent.parent
+SAMPLE_FILES = {"A": ROOT / "brand_A_predictions.pkl", "B": ROOT / "brand_B_predictions.pkl"}
 
 
 def _clean_transcript(data):
@@ -35,55 +40,62 @@ def _clean_transcript(data):
             for k, v in evt.items():
                 if isinstance(v, float) and math.isnan(v):
                     clean_evt[k] = None
-                else:
+                elif isinstance(v, (str, int, float, bool)) or v is None:
                     clean_evt[k] = v
+                else:
+                    clean_evt[k] = str(v)
             clean.append(clean_evt)
         return clean
-    else:
-        return [
-            {"start": 3.0, "end": 4.0, "text": "[Narrator starts speaking]"},
-            {"start": 12.0, "end": 14.5, "text": "Brand Logo Revealed"},
-            {"start": 21.0, "end": 22.0, "text": "[Upbeat Music]"},
-            {"start": 28.0, "end": 30.0, "text": "Call to Action"},
-        ]
+    return []
+
+
+def _analyse(preds, transcript, metadata=None, seed=42, on_step=None) -> dict:
+    """Runs the audience synthesis and scoring on one variant's predictions."""
+    transcript = _clean_transcript({"transcript": transcript})
+    cache = run_full_analysis(np.asarray(preds), content_metadata=metadata or None, transcript=transcript,
+                              n_subjects=50, seed=seed, on_step=on_step)
+    cache["transcript"] = transcript
+    return cache
+
+
+def _load_files(files: dict, metadata: dict | None = None) -> dict:
+    """Analyses saved prediction files ({variant: path}), seeding A with 42 and B with 43 as before."""
+    out = {}
+    for i, (variant, path) in enumerate(files.items()):
+        data = joblib.load(str(path))
+        print(f"🧠  Analysing Variant {variant} from {Path(path).name}...")
+        out[variant] = _analyse(data["preds"], data.get("transcript", []), (metadata or {}).get(variant), 42 + i)
+    return out
+
+
+def _set_results(results: dict, info: dict):
+    global _results, _run_info
+    _results = dict(results)
+    _run_info = info
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load both pkl files and run analysis on startup if available."""
-    global _cache_A, _cache_B
-
-    base_dir = Path(__file__).resolve().parent.parent
-    path_a = base_dir / "brand_A_predictions.pkl"
-    path_b = base_dir / "brand_B_predictions.pkl"
-
-    if path_a.exists() and path_b.exists():
-        try:
-            print("🧠  Auto-loading default Brand A & B sample predictions...")
-            data_a = joblib.load(str(path_a))
-            preds_a = data_a["preds"]
-            transcript_a = _clean_transcript(data_a)
-            _cache_A = run_full_analysis(preds_a, transcript=transcript_a, n_subjects=50, seed=42)
-            _cache_A["transcript"] = transcript_a
-
-            data_b = joblib.load(str(path_b))
-            preds_b = data_b["preds"]
-            transcript_b = _clean_transcript(data_b)
-            _cache_B = run_full_analysis(preds_b, transcript=transcript_b, n_subjects=50, seed=43)
-            _cache_B["transcript"] = transcript_b
-            print("✅  Auto-load complete! Both variants cached.")
-        except Exception as e:
-            print(f"⚠️  Auto-load skipped: {e}")
-            print("🟡  Backend started. Awaiting PKL upload files from frontend...")
-    else:
-        print("🟡  Backend started. Awaiting PKL upload files from frontend...")
-
+    """Loads the latest completed run, or the bundled sample pair, so the dashboard opens with data."""
+    try:
+        run = latest_run()
+        if run:
+            info = json.loads((run / "run.json").read_text())
+            files = {v: run / f"{v}.pkl" for v in info["variants"]}
+            _set_results(_load_files(files, info.get("metadata")), {**info, "source": "run"})
+            print(f"✅  Loaded run {info['id']}.")
+        elif all(p.exists() for p in SAMPLE_FILES.values()):
+            _set_results(_load_files(SAMPLE_FILES), {"source": "sample", "variants": ["A", "B"], "mode": "compare"})
+            print("✅  Loaded the sample pair.")
+        else:
+            print("🟡  No data yet. Waiting for an analysis.")
+    except Exception as e:
+        print(f"⚠️  Startup load skipped: {e}")
     yield
-    _cache_A.clear()
-    _cache_B.clear()
+    _results.clear()
 
 
-app = FastAPI(title="Rewire A/B Dashboard API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Rewire API", version="3.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -95,101 +107,124 @@ app.add_middleware(
 
 
 def _get_cache(variant: str) -> dict:
-    if variant == "A":
-        return _cache_A
-    elif variant == "B":
-        return _cache_B
-    raise HTTPException(status_code=400, detail="Variant must be 'A' or 'B'")
+    if not _results:
+        raise HTTPException(status_code=400, detail="No analysis is loaded yet")
+    if variant not in _results:
+        raise HTTPException(status_code=404, detail=f"Variant '{variant}' is not in this analysis")
+    return _results[variant]
+
+
+def _each(build) -> dict:
+    """Applies build to every loaded variant: {"A": ..., "B": ...} or just {"A": ...}."""
+    if not _results:
+        raise HTTPException(status_code=400, detail="No analysis is loaded yet")
+    return {v: build(c) for v, c in _results.items()}
+
+
+jobs = JobManager(on_results=lambda results, job_id: None, analyse=_analyse)
+
+
+def _on_job_results(results: dict, job_id: str):
+    job = jobs.get(job_id)
+    _set_results(results, {
+        "source": "run", "id": job_id, "mode": job.mode if job else "single",
+        "variants": list(results), "names": {v.variant: v.name for v in job.videos} if job else {},
+    })
+
+
+jobs.on_results = _on_job_results
 
 
 # =============================================================================
-# API ENDPOINTS — All return { A: ..., B: ... } for comparison
+# API ENDPOINTS — each returns one entry per loaded variant
 # =============================================================================
-
 
 @app.get("/api/status")
 def get_status():
-    return {"loaded": bool(_cache_A and _cache_B)}
+    return {"loaded": bool(_results), "variants": list(_results), "run": _run_info,
+            "active_job": jobs.active.id if jobs.active else None}
+
+
+@app.post("/api/jobs")
+async def create_job(
+    mode: str = Form("single"),
+    videoA: UploadFile = File(...),
+    videoB: UploadFile | None = File(None),
+    genre_A: str = Form("general"), genre_B: str = Form("general"),
+    content_type_A: str = Form("video_ad"), content_type_B: str = Form("video_ad"),
+    pacing_A: str = Form("medium"), pacing_B: str = Form("medium"),
+    audio_profile_A: str = Form("mixed"), audio_profile_B: str = Form("mixed"),
+):
+    """Starts an analysis of one video, or two to compare. Poll GET /api/jobs/{id} for progress."""
+    if mode not in ("single", "compare"):
+        raise HTTPException(status_code=400, detail="mode must be 'single' or 'compare'")
+    if mode == "compare" and videoB is None:
+        raise HTTPException(status_code=400, detail="Comparing needs two videos")
+    files = [("A", videoA.filename or "video-a.mp4", await videoA.read())]
+    if mode == "compare":
+        files.append(("B", videoB.filename or "video-b.mp4", await videoB.read()))
+    metadata = {
+        "A": {"genre": genre_A, "content_type": content_type_A, "pacing": pacing_A, "audio_profile": audio_profile_A},
+        "B": {"genre": genre_B, "content_type": content_type_B, "pacing": pacing_B, "audio_profile": audio_profile_B},
+    }
+    metadata = {v: metadata[v] for v, _, _ in files}
+    try:
+        job = jobs.create(mode, files, metadata)
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return {"job_id": job.id}
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="No such analysis")
+    return job.to_dict()
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    job = jobs.cancel(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="No such analysis")
+    return job.to_dict()
+
 
 @app.post("/api/upload-predictions")
 async def upload_predictions(
     fileA: UploadFile = File(...),
-    fileB: UploadFile = File(...),
-    # V4: Content metadata for enhanced analysis
-    genre_A: str = Form("general"),
-    genre_B: str = Form("general"),
-    content_type_A: str = Form("video_ad"),
-    content_type_B: str = Form("video_ad"),
-    pacing_A: str = Form("medium"),
-    pacing_B: str = Form("medium"),
-    audio_profile_A: str = Form("mixed"),
-    audio_profile_B: str = Form("mixed"),
-    brand_reveal_A: int = Form(-1),
-    brand_reveal_B: int = Form(-1),
+    fileB: UploadFile | None = File(None),
+    genre_A: str = Form("general"), genre_B: str = Form("general"),
+    content_type_A: str = Form("video_ad"), content_type_B: str = Form("video_ad"),
+    pacing_A: str = Form("medium"), pacing_B: str = Form("medium"),
+    audio_profile_A: str = Form("mixed"), audio_profile_B: str = Form("mixed"),
+    brand_reveal_A: int = Form(-1), brand_reveal_B: int = Form(-1),
 ):
-    global _cache_A, _cache_B
-    
-    base_dir = Path(__file__).resolve().parent.parent
-    path_a = base_dir / "brand_A_predictions.pkl"
-    path_b = base_dir / "brand_B_predictions.pkl"
-    
-    with open(path_a, "wb") as f:
-        content_a = await fileA.read()
-        f.write(content_a)
-    with open(path_b, "wb") as f:
-        content_b = await fileB.read()
-        f.write(content_b)
-
-    # Build content metadata dicts (V4)
-    meta_a = {
-        "genre": genre_A, "content_type": content_type_A,
-        "pacing": pacing_A, "audio_profile": audio_profile_A,
-        "brand_reveal_timestamp": brand_reveal_A,
+    """Imports saved prediction files: one to analyse, or two to compare."""
+    import tempfile
+    uploads = {"A": fileA, **({"B": fileB} if fileB is not None else {})}
+    metadata = {
+        "A": {"genre": genre_A, "content_type": content_type_A, "pacing": pacing_A, "audio_profile": audio_profile_A, "brand_reveal_timestamp": brand_reveal_A},
+        "B": {"genre": genre_B, "content_type": content_type_B, "pacing": pacing_B, "audio_profile": audio_profile_B, "brand_reveal_timestamp": brand_reveal_B},
     }
-    meta_b = {
-        "genre": genre_B, "content_type": content_type_B,
-        "pacing": pacing_B, "audio_profile": audio_profile_B,
-        "brand_reveal_timestamp": brand_reveal_B,
-    }
-
-    print(f"📦  Processing Variant A (genre={genre_A}, pacing={pacing_A})...")
-    data_a = joblib.load(str(path_a))
-    preds_a = data_a["preds"]
-    transcript_a = _clean_transcript(data_a)
-    _cache_A = run_full_analysis(preds_a, content_metadata=meta_a, transcript=transcript_a, n_subjects=50, seed=42)
-    _cache_A["transcript"] = transcript_a
-    
-    print(f"📦  Processing Variant B (genre={genre_B}, pacing={pacing_B})...")
-    data_b = joblib.load(str(path_b))
-    preds_b = data_b["preds"]
-    transcript_b = _clean_transcript(data_b)
-    _cache_B = run_full_analysis(preds_b, content_metadata=meta_b, transcript=transcript_b, n_subjects=50, seed=43)
-    _cache_B["transcript"] = transcript_b
-    
-    return {"status": "success", "message": "Files analyzed (V4 content-aware engine).", "content_A": meta_a, "content_B": meta_b}
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = {}
+        for v, up in uploads.items():
+            paths[v] = Path(tmp) / f"{v}.pkl"
+            paths[v].write_bytes(await up.read())
+        results = _load_files(paths, metadata)
+    _set_results(results, {"source": "import", "variants": list(results), "mode": "compare" if len(results) > 1 else "single",
+                           "names": {v: up.filename for v, up in uploads.items()}})
+    return {"status": "success", "variants": list(results)}
 
 
 @app.post("/api/load-sample-data")
 async def load_sample_data():
-    """Quick-load default Brand A and Brand B samples from workspace."""
-    global _cache_A, _cache_B
-    base_dir = Path(__file__).resolve().parent.parent
-    path_a = base_dir / "brand_A_predictions.pkl"
-    path_b = base_dir / "brand_B_predictions.pkl"
-    if not path_a.exists() or not path_b.exists():
-        raise HTTPException(status_code=404, detail="Default sample PKL files not found on disk.")
-    
-    data_a = joblib.load(str(path_a))
-    preds_a = data_a["preds"]
-    transcript_a = _clean_transcript(data_a)
-    _cache_A = run_full_analysis(preds_a, transcript=transcript_a, n_subjects=50, seed=42)
-    _cache_A["transcript"] = transcript_a
-
-    data_b = joblib.load(str(path_b))
-    preds_b = data_b["preds"]
-    transcript_b = _clean_transcript(data_b)
-    _cache_B = run_full_analysis(preds_b, transcript=transcript_b, n_subjects=50, seed=43)
-    _cache_B["transcript"] = transcript_b
+    """Loads the bundled sample pair."""
+    if not all(p.exists() for p in SAMPLE_FILES.values()):
+        raise HTTPException(status_code=404, detail="The sample prediction files are missing.")
+    _set_results(_load_files(SAMPLE_FILES), {"source": "sample", "variants": ["A", "B"], "mode": "compare"})
     return {"status": "success", "message": "Sample files loaded"}
 
 
@@ -204,13 +239,13 @@ def get_overview():
             "timestep_metrics": c["timestep_metrics"],
             "transcript": c.get("transcript", []),
         }
-    return {"A": _build(_cache_A), "B": _build(_cache_B)}
+    return _each(_build)
 
 
 @app.get("/api/top-rois")
 def get_top_rois():
     """Top 5 ROIs by peak activation + their time-series — both variants."""
-    return {"A": _cache_A["top_rois"], "B": _cache_B["top_rois"]}
+    return _each(lambda c: c["top_rois"])
 
 
 @app.get("/api/engagement")
@@ -225,7 +260,7 @@ def get_engagement():
             "demo_colors": c["demo_colors"],
             "dimensions": dims,
         }
-    return {"A": _build(_cache_A), "B": _build(_cache_B)}
+    return _each(_build)
 
 
 @app.get("/api/timeseries")
@@ -239,13 +274,13 @@ def get_demo_timeseries():
             "demo_colors": c["demo_colors"],
             "groups": groups,
         }
-    return {"A": _build(_cache_A), "B": _build(_cache_B)}
+    return _each(_build)
 
 
 @app.get("/api/heatmap")
 def get_heatmap():
     """Inter-subject variance heatmap — both variants."""
-    return {"A": _cache_A["heatmap"], "B": _cache_B["heatmap"]}
+    return _each(lambda c: c["heatmap"])
 
 
 @app.get("/api/brain-mesh")
@@ -382,58 +417,55 @@ def get_demographics():
             "peak_data": c["demo_peak_data"],
             "engagement": c["engagement_scores"],
         }
-    return {"A": _build(_cache_A), "B": _build(_cache_B)}
+    return _each(_build)
 
 
 @app.get("/api/content-profile")
 def get_content_profile():
     """V4: Return content analysis metadata for both variants."""
-    return {
-        "A": _cache_A.get("content_profile", {"engine_version": "V3", "content_aware": False}),
-        "B": _cache_B.get("content_profile", {"engine_version": "V3", "content_aware": False}),
-    }
+    return _each(lambda c: c.get("content_profile", {"engine_version": "V3", "content_aware": False}))
 
 
 @app.get("/api/ab-summary")
 def get_ab_summary():
-    """Quick A/B comparison summary — who wins overall? (V4: includes effect sizes)"""
-    a_eng = _cache_A["engagement_scores"]
-    b_eng = _cache_B["engagement_scores"]
-
-    # Overall score per demographic
-    a_overall = {d: a_eng[d]["overall"] for d in a_eng}
-    b_overall = {d: b_eng[d]["overall"] for d in b_eng}
-
-    a_global_mean = float(np.mean(_cache_A["preds"].mean(axis=1)))
-    b_global_mean = float(np.mean(_cache_B["preds"].mean(axis=1)))
-
-    a_peak = float(_cache_A["preds"].max())
-    b_peak = float(_cache_B["preds"].max())
-
-    # Dimension-level winner for each demographic
-    dimension_winners = {}
+    """Who wins overall, per cohort and dimension. With one variant, a summary of that creative instead."""
     dims = ["visual", "auditory", "reward", "memory", "attention", "narrative", "personal", "action", "overall"]
+    if not _results:
+        raise HTTPException(status_code=400, detail="No analysis is loaded yet")
+    if len(_results) == 1:
+        (variant, c), = _results.items()
+        eng = c["engagement_scores"]
+        return {
+            "mode": "single",
+            "variant": variant,
+            "global_mean": round(float(np.mean(c["preds"].mean(axis=1))), 4),
+            "peak_activation": round(float(c["preds"].max()), 4),
+            "overall_engagement": {d: eng[d]["overall"] for d in eng},
+            "best_demographic": c["best_demographic"],
+            "scores": {d: {dim: round(eng[d].get(dim, 0), 4) for dim in dims} for d in eng},
+            "n_timesteps": c["n_timesteps"],
+        }
+    a, b = _results["A"], _results["B"]
+    a_eng, b_eng = a["engagement_scores"], b["engagement_scores"]
+    dimension_winners = {}
     for demo in a_eng:
         dimension_winners[demo] = {}
         for dim in dims:
-            a_val = a_eng[demo].get(dim, 0)
-            b_val = b_eng[demo].get(dim, 0)
+            a_val, b_val = a_eng[demo].get(dim, 0), b_eng[demo].get(dim, 0)
             diff = b_val - a_val
             dimension_winners[demo][dim] = {
-                "A": round(a_val, 4),
-                "B": round(b_val, 4),
-                "diff": round(diff, 4),
+                "A": round(a_val, 4), "B": round(b_val, 4), "diff": round(diff, 4),
                 "winner": "B" if diff > 0 else "A" if diff < 0 else "TIE",
             }
-
     return {
-        "A_overall_engagement": a_overall,
-        "B_overall_engagement": b_overall,
-        "A_global_mean": round(a_global_mean, 4),
-        "B_global_mean": round(b_global_mean, 4),
-        "A_peak_activation": round(a_peak, 4),
-        "B_peak_activation": round(b_peak, 4),
+        "mode": "compare",
+        "A_overall_engagement": {d: a_eng[d]["overall"] for d in a_eng},
+        "B_overall_engagement": {d: b_eng[d]["overall"] for d in b_eng},
+        "A_global_mean": round(float(np.mean(a["preds"].mean(axis=1))), 4),
+        "B_global_mean": round(float(np.mean(b["preds"].mean(axis=1))), 4),
+        "A_peak_activation": round(float(a["preds"].max()), 4),
+        "B_peak_activation": round(float(b["preds"].max()), 4),
         "dimension_winners": dimension_winners,
-        "n_timesteps_A": _cache_A["n_timesteps"],
-        "n_timesteps_B": _cache_B["n_timesteps"],
+        "n_timesteps_A": a["n_timesteps"],
+        "n_timesteps_B": b["n_timesteps"],
     }

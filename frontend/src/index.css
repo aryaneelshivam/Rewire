@@ -554,3 +554,26 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
 .muted-note { color: var(--text-muted); font-size: var(--text-xs); }
 @media (max-width: 1080px) { .ensemble-body { grid-template-columns: 1fr; } }
 .ensemble-modes { max-width: 100%; overflow-x: auto; }
+.dim-bars { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.dim-bar { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.dim-bar > span { color: var(--foreground); }
+.dim-bar .bar-row > span:first-child { display: none; }
+.dim-bar .bar-row { grid-template-columns: minmax(0, 1fr) 52px; }
+.roi-bar { grid-template-columns: 96px minmax(0, 1fr) 40px; } .roi-bar > .num-key { text-align: right; }
+.lead-row.single { grid-template-columns: 92px minmax(0, 1fr); } .lead-row.single .bar-row > span:first-child { display: none; } .lead-row.single .bar-row { grid-template-columns: minmax(0, 1fr) 52px; }
+
+/* ---------- Start flow and pipeline ---------- */
+.onboard-mode { justify-self: start; }
+.variant-cols.is-single, .meta-grid.is-single { grid-template-columns: minmax(0, 1fr); max-width: 520px; }
+.pkl-import { display: grid; gap: var(--space-4); padding-top: var(--space-2); }
+.pkl-import > button { justify-self: start; }
+.pipeline .onboard-inner { max-width: 960px; }
+.pipeline-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: var(--space-12); align-items: start; }
+.pipeline-videos { display: grid; gap: var(--space-6); }
+.pipeline-video { display: grid; gap: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.pipeline-video-head { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
+.pipeline-file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.pipeline-video [role="progressbar"] > div:first-child:not(:last-child) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.pipeline-video-meta { display: flex; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; color: var(--text-secondary); font-size: var(--text-xs); }
+.pipeline-note { color: var(--text-muted); font-size: var(--text-xs); max-width: 520px; }
+@media (max-width: 760px) { .pipeline-body { grid-template-columns: 1fr; gap: var(--space-8); } }

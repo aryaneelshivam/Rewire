@@ -70,12 +70,13 @@ const VarianceHeatmap = ({ dataA, dataB }) => {
   const [cohort, setCohort] = useState('all');
   const [view, setView] = useState('map');
 
-  if (!dataA?.values || !dataB?.values) return null;
+  if (!dataA?.values) return null;
+  const single = !dataB?.values;
 
   const roiLabels = dataA.roi_labels || [];
   const demographics = dataA.demographics || [];
   const valuesA = dataA.values;
-  const valuesB = dataB.values;
+  const valuesB = single ? dataA.values : dataB.values;
 
   // Mean inter-subject variance per region over the chosen cohorts.
   const cohortIdx = cohort === 'all' ? demographics.map((_, i) => i) : [demographics.indexOf(cohort)].filter(i => i >= 0);
@@ -101,9 +102,9 @@ const VarianceHeatmap = ({ dataA, dataB }) => {
   // Spread of inter-subject variance across all ROIs, one ridge per cohort and variant.
   const SHORT = { kids: 'Kids', genz: 'GenZ', adults: 'Adult', older: 'Older' };
   const ridgeSeries = demographics.flatMap((demo, dIdx) => [
-    { id: `${demo}-A`, label: `${SHORT[demo] || demo} A`, values: (valuesA[dIdx] || []).map(Number).filter(Number.isFinite) },
+    { id: `${demo}-A`, label: single ? (SHORT[demo] || demo) : `${SHORT[demo] || demo} A`, values: (valuesA[dIdx] || []).map(Number).filter(Number.isFinite) },
     { id: `${demo}-B`, label: `${SHORT[demo] || demo} B`, values: (valuesB[dIdx] || []).map(Number).filter(Number.isFinite) },
-  ]).filter(item => item.values.length > 1);
+  ]).filter(item => item.values.length > 1 && !(single && item.id.endsWith('-B')));
 
   return (
     <Card
@@ -114,15 +115,15 @@ const VarianceHeatmap = ({ dataA, dataB }) => {
     >
       {view === 'map' && (<>
         <div className="filter-row">
-          <SegmentedControl label="Variant" options={VARIANT_OPTIONS} value={variant} onValueChange={setVariant} />
+          {!single && <SegmentedControl label="Variant" options={VARIANT_OPTIONS} value={variant} onValueChange={setVariant} />}
           <div className="filter-select"><Select label="Cohort" options={COHORT_OPTIONS} value={cohort} onValueChange={setCohort} /></div>
         </div>
         <div className="treemap-colors">
           <Treemap
             data={tree}
-            label={`Inter-subject variance by region for Variant ${variant}, grouped by brain system`}
+            label={single ? 'Inter-subject variance by region, grouped by brain system' : `Inter-subject variance by region for Variant ${variant}, grouped by brain system`}
             formatValue={v => `σ² ${v.toFixed(4)}`}
-            colorLabel={`More varied than Variant ${otherName} by`}
+            colorLabel={single ? undefined : `More varied than Variant ${otherName} by`}
             formatColor={v => `${v < 0 ? '\u2212' : '+'}${Math.abs(v).toFixed(4)}`}
             height={380}
           />

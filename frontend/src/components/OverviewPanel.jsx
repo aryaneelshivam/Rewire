@@ -3,6 +3,10 @@ import { LineChart } from '@/components/arc/line-chart/line-chart';
 import { timeSeriesData, zFormat, VARIANT_A, VARIANT_B } from '@/lib/chart-data';
 import { Card } from './ui';
 
+const SINGLE_SERIES = [
+  { key: 'maxA', label: 'Peak', color: VARIANT_A, area: true },
+  { key: 'meanA', label: 'Mean', color: VARIANT_A, dashed: true, area: false },
+];
 const SERIES = [
   { key: 'maxA', label: 'A · peak', color: VARIANT_A, area: true },
   { key: 'meanA', label: 'A · mean', color: VARIANT_A, dashed: true, area: false },
@@ -13,15 +17,16 @@ const SERIES = [
 /** Whole-brain activation over time for both variants. Clicking a point moves the playhead there. */
 const OverviewPanel = ({ dataA, dataB, onSeekToTimestamp }) => {
   const activeIndex = useRef(null);
-  const ready = dataA?.timestep_metrics && dataB?.timestep_metrics;
+  // dataB is absent when one creative is analysed: only A is plotted then.
+  const ready = dataA?.timestep_metrics && (!dataB || dataB.timestep_metrics);
 
   const { chartData, aucA, aucB } = useMemo(() => {
     if (!ready) return { chartData: [], aucA: 0, aucB: 0 };
-    const mA = dataA.timestep_metrics, mB = dataB.timestep_metrics;
+    const mA = dataA.timestep_metrics, mB = dataB?.timestep_metrics ?? { timestep: [], global_max: [], global_mean: [] };
     const maxT = Math.max(mA.timestep.length, mB.timestep.length);
     const sum = list => list.reduce((s, v) => s + (v ?? 0), 0);
     return {
-      chartData: timeSeriesData(maxT, i => ({ maxA: mA.global_max[i], meanA: mA.global_mean[i], maxB: mB.global_max[i], meanB: mB.global_mean[i] })),
+      chartData: timeSeriesData(maxT, i => (dataB ? { maxA: mA.global_max[i], meanA: mA.global_mean[i], maxB: mB.global_max[i], meanB: mB.global_mean[i] } : { maxA: mA.global_max[i], meanA: mA.global_mean[i] })),
       aucA: sum(mA.global_mean),
       aucB: sum(mB.global_mean),
     };
@@ -34,17 +39,17 @@ const OverviewPanel = ({ dataA, dataB, onSeekToTimestamp }) => {
       title="Whole-brain response"
       exportName="whole-brain-response"
       description="Peak z-score per second. Turn on the means in the legend; click to move the playhead."
-      actions={<span className="card-meta">Total A <span className="num-a">{aucA.toFixed(1)}</span>, B <span className="num-b">{aucB.toFixed(1)}</span></span>}
+      actions={<span className="card-meta">{dataB ? <>Total A <span className="num-a">{aucA.toFixed(1)}</span>, B <span className="num-b">{aucB.toFixed(1)}</span></> : <>Total <span className="num-a">{aucA.toFixed(1)}</span></>}</span>}
       className="fill"
     >
       <div className="chart-click" onClick={() => { if (activeIndex.current != null) onSeekToTimestamp?.(activeIndex.current); }}>
         <LineChart
           data={chartData}
-          series={SERIES}
-          label="Whole-brain activation, Variant A vs Variant B"
+          series={dataB ? SERIES : SINGLE_SERIES}
+          label={dataB ? 'Whole-brain activation, Variant A vs Variant B' : 'Whole-brain activation'}
           unit="z"
           height={200}
-          defaultHiddenSeries={['meanA', 'meanB']}
+          defaultHiddenSeries={dataB ? ['meanA', 'meanB'] : []}
           categoryLabel="Time"
           formatValue={zFormat}
           formatTick={v => v.toFixed(1)}

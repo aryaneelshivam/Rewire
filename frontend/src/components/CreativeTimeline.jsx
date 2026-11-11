@@ -199,7 +199,7 @@ export default function CreativeTimeline({ duration, currentTime, onSeek, tracks
             <div key={track.variant} className={`tl-track ${track.variant === 'B' ? 'is-b' : ''}`}>
               <div className="tl-row">
                 <span className="tl-label">
-                  <strong className={track.variant === 'B' ? 'num-b' : 'num-a'}>Variant {track.variant}</strong>
+                  <strong className={track.variant === 'B' ? 'num-b' : 'num-a'}>{tracks.length === 1 ? 'Your creative' : `Variant ${track.variant}`}</strong>
                   {track.isWinner && <span className="tl-label-note">Winner</span>}
                 </span>
                 <div className="tl-lane tl-sections">

@@ -34,6 +34,7 @@ export function ContestsPanel({ data }) {
 
 /** Which variant leads each cognitive dimension, averaged over the four cohorts. */
 const DimensionalLeadPanel = ({ data }) => {
+  if (data?.mode === 'single') return <SingleDimensions data={data} />;
   const winners = data?.dimension_winners;
   if (!winners) return null;
   const demos = Object.keys(winners);
@@ -61,5 +62,27 @@ const DimensionalLeadPanel = ({ data }) => {
     </Card>
   );
 };
+
+/** One creative: each dimension's score averaged over the four cohorts. */
+function SingleDimensions({ data }) {
+  const cohorts = Object.keys(data.scores || {});
+  const rows = Object.keys(DIMENSIONS).flatMap(dim => {
+    const vals = cohorts.map(c => data.scores[c]?.[dim]).filter(v => v != null);
+    return vals.length ? [{ dim, avg: vals.reduce((s, v) => s + v, 0) / vals.length }] : [];
+  });
+  const max = Math.max(...rows.map(r => r.avg), 1e-6);
+  return (
+    <Card title="Score by dimension" exportName="score-by-dimension" description="Average score across the four cohorts.">
+      <div className="lead-list">
+        {rows.map(r => (
+          <div key={r.dim} className={`lead-row single ${r.dim === 'overall' ? 'overall' : ''}`}>
+            <span className="name">{DIMENSIONS[r.dim]}</span>
+            <div className="bars"><BarRow variant="A" value={r.avg} max={max} /></div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 export default DimensionalLeadPanel;

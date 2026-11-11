@@ -19,15 +19,15 @@ const valence = (v) => `${v >= 0 ? 'Approach +' : 'Avoidance −'}${Math.abs(v).
 
 /** Left vs right prefrontal balance: positive means approach (desire), negative means avoidance. */
 export default function AsymmetryPanel({ dataA, dataB }) {
-  const ready = dataA?.timestep_metrics && dataB?.timestep_metrics;
+  const ready = dataA?.timestep_metrics && (!dataB || dataB.timestep_metrics);
 
   const { chartData, pctA, pctB } = useMemo(() => {
     if (!ready) return { chartData: [], pctA: 0, pctB: 0 };
     const yA = dataA.timestep_metrics.hemisphere_asymmetry || [];
-    const yB = dataB.timestep_metrics.hemisphere_asymmetry || [];
+    const yB = dataB?.timestep_metrics.hemisphere_asymmetry || [];
     const maxT = Math.max(yA.length, yB.length);
     const share = list => maxT ? Math.round((list.filter(v => v != null && v > 0).length / maxT) * 100) : 0;
-    return { chartData: timeSeriesData(maxT, i => ({ A: yA[i], B: yB[i] })), pctA: share(yA), pctB: share(yB) };
+    return { chartData: timeSeriesData(maxT, i => (dataB ? { A: yA[i], B: yB[i] } : { A: yA[i] })), pctA: share(yA), pctB: share(yB) };
   }, [ready, dataA, dataB]);
 
   if (!ready) return null;
@@ -42,13 +42,13 @@ export default function AsymmetryPanel({ dataA, dataB }) {
         <div className="split-aside">
           <p className="block-label"><strong>Time in approach</strong></p>
           <div className="gauge-pair">
-            <Gauge label="Variant A" value={pctA} thresholds={THRESHOLDS} />
-            <Gauge label="Variant B" value={pctB} thresholds={THRESHOLDS} />
+            <Gauge label={dataB ? 'Variant A' : 'Your creative'} value={pctA} thresholds={THRESHOLDS} />
+            {dataB && <Gauge label="Variant B" value={pctB} thresholds={THRESHOLDS} />}
           </div>
         </div>
         <LineChart
           data={chartData}
-          series={SERIES}
+          series={dataB ? SERIES : [{ ...SERIES[0], label: 'Your creative' }]}
           label="Prefrontal asymmetry over time"
           height={180}
           categoryLabel="Time"

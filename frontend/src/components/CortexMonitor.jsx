@@ -27,7 +27,7 @@ const signed = (v) => `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(3)}`;
  * The brain at the playhead, with its controls and live readouts in a narrow rail beside it.
  * The rail reads like a notebook cell: each control is named the way a parameter would be.
  */
-const CortexMonitor = forwardRef(function CortexMonitor({ currentTime, variant, onVariantChange, cohort, onCohortChange }, ref) {
+const CortexMonitor = forwardRef(function CortexMonitor({ currentTime, variant, variants = ['A', 'B'], onVariantChange, cohort, onCohortChange }, ref) {
   const [stats, setStats] = useState({ mean: 0, peak: 0, activePct: 0, lr: 0 });
   const onStats = useCallback(s => setStats(s), []);
   const tone = variant === 'B' ? 'num-b' : 'num-a';
@@ -38,10 +38,12 @@ const CortexMonitor = forwardRef(function CortexMonitor({ currentTime, variant, 
         <BrainViewer3D ref={ref} currentTime={currentTime} demographic={cohort} variant={variant} autoRotate onStats={onStats} />
 
         <div className="monitor-rail">
-          <div className="param">
-            <code className="param-name" aria-hidden="true">variant =</code>
-            <SegmentedControl label="Variant shown on the brain" options={VARIANT_OPTIONS.map(o => ({ value: o.value, label: o.value }))} value={variant} onValueChange={onVariantChange} />
-          </div>
+          {variants.length > 1 && (
+            <div className="param">
+              <code className="param-name" aria-hidden="true">variant =</code>
+              <SegmentedControl label="Variant shown on the brain" options={VARIANT_OPTIONS.filter(o => variants.includes(o.value)).map(o => ({ value: o.value, label: o.value }))} value={variant} onValueChange={onVariantChange} />
+            </div>
+          )}
           <div className="param">
             <code className="param-name" aria-hidden="true">cohort =</code>
             <Select label="Cohort" options={COHORTS} value={cohort} onValueChange={onCohortChange} />

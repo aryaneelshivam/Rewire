@@ -3,8 +3,44 @@ import { AnimatedCounter } from '@/components/arc/animated-counter/animated-coun
 import { leadPct } from '@/lib/chart-data';
 
 /** The verdict in words on the left, the three deciding numbers in one divided strip on the right. */
+const COHORT_NAMES = { kids: 'kids (6 to 12)', genz: 'Gen Z (13 to 24)', adults: 'adults (25 to 54)', older: 'older viewers (55+)' };
+const DIMENSION_NAMES = { visual: 'visual', auditory: 'auditory', reward: 'reward', memory: 'memory', attention: 'attention', narrative: 'narrative', personal: 'self-relevance', action: 'action' };
+
+/** One creative: where it lands hardest, and its three headline numbers. */
+function SingleSummary({ data }) {
+  const best = data.best_demographic;
+  const dims = Object.entries(data.scores[best] || {}).filter(([k]) => k !== 'overall').sort((a, b) => b[1] - a[1]);
+  const [topDim, topScore] = dims[0] ?? ['', 0];
+  return (
+    <section className="verdict" aria-labelledby="verdict-title">
+      <div className="verdict-copy">
+        <h2 id="verdict-title">Strongest with <span className="num-a">{COHORT_NAMES[best] ?? best}</span></h2>
+        <p>Predicted whole-brain response across 200 simulated viewers. It leads on {DIMENSION_NAMES[topDim] ?? topDim} for that cohort.</p>
+      </div>
+      <dl className="stat-strip">
+        <div>
+          <dt>Mean activation</dt>
+          <dd className="stat-value-a"><AnimatedCounter value={data.global_mean} decimals={3} animateOnView /></dd>
+          <dd className="stat-note">Across every second and vertex</dd>
+        </div>
+        <div>
+          <dt>Peak activation</dt>
+          <dd className="stat-value-a"><AnimatedCounter value={data.peak_activation} decimals={3} animateOnView /></dd>
+          <dd className="stat-note">Highest single response</dd>
+        </div>
+        <div>
+          <dt>Top dimension score</dt>
+          <dd className="stat-value-a"><AnimatedCounter value={topScore} decimals={3} animateOnView /></dd>
+          <dd className="stat-note">{DIMENSION_NAMES[topDim] ?? topDim}, {COHORT_NAMES[best] ?? best}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 const ABSummaryPanel = ({ data }) => {
   if (!data) return null;
+  if (data.mode === 'single') return <SingleSummary data={data} />;
   const { A_global_mean, B_global_mean, A_peak_activation, B_peak_activation, dimension_winners } = data;
 
   let aWins = 0, bWins = 0, total = 0;

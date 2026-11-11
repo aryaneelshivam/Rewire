@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SlopeChart } from '@/components/arc/slope-chart/slope-chart';
 import { DonutChart } from '@/components/arc/donut-chart/donut-chart';
 import { signedZ, CHART_COLORS } from '@/lib/chart-data';
-import { Card } from './ui';
+import { Card, BarRow } from './ui';
 import { Accordion } from '@/components/arc/accordion/accordion';
 import SegmentedControl from '@/components/arc/segmented-control/segmented-control';
 
@@ -62,7 +62,8 @@ const TopRoisPanel = ({ dataA, dataB }) => {
   const [selectedRoi, setSelectedRoi] = useState(null);
   const [shareVariant, setShareVariant] = useState('A');
 
-  if (!dataA || !dataA.rois || !dataB || !dataB.rois) return null;
+  if (!dataA || !dataA.rois) return null;
+  if (!dataB?.rois) return <SingleRois rois={dataA.rois} selected={selectedRoi} onSelect={setSelectedRoi} />;
 
   // Merge ROI data: combine A and B rois by name
   const roiMap = {};
@@ -163,5 +164,40 @@ const TopRoisPanel = ({ dataA, dataB }) => {
     </Card>
   );
 };
+
+/** One creative: each top region's peak, with its share of the summed peak response. */
+function SingleRois({ rois, selected, onSelect }) {
+  const top = [...rois].sort((a, b) => b.peak_activation - a.peak_activation).slice(0, 8);
+  const max = Math.max(...top.map(r => r.peak_activation), 1e-6);
+  const shareData = top.map((r, i) => ({ color: CHART_COLORS[i % CHART_COLORS.length], key: r.name, label: REGION_DEFINITIONS[r.name]?.network ? `${r.name} · ${REGION_DEFINITIONS[r.name].network}` : r.name, value: Math.max(0, r.peak_activation) }));
+  const notes = top.filter(r => REGION_DEFINITIONS[r.name]).map(r => {
+    const info = REGION_DEFINITIONS[r.name];
+    return { title: `${r.name}: ${info.fullName}`, content: <div className="region-note"><p>{info.desc}</p><p className="muted">{info.network}, {info.lobe}. Peak {r.peak_activation.toFixed(3)} at {r.peak_timestep}s.</p></div> };
+  });
+  return (
+    <Card title="Top cortical regions" exportName="top-cortical-regions" description="The regions that respond most strongly, and when they peak.">
+      <div className="split split-7-5">
+        <div className="split-main">
+          <p className="block-label"><strong>Peak z-score</strong><span>Peak time</span></p>
+          <div className="dim-bars">
+            {top.map(r => (
+              <div key={r.name} className="dim-bar roi-bar"><span>{r.name}</span><BarRow variant="A" value={r.peak_activation} max={max} /><span className="num-key">{r.peak_timestep}s</span></div>
+            ))}
+          </div>
+        </div>
+        <div className="split-aside">
+          <p className="block-label"><strong>Share</strong></p>
+          <DonutChart data={shareData} label="Peak activation across top regions" totalLabel="Summed peak z" formatValue={v => v.toFixed(2)} legendAction="select" activeKey={selected} onActiveChange={onSelect} maxSegments={6} size={168} thickness={20} />
+        </div>
+      </div>
+      {notes.length > 0 && (
+        <div className="block">
+          <p className="block-label"><strong>What these regions do</strong></p>
+          <Accordion defaultOpen={-1} items={notes} />
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export default TopRoisPanel;
