@@ -29,6 +29,7 @@ APP_URL = "https://aryaneelshivam--rewire-api-web.us-east.modal.run"
 # custom domain here, then redeploy.
 FRONTEND_ORIGINS = [
     APP_URL,
+    "https://rewireit.vercel.app",
 ]
 
 app = modal.App("rewire-api")
