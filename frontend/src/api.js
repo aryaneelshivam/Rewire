@@ -51,7 +51,13 @@ export const fetchHeatmap = async () => {
   return response.data; // { A: {...}, B: {...} }
 };
 
+/** The brain surface. It's the same for every analysis, so it comes as a cached static file from the dashboard's own
+ * host (frontend/public/brain-mesh.json); the API serves it too, as a fallback. */
 export const fetchBrainMesh = async () => {
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}brain-mesh.json`);
+    if (res.ok && res.headers.get('content-type')?.includes('json')) return await res.json();
+  } catch { /* fall back to the API */ }
   const response = await api.get('/brain-mesh');
   return response.data;
 };

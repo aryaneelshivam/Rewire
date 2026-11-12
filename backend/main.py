@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+import functools
 import threading
 from collections.abc import MutableMapping
 
@@ -209,6 +210,22 @@ async def authenticate(request, call_next):
         return await call_next(request)
     finally:
         auth.reset_user(marker)
+
+
+class _Compress:
+    """Gzip for API responses (JSON shrinks 60 to 90%). Media links are left alone: videos are already compressed,
+    and players need byte ranges, which compression would break."""
+    def __init__(self, app):
+        from starlette.middleware.gzip import GZipMiddleware
+        self.app, self.gzip = app, GZipMiddleware(app, minimum_size=1024, compresslevel=6)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and not scope["path"].startswith("/api/media/"):
+            return await self.gzip(scope, receive, send)
+        return await self.app(scope, receive, send)
+
+
+app.add_middleware(_Compress)
 
 
 # Added after the sign-in check, so it wraps it: refusals carry CORS headers too and the browser can read them.
@@ -568,7 +585,13 @@ def get_heatmap():
 
 @app.get("/api/brain-mesh")
 def get_brain_mesh():
-    """Fsaverage5 mesh geometry — shared across A and B (same brain template)."""
+    """Fsaverage5 mesh geometry, the same for every analysis. The dashboard normally loads the static copy
+    (frontend/public/brain-mesh.json, from scripts/export_mesh.py); this is the fallback, built once per process."""
+    return _brain_mesh()
+
+
+@functools.lru_cache(maxsize=1)
+def _brain_mesh():
     from nilearn import datasets, surface as nisurf
 
     fsaverage = datasets.fetch_surf_fsaverage("fsaverage5")
