@@ -1,14 +1,14 @@
 """
-Rewire's API and web app on Modal: one address serves the dashboard and the API.
+Rewire's API on Modal. The dashboard is on Vercel (FRONTEND_URL); this app serves only the API.
 
-    cd frontend && npm run build && cd ..        # the dashboard this serves
     modal deploy modal_backend.py
 
 What runs where:
-  - This app (rewire-api, CPU) serves the built frontend and the FastAPI backend from backend/.
+  - This app (rewire-api, CPU) serves the FastAPI backend from backend/. Any other page on its address redirects to
+    the dashboard, keeping the path and query, so old links (and old invitation links) still land in the app.
   - Saved runs live on the rewire-data volume, mounted at /data (REWIRE_DATA_DIR).
   - Predictions run on the separate rewire-inference GPU app; calls between apps in one workspace need no token.
-  - Sign-in settings are public values, set below: the Clerk publishable key and this app's own address. No secret
+  - Sign-in settings are public values, set below: the Clerk publishable key and the dashboard's address. No secret
     is needed: the key for signed media links is generated on first start and kept on the data volume.
 
 One container at most: each user's open analysis and the job queue live in its memory. It sleeps when idle (no cost)
@@ -19,17 +19,15 @@ from pathlib import Path
 import modal
 
 ROOT = Path(__file__).resolve().parent
-WEB_DIR = "/root/web"
 
 # Public settings (the publishable key is meant to be shared; it only names the Clerk instance).
 CLERK_PUBLISHABLE_KEY = "pk_test_bW92ZWQtdG91Y2FuLTc1NTEuY2xlcmsuYWNjb3VudHMuZGV2JA"
-APP_URL = "https://aryaneelshivam--rewire-api-web.us-east.modal.run"
-# Every address a Rewire frontend is served from. Sign-in tokens issued anywhere else are refused, and only these
-# origins may call the API from a browser. Add the Vercel production address (https://<project>.vercel.app) and any
-# custom domain here, then redeploy.
+API_URL = "https://aryaneelshivam--rewire-api-web.us-east.modal.run"   # this app; the frontend's VITE_API_URL
+FRONTEND_URL = "https://rewireit.vercel.app"                           # the dashboard, on Vercel
+# Every address the dashboard is served from. Sign-in tokens issued anywhere else are refused, and only these origins
+# may call the API from a browser. Add a custom domain here when you have one, then redeploy.
 FRONTEND_ORIGINS = [
-    APP_URL,
-    "https://rewireit.vercel.app",
+    FRONTEND_URL,
 ]
 
 app = modal.App("rewire-api")
@@ -55,7 +53,6 @@ image = (
           "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS)})
     .add_local_file(ROOT / "brand_A_predictions.pkl", "/root/brand_A_predictions.pkl")
     .add_local_file(ROOT / "brand_B_predictions.pkl", "/root/brand_B_predictions.pkl")
-    .add_local_dir(ROOT / "frontend" / "dist", WEB_DIR)
     .add_local_dir(ROOT / "backend", "/root/backend", ignore=["data", "data/**", "**/__pycache__", "**/*.pyc", ".env", "**/.env"])
 )
 
@@ -79,24 +76,18 @@ def web():
 
     os.chdir("/root/backend")
     sys.path.insert(0, "/root/backend")
-    from fastapi import HTTPException
-    from fastapi.responses import FileResponse
-    from fastapi.staticfiles import StaticFiles
+    from fastapi import HTTPException, Request
+    from fastapi.responses import RedirectResponse
 
     import main
 
-    web_dir = Path(WEB_DIR)
-    main.app.mount("/assets", StaticFiles(directory=web_dir / "assets"), name="assets")
-
-    # Everything that isn't the API is the single-page app: a real file if there is one, else index.html
-    # (so /sso-callback and other client routes load the app). Registered after the API routes, so those win.
+    # Pages live on the dashboard. Anything here that isn't the API redirects there, with its path and query kept.
+    # Registered after the API routes, so those win.
     @main.app.get("/{path:path}", include_in_schema=False)
-    def frontend(path: str):
+    def to_dashboard(path: str, request: Request):
         if path.startswith("api/"):
             raise HTTPException(status_code=404, detail="Not found")
-        target = (web_dir / path).resolve()
-        if path and target.is_file() and web_dir.resolve() in target.parents:
-            return FileResponse(target)
-        return FileResponse(web_dir / "index.html", headers={"Cache-Control": "no-cache"})
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"{FRONTEND_URL}/{path}{query}", status_code=308)
 
     return main.app
