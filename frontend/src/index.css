@@ -835,3 +835,28 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
 .tester-stats { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); color: var(--text-secondary); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 .tester-actions { display: flex; gap: var(--space-2); }
 @media (max-width: 720px) { .tester-row { grid-template-columns: 1fr; } }
+
+/* ── Choosing what to analyse ────────────────────────────────────────────────────────────────────────── */
+.asset-types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.asset-type {
+  all: unset; box-sizing: border-box; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; gap: var(--space-2); min-height: 200px; padding: var(--space-5);
+  border: 1px solid var(--border); border-radius: var(--rounded-lg, 16px); background: var(--surface);
+  transition: border-color var(--duration-fast, .15s) var(--ease-standard, ease), transform var(--duration-fast, .15s) var(--ease-standard, ease), box-shadow var(--duration-fast, .15s) var(--ease-standard, ease);
+}
+.asset-type:not(.is-locked):hover { border-color: var(--border-strong); box-shadow: var(--shadow-raised); transform: translateY(-1px); }
+.asset-type:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
+.asset-type-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+.asset-type-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-subtle); color: var(--accent-strong, var(--accent)); }
+.asset-type-go { color: var(--text-muted); transition: transform var(--duration-fast, .15s) var(--ease-standard, ease), color var(--duration-fast, .15s); }
+.asset-type:not(.is-locked):hover .asset-type-go { transform: translateX(3px); color: var(--foreground); }
+.asset-type-title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 600; color: var(--foreground); }
+.asset-type-desc { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.asset-type-detail { margin-top: auto; padding-top: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
+/* Locked: greyscale and quieter, with a padlock. Text stays readable; the card just can't be chosen yet. */
+.asset-type.is-locked { cursor: not-allowed; background: var(--surface-muted); filter: grayscale(1); }
+.asset-type.is-locked .asset-type-icon { background: color-mix(in oklab, var(--foreground) 8%, transparent); color: var(--text-muted); }
+.asset-type.is-locked .asset-type-title { color: var(--text-secondary); }
+.asset-type-lock { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; background: var(--background); border: 1px solid var(--border); color: var(--text-secondary); }
+@media (max-width: 720px) { .asset-types { grid-template-columns: 1fr; } .asset-type { min-height: 0; } }
+.onboard-back { margin: calc(var(--space-4) * -1) 0 calc(var(--space-2) * -1) calc(var(--space-2) * -1); }

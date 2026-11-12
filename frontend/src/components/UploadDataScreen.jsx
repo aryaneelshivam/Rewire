@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { Button } from '@/components/arc/button/button';
 import { FileDropzone } from '@/components/arc/file-dropzone/file-dropzone';
@@ -46,7 +47,7 @@ function useFileSlots() {
  * The start of every analysis: drop one video to analyse it, or two to compare them, in one drop zone. Rewire works
  * out the analysis from what was dropped and shows which file is which before anything runs.
  */
-const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspace, credits }) => {
+const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspace, onBack, credits }) => {
   const videos = useFileSlots();
   const [durations, setDurations] = useState({});
   const [busy, setBusy] = useState(null);           // 'run' or 'sample'
@@ -98,8 +99,13 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
     <main className="onboard">
       <div className="onboard-inner">
         <p className="onboard-brand">Rewire</p>
+        {onBack && (
+          <div className="onboard-back">
+            <Button variant="ghost" size="sm" onClick={onBack} disabled={!!busy}><ArrowLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Video, audio or text</Button>
+          </div>
+        )}
         <header className="onboard-head">
-          <h1>{mode === 'compare' ? 'Compare two creatives' : 'Analyse a creative'}</h1>
+          <h1>{mode === 'compare' ? 'Compare two videos' : 'Analyse a video'}</h1>
           <p className="onboard-lede">Drop one video to analyse it, or two to compare them. Rewire predicts how 200 simulated viewers respond, second by second. Videos up to 3 minutes and {MAX_MB} MB each.</p>
         </header>
 

@@ -5,6 +5,7 @@ import {
   fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary, createJob, mediaUrl
 } from './api';
 import UploadDataScreen from './components/UploadDataScreen';
+import AssetTypeScreen from './components/AssetTypeScreen';
 import PipelineScreen from './components/PipelineScreen';
 import WorkspaceScreen from './components/WorkspaceScreen';
 import OverviewPanel from './components/OverviewPanel';
@@ -60,6 +61,9 @@ function App() {
   const account = useContext(AccountContext);   // the signed-in person, or null without sign-in
   const [loading, setLoading] = useState(true);
   const [awaitingUpload, setAwaitingUpload] = useState(false);
+  // What the new analysis is for: null asks first (video, audio or text); 'video' goes to the upload screen.
+  const [assetType, setAssetType] = useState(null);
+  const startNew = (type = null) => { setAssetType(type); setAwaitingUpload(true); };
   // The analysis in progress: its id, plus the files, mode and details it started with, so it can be retried.
   const [job, setJob] = useState(null);
   const [showWorkspace, setShowWorkspace] = useState(false);
@@ -291,9 +295,19 @@ function App() {
     return (
       <WorkspaceScreen
         onOpened={openedRun}
-        onNewAnalysis={() => { setShowWorkspace(false); setAwaitingUpload(true); }}
+        onNewAnalysis={() => { setShowWorkspace(false); startNew(); }}
         onClose={overview ? () => { setShowWorkspace(false); loadData(); } : undefined}
         admin={!!credits?.admin}
+      />
+    );
+  }
+
+  if (awaitingUpload && !assetType) {
+    return (
+      <AssetTypeScreen
+        onChoose={setAssetType}
+        onCancel={overview ? () => setAwaitingUpload(false) : undefined}
+        onOpenWorkspace={() => { setAwaitingUpload(false); setShowWorkspace(true); }}
       />
     );
   }
@@ -301,6 +315,7 @@ function App() {
   if (awaitingUpload) {
     return (
       <UploadDataScreen
+        onBack={() => setAssetType(null)}
         onJobStarted={(id, videos, mode, meta) => setJob({ id, videos, mode, meta })}
         onDataLoaded={() => loadData()}
         onCancel={overview ? () => setAwaitingUpload(false) : undefined}
@@ -363,7 +378,7 @@ function App() {
             </Tooltip>
           )}
           <Button variant="ghost" onClick={() => { videoPause(); setShowWorkspace(true); }}>Workspace</Button>
-          <Button variant="secondary" onClick={() => { videoPause(); setAwaitingUpload(true); }}>New analysis</Button>
+          <Button variant="secondary" onClick={() => { videoPause(); startNew(); }}>New analysis</Button>
           <Button variant={single ? 'primary' : 'secondary'} onClick={() => { videoPause(); setSharing(true); }}>
             <Share2 size={16} strokeWidth={1.75} aria-hidden="true" /> Share scorecard
           </Button>
@@ -416,7 +431,7 @@ function App() {
             onSeek={handleSeekToTimestamp}
             onTimeUpdate={handleTimeUpdate}
             onPlayingChange={setIsPlaying}
-            onAddVideo={() => setAwaitingUpload(true)}
+            onAddVideo={() => startNew('video')}
           />
           <CreativeTimeline
             duration={maxTimesteps}
