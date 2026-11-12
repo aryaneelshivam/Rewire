@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/arc/button/button';
 import { Badge } from '@/components/arc/badge/badge';
@@ -9,7 +9,9 @@ import { ConfirmMorph } from '@/components/arc/confirm-morph/confirm-morph';
 import { EmptyState } from '@/components/arc/empty-state/empty-state';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import { Alert } from '@/components/arc/alert/alert';
-import { fetchRuns, openRun, renameRun, deleteRun, mediaUrl, fetchTesters, grantCredits } from '../api';
+import { fetchRuns, openRun, renameRun, deleteRun, mediaUrl, fetchTesters, grantCredits, fetchCredits } from '../api';
+import { UsageMeter } from '@/components/arc/usage-meter/usage-meter';
+import { AccountContext } from '@/lib/auth-config';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -38,6 +40,61 @@ function outcome(run) {
   const v = s.variants?.A;
   if (!v) return '';
   return <>Strongest with <span className="num-a">{v.best_cohort_label.replace(/\s*\(.*\)/, '')}</span>, led by {DIMENSION_NAMES[v.top_dimension] ?? v.top_dimension}</>;
+}
+
+/** The signed-in person: avatar, name and email, their credit balance, and a meter of what used their credits. */
+function AccountCard() {
+  const account = useContext(AccountContext);
+  const [credits, setCredits] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { fetchCredits().then(setCredits).catch(() => setFailed(true)); }, []);
+  if (!account) return null;
+  const name = account.name || account.email || 'Your account';
+  const initial = (account.name || account.email || '?').trim().charAt(0).toUpperCase();
+  const use = credits?.usage ?? { single: 0, compare: 0, analyses: 0 };
+  const used = use.single + use.compare;
+  const limit = credits ? used + Math.max(0, credits.balance) : 0;
+  return (
+    <section className="account-card" aria-label="Your account and credits">
+      <div className="account-who">
+        {account.imageUrl
+          ? <img className="account-avatar" src={account.imageUrl} alt="" referrerPolicy="no-referrer" />
+          : <span className="account-avatar is-initial" aria-hidden="true">{initial}</span>}
+        <div className="account-id">
+          <strong>{name}</strong>
+          {account.name && account.email && <span>{account.email}</span>}
+        </div>
+        {credits?.enforced && (
+          <p className="account-balance">
+            <strong>{credits.balance}</strong>
+            <span>{credits.balance === 1 ? 'credit left' : 'credits left'}</span>
+          </p>
+        )}
+      </div>
+      {failed && <p className="account-note">Your credits could not load. Reload the page to try again.</p>}
+      {!credits && !failed && <Skeleton lines={2} label="Loading your credits" />}
+      {credits?.enforced && limit > 0 && (
+        <>
+          <UsageMeter
+            label="Credits used"
+            unit="credits"
+            decimals={0}
+            limit={limit}
+            freeLabel="Left"
+            warnAt={0.8}
+            segments={[
+              { id: 'single', label: 'One-video analyses', value: use.single },
+              { id: 'compare', label: 'Comparisons', value: use.compare },
+            ]}
+          />
+          <p className="account-note">
+            {use.analyses ? `${use.analyses} ${use.analyses === 1 ? 'analysis' : 'analyses'} so far. ` : ''}
+            Analyses use 1 credit per {credits.seconds_per_credit ?? 10} seconds of video. Failed or cancelled ones are refunded.
+          </p>
+        </>
+      )}
+    </section>
+  );
 }
 
 /** Admins only: every tester, their credits and use, with quick top-ups. */
@@ -144,6 +201,7 @@ export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose, admi
         </header>
 
         {error && <Alert tone="danger" title="Something went wrong" onDismiss={() => setError(null)}>{error}</Alert>}
+        <AccountCard />
         {admin && <TestersPanel />}
 
         {!data ? (

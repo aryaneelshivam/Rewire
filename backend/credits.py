@@ -108,6 +108,24 @@ def _change(user: str, change: int, reason: str, ref: str | None = None) -> dict
     return ledger
 
 
+def usage(ledger: dict) -> dict:
+    """Credits spent, split by kind of analysis, net of refunds: {"single": n, "compare": n, "analyses": n}."""
+    net, kind = {}, {}
+    for h in ledger.get("history", []):
+        ref = h.get("ref")
+        if not ref:
+            continue                                  # grants and admin changes aren't usage
+        net[ref] = net.get(ref, 0) - h["change"]
+        if h["reason"].startswith("Analysis of"):
+            kind[ref] = "compare" if h["reason"].startswith("Analysis of 2") else "single"
+    out = {"single": 0, "compare": 0, "analyses": 0}
+    for ref, spent in net.items():
+        if spent > 0 and ref in kind:
+            out[kind[ref]] += spent
+            out["analyses"] += 1
+    return out
+
+
 def summary(user: str | None = None, email: str | None = None) -> dict:
     """The user's balance (created with the beta grant on first use). Records their email for the admin list."""
     user = user or auth.current_user()
@@ -123,7 +141,7 @@ def summary(user: str | None = None, email: str | None = None) -> dict:
         if fresh:
             _write(user, ledger)
     return {"enforced": True, "balance": ledger["balance"], "granted": ledger["granted"], "used": ledger["used"],
-            "seconds_per_credit": SECONDS_PER_CREDIT, "admin": is_admin(user)}
+            "seconds_per_credit": SECONDS_PER_CREDIT, "admin": is_admin(user), "usage": usage(ledger)}
 
 
 def charge(seconds: list[float], ref: str) -> int:

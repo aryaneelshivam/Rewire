@@ -38,6 +38,7 @@ function Gate() {
   const account = useMemo(() => (user ? {
     name: user.fullName || user.firstName || '',
     email: user.primaryEmailAddress?.emailAddress || '',
+    imageUrl: user.hasImage ? user.imageUrl : '',
     signOut: () => clerk.signOut({ redirectUrl: '/' }),
   } : null), [user, clerk]);
 

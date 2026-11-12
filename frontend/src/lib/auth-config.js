@@ -9,7 +9,8 @@ export const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 export const AUTH_ENABLED = Boolean(CLERK_KEY);
 export const GOOGLE_ENABLED = import.meta.env.VITE_CLERK_GOOGLE === 'true';
 
-/** The signed-in person, for the header menu: { name, email, signOut }, or null when sign-in is off. */
+/** The signed-in person, for the header menu and workspace: { name, email, imageUrl, signOut }, or null when sign-in
+ * is off. imageUrl is empty when they have no photo (an initial is shown instead). */
 export const AccountContext = createContext(null);
 
 /** Plain-language messages for the Clerk errors people actually hit. */
