@@ -124,7 +124,7 @@ modal deploy modal_backend.py
 Every push to `main` redeploys the dashboard. Preview deployments get their own addresses, which the API does not accept unless added. Vercel's free Hobby plan is for non-commercial use; a commercial beta belongs on Pro.
 
 ### Test credits (beta)
-With sign-in on, every invited person gets test credits the first time they sign in (`TEST_CREDITS` in `modal_backend.py`, default 20). Each video analysed uses one credit, so a comparison uses two; credits are taken when an analysis starts and returned if it fails or is cancelled. The balance shows in the header and on the upload screen, and an analysis is refused when there aren't enough.
+With sign-in on, every invited person gets test credits the first time they sign in (`TEST_CREDITS` in `modal_backend.py`, default 60; raising it tops everyone up by the difference). Analyses cost by length, because GPU time grows with it: one credit per 10 seconds of each video (`SECONDS_PER_CREDIT`), rounded up with half a second of grace, at least one. A 30-second ad costs 3 credits, a 3-minute film 18, and comparing two 30-second ads 6. Credits are taken when an analysis starts, once the API has measured the videos, and returned if it fails or is cancelled. The balance shows in the header and on the upload screen, and an analysis is refused when there aren't enough.
 
 Admins (`ADMINS` in `modal_backend.py`: Clerk user ids) see a **Testers** list in the workspace: each person's email, balance, credits used and saved analyses, with buttons to add credits. Ledgers live next to each user's runs (`users/<id>/credits.json`). Without sign-in, credits are off.
 

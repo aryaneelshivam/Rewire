@@ -1,9 +1,11 @@
 """
 Test credits for the invite-only beta.
 
-Every signed-in person gets REWIRE_TEST_CREDITS credits (default 20) the first time they use Rewire. Each video
-analysed costs one credit, so a comparison costs two. Credits are taken when an analysis starts and given back if it
-fails or is cancelled. Admins (REWIRE_ADMINS, comma-separated Clerk user ids) can see every tester and add credits.
+Every signed-in person gets REWIRE_TEST_CREDITS credits (default 60) the first time they use Rewire. Analyses cost by
+length, since GPU time grows with it: one credit per REWIRE_SECONDS_PER_CREDIT seconds of video (default 10, so about
+the GPU cost of ten seconds), rounded up per video, at least one. A 30-second ad costs 3; comparing two costs 6.
+Credits are taken when an analysis starts (once the videos' lengths are measured) and given back if it fails or is
+cancelled. When the grant is raised, everyone who started under a lower one gets the difference. Admins (REWIRE_ADMINS, comma-separated Clerk user ids) can see every tester and add credits.
 
 Each user's ledger is a small JSON file next to their runs (data/users/<id>/credits.json): the balance, totals, the
 email they signed in with (for the admin list), and a history of every change. The API is the only writer (it runs
@@ -12,6 +14,7 @@ as one container), and a lock keeps concurrent requests from racing.
 Without sign-in (local development) credits are not enforced.
 """
 import json
+import math
 import os
 import re
 import threading
@@ -21,8 +24,9 @@ from pathlib import Path
 import auth
 import runs
 
-GRANT = int(os.environ.get("REWIRE_TEST_CREDITS", "20"))
-COST_PER_VIDEO = 1
+GRANT = int(os.environ.get("REWIRE_TEST_CREDITS", "60"))
+SECONDS_PER_CREDIT = max(1, int(os.environ.get("REWIRE_SECONDS_PER_CREDIT", "10")))
+GRACE_S = 0.5
 ADMINS = {u.strip() for u in os.environ.get("REWIRE_ADMINS", "").split(",") if u.strip()}
 HISTORY_KEPT = 200
 
@@ -44,8 +48,10 @@ def is_admin(user: str | None = None) -> bool:
     return (user or auth.current_user()) in ADMINS
 
 
-def cost(videos: int) -> int:
-    return max(1, videos) * COST_PER_VIDEO
+def cost(seconds: list[float]) -> int:
+    """Credits for an analysis of videos of these lengths: per video, one per started SECONDS_PER_CREDIT, at least 1."""
+    # Half a second of grace, so a 30.03-second "30-second ad" isn't charged for a fourth block of 10.
+    return sum(max(1, math.ceil(max(0.0, s - GRACE_S) / SECONDS_PER_CREDIT - 1e-9)) for s in seconds) or 1
 
 
 def _path(user: str) -> Path:
@@ -61,8 +67,22 @@ def _read(user: str) -> dict:
             pass
     # First use: the beta grant.
     now = time.time()
-    return {"balance": GRANT, "granted": GRANT, "used": 0, "email": "", "created": now,
+    return {"balance": GRANT, "granted": GRANT, "used": 0, "email": "", "created": now, "grant_level": GRANT,
             "history": [{"at": now, "change": GRANT, "reason": "Beta test credits", "balance": GRANT}]}
+
+
+def _raise_grant(ledger: dict) -> bool:
+    """If the beta grant went up since this person started, add the difference. Returns whether it changed."""
+    level = ledger.get("grant_level", ledger["history"][0]["change"] if ledger.get("history") else GRANT)
+    if GRANT <= level:
+        ledger.setdefault("grant_level", level)
+        return False
+    extra = GRANT - level
+    ledger["balance"] += extra
+    ledger["granted"] += extra
+    ledger["grant_level"] = GRANT
+    ledger["history"].append({"at": time.time(), "change": extra, "reason": f"Beta credits raised to {GRANT}", "balance": ledger["balance"]})
+    return True
 
 
 def _write(user: str, ledger: dict):
@@ -92,30 +112,34 @@ def summary(user: str | None = None, email: str | None = None) -> dict:
     """The user's balance (created with the beta grant on first use). Records their email for the admin list."""
     user = user or auth.current_user()
     if not enforced():
-        return {"enforced": False, "balance": None, "cost_per_video": COST_PER_VIDEO, "admin": False}
+        return {"enforced": False, "balance": None, "seconds_per_credit": SECONDS_PER_CREDIT, "admin": False}
     with _lock:
         ledger = _read(user)
         fresh = not _path(user).exists()
+        fresh = _raise_grant(ledger) or fresh
         if email and EMAIL.fullmatch(email) and ledger.get("email") != email:
             ledger["email"] = email
             fresh = True
         if fresh:
             _write(user, ledger)
     return {"enforced": True, "balance": ledger["balance"], "granted": ledger["granted"], "used": ledger["used"],
-            "cost_per_video": COST_PER_VIDEO, "admin": is_admin(user)}
+            "seconds_per_credit": SECONDS_PER_CREDIT, "admin": is_admin(user)}
 
 
-def charge(videos: int, ref: str) -> int:
-    """Takes the credits for an analysis of `videos` videos, or raises InsufficientCredits. Returns the amount."""
+def charge(seconds: list[float], ref: str) -> int:
+    """Takes the credits for an analysis of videos of these lengths, or raises InsufficientCredits. Returns the amount."""
     if not enforced():
         return 0
-    amount = cost(videos)
+    amount = cost(seconds)
     user = auth.current_user()
     with _lock:
         ledger = _read(user)
+        if _raise_grant(ledger):
+            _write(user, ledger)
         if ledger["balance"] < amount:
             raise InsufficientCredits(amount, ledger["balance"])
-        _change(user, -amount, f"Analysis of {videos} video{'s' if videos != 1 else ''}", ref)
+        lengths = " and ".join(f"{round(s)}s" for s in seconds)
+        _change(user, -amount, f"Analysis of {len(seconds)} video{'s' if len(seconds) != 1 else ''} ({lengths})", ref)
     return amount
 
 

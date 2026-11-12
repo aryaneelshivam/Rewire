@@ -356,7 +356,7 @@ function App() {
             </span>
           )}
           {credits?.enforced && (
-            <Tooltip content={`Each video analysed uses ${credits.cost_per_video} credit. Ask the Rewire team for more.`}>
+            <Tooltip content={`Analyses use 1 credit per ${credits.seconds_per_credit ?? 10} seconds of video. Ask the Rewire team for more.`}>
               <span className="credit-chip" tabIndex={0}>
                 <Badge size="sm" tone={credits.balance < 2 ? 'warning' : 'neutral'}>{credits.balance} {credits.balance === 1 ? 'credit' : 'credits'}</Badge>
               </span>

@@ -169,7 +169,6 @@ class JobManager:
         if self.active_for(owner):
             raise RuntimeError("You already have an analysis running. Wait for it or cancel it first.")
         job_id = new_run_id()
-        charged = credits.charge(len(files), ref=job_id)     # raises InsufficientCredits before anything is saved
         folder = runs_dir() / job_id
         folder.mkdir(parents=True, exist_ok=True)
         videos = []
@@ -178,6 +177,19 @@ class JobManager:
             path = folder / f"{variant}{suffix}"
             path.write_bytes(data)
             videos.append(VideoTask(variant=variant, name=name, path=str(path), size=len(data)))
+        # Credits are by length, so measure first. A file that can't be read counts as one credit; the checks then
+        # stop the analysis and give it back. Too few credits: the files are removed and nothing starts.
+        lengths = []
+        for v in videos:
+            try:
+                lengths.append(probe_duration(Path(v.path)))
+            except Exception:
+                lengths.append(0.0)
+        try:
+            charged = credits.charge(lengths, ref=job_id)
+        except credits.InsufficientCredits:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
         job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder), charged=charged)
         self._begin(job, "received", f"{len(videos)} video{'s' if len(videos) > 1 else ''}")
         mb = sum(v.size for v in videos) / (1024 * 1024)

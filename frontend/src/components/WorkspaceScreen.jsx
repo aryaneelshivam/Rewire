@@ -62,7 +62,7 @@ function TestersPanel() {
     <section className="testers" aria-labelledby="testers-title">
       <div className="testers-head">
         <h2 id="testers-title">Testers</h2>
-        <p>{data ? `${data.testers.length} ${data.testers.length === 1 ? 'person has' : 'people have'} signed in. Everyone starts with ${data.grant} credits; each video analysed uses 1.` : 'Loading testers.'}</p>
+        <p>{data ? `${data.testers.length} ${data.testers.length === 1 ? 'person has' : 'people have'} signed in. Everyone starts with ${data.grant} credits; analyses use 1 per ${data.seconds_per_credit ?? 10} seconds of video.` : 'Loading testers.'}</p>
       </div>
       {error && <Alert tone="danger" title="Something went wrong" onDismiss={() => setError(null)}>{error}</Alert>}
       {!data ? <Skeleton lines={2} label="Loading testers" /> : (

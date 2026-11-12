@@ -295,7 +295,7 @@ def admin_list_credits():
     """Admins only: every tester, with their balance, usage and number of saved analyses."""
     if not credits.is_admin():
         raise HTTPException(status_code=403, detail="Only Rewire admins can see this.")
-    return {"testers": credits.everyone(), "grant": credits.GRANT}
+    return {"testers": credits.everyone(), "grant": credits.GRANT, "seconds_per_credit": credits.SECONDS_PER_CREDIT}
 
 
 class GrantRequest(BaseModel):

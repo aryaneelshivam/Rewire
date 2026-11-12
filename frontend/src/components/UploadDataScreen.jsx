@@ -3,6 +3,7 @@ import { Button } from '@/components/arc/button/button';
 import { FileDropzone } from '@/components/arc/file-dropzone/file-dropzone';
 import { Alert } from '@/components/arc/alert/alert';
 import { createJob, loadSampleData } from '../api';
+import { creditCost } from '@/lib/credits';
 import AssetList from './AssetList';
 import { releaseUrl } from '@/lib/object-urls';
 
@@ -56,6 +57,12 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   const mode = videos.files.length === 2 ? 'compare' : 'single';
   const tooLong = videos.files.some(f => durations[f.id] > MAX_SECONDS);
   const ready = videos.files.length > 0 && !tooLong;
+  // Credits by length, worked out from the lengths the browser reads (the API measures again and charges).
+  const lengths = videos.files.map(f => durations[f.id]);
+  const knownLengths = lengths.length > 0 && lengths.every(d => d > 0);
+  const need = knownLengths ? creditCost(lengths, credits?.seconds_per_credit) : null;
+  const short = credits?.enforced && need != null && credits.balance < need;
+  const lengthsText = knownLengths ? lengths.map(d => `${Math.round(d)}s`).join(' and ') : '';
   const bySlot = (slots, pick) => Object.fromEntries(slots.files.map((f, i) => [i === 0 ? 'A' : 'B', pick(f)]));
 
   const run = async () => {
@@ -120,11 +127,12 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
         </section>
 
         {credits?.enforced && (() => {
-          const need = Math.max(1, videos.files.length) * credits.cost_per_video;
-          const short = credits.balance < need;
+          const per = credits.seconds_per_credit ?? 10;
+          if (!videos.files.length) return <p className="credit-note">Analyses use 1 credit per {per} seconds of video. You have <strong>{credits.balance}</strong>.</p>;
+          if (!knownLengths) return <p className="credit-note">Working out the cost from the video length. You have <strong>{credits.balance}</strong>.</p>;
           return short
-            ? <Alert tone="warning" title="Not enough credits">This analysis needs {need} credit{need === 1 ? '' : 's'} and you have {credits.balance}. Ask the Rewire team for more.</Alert>
-            : <p className="credit-note">{videos.files.length ? `This uses ${need} credit${need === 1 ? '' : 's'}` : 'Each video uses 1 credit'}. You have <strong>{credits.balance}</strong>.</p>;
+            ? <Alert tone="warning" title="Not enough credits">This analysis needs {need} credits and you have {credits.balance}. Ask the Rewire team for more.</Alert>
+            : <p className="credit-note">This uses <strong>{need}</strong> credit{need === 1 ? '' : 's'} ({lengthsText}). You have <strong>{credits.balance}</strong>.</p>;
         })()}
 
         {error && <Alert tone="danger" title="The analysis did not start">{error}</Alert>}
@@ -138,7 +146,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
             {busy === 'run'
               ? <Button variant="ghost" onClick={() => upload.current?.abort()}>Cancel upload</Button>
               : onCancel && <Button variant="ghost" onClick={onCancel}>Back to results</Button>}
-            <Button loading={busy === 'run'} disabled={!ready || (busy && busy !== 'run') || (credits?.enforced && credits.balance < Math.max(1, videos.files.length) * credits.cost_per_video)} onClick={run}>
+            <Button loading={busy === 'run'} disabled={!ready || (busy && busy !== 'run') || short} onClick={run}>
               {busy === 'run' ? `Uploading ${uploadPct}%` : mode === 'compare' ? 'Compare videos' : 'Run analysis'}
             </Button>
           </div>
