@@ -3,7 +3,7 @@ import { ClerkProvider, HandleSSOCallback, useAuth, useClerk, useUser } from '@c
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import App from '../App';
 import SignInScreen from './SignInScreen';
-import { setTokenGetter } from '../api';
+import { setAccountEmail, setTokenGetter } from '../api';
 import { AccountContext, AUTH_ENABLED, CLERK_KEY, finishNavigation } from '@/lib/auth-config';
 
 function Splash({ label }) {
@@ -33,6 +33,7 @@ function Gate() {
   const clerk = useClerk();
   // Registered during render so the app's first requests already carry the token.
   setTokenGetter(isSignedIn ? () => getToken() : null);
+  setAccountEmail(isSignedIn ? user?.primaryEmailAddress?.emailAddress : '');
 
   const account = useMemo(() => (user ? {
     name: user.fullName || user.firstName || '',

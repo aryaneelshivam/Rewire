@@ -22,6 +22,7 @@ from typing import Callable
 import joblib
 
 from engines import Cancelled, get_engine
+import credits
 from auth import current_user
 from runs import default_title, new_run_id, runs_dir, thumbnail, write
 MAX_SECONDS = 180
@@ -100,6 +101,7 @@ class Job:
     events: list[dict] = field(default_factory=list)
     owner: str = ""                 # the user who started it; never sent to the browser
     folder: str = ""                # where its run is saved, in the owner's workspace
+    charged: int = 0                # credits taken when it started; given back if it doesn't finish
 
     def log(self, title: str, actor: str | None = None, meta: str | None = None, tone: str = "neutral", detail: str | None = None):
         """Appends to the job's event log, which the progress screen shows newest first."""
@@ -116,6 +118,7 @@ class Job:
         data = asdict(self)
         data.pop("cancel_requested")
         data.pop("owner")
+        data.pop("charged")
         data.pop("folder")
         for v in data["videos"]:
             v.pop("path")
@@ -166,6 +169,7 @@ class JobManager:
         if self.active_for(owner):
             raise RuntimeError("You already have an analysis running. Wait for it or cancel it first.")
         job_id = new_run_id()
+        charged = credits.charge(len(files), ref=job_id)     # raises InsufficientCredits before anything is saved
         folder = runs_dir() / job_id
         folder.mkdir(parents=True, exist_ok=True)
         videos = []
@@ -174,7 +178,7 @@ class JobManager:
             path = folder / f"{variant}{suffix}"
             path.write_bytes(data)
             videos.append(VideoTask(variant=variant, name=name, path=str(path), size=len(data)))
-        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder))
+        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder), charged=charged)
         self._begin(job, "received", f"{len(videos)} video{'s' if len(videos) > 1 else ''}")
         mb = sum(v.size for v in videos) / (1024 * 1024)
         job.log("Upload received", meta=f"{', '.join(v.name for v in videos)}, {mb:.1f} MB")
@@ -230,6 +234,7 @@ class JobManager:
                     job.status, job.error, job.finished = "cancelled", "The analysis was cancelled.", time.time()
                     job.log("Analysis cancelled", meta="Nothing was saved")
                     shutil.rmtree(job.folder, ignore_errors=True)
+                    self._refund(job, "cancelled")
                     return
         try:
             self._run(job)
@@ -302,6 +307,7 @@ class JobManager:
             self._fail(job, current, "Cancelled")
             job.log("Analysis cancelled", meta="Nothing was saved")
             shutil.rmtree(job.folder, ignore_errors=True)
+            self._refund(job, "cancelled")
         except Exception as exc:
             traceback.print_exc()
             # Problems with the uploaded videos are worth telling people; anything else stays in the server log,
@@ -311,8 +317,19 @@ class JobManager:
             self._fail(job, current, message)
             job.log("Analysis stopped", meta=message, tone="danger")
             shutil.rmtree(job.folder, ignore_errors=True)
+            self._refund(job, "the analysis stopped")
         finally:
             job.finished = time.time()
+
+    def _refund(self, job: Job, why: str):
+        """Gives back the credits an unfinished analysis took (the job runs as its owner, so they go to them)."""
+        if job.charged:
+            try:
+                credits.refund(job.charged, job.id, why)
+                job.log("Credits returned", meta=f"{job.charged} credit{'s' if job.charged != 1 else ''} back in your balance")
+            except Exception:
+                traceback.print_exc()
+            job.charged = 0
 
     def _fail(self, job: Job, key: str, detail: str):
         s = job.stage(key)

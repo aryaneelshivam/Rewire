@@ -9,7 +9,7 @@ import { ConfirmMorph } from '@/components/arc/confirm-morph/confirm-morph';
 import { EmptyState } from '@/components/arc/empty-state/empty-state';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import { Alert } from '@/components/arc/alert/alert';
-import { fetchRuns, openRun, renameRun, deleteRun, mediaUrl } from '../api';
+import { fetchRuns, openRun, renameRun, deleteRun, mediaUrl, fetchTesters, grantCredits } from '../api';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -40,11 +40,63 @@ function outcome(run) {
   return <>Strongest with <span className="num-a">{v.best_cohort_label.replace(/\s*\(.*\)/, '')}</span>, led by {DIMENSION_NAMES[v.top_dimension] ?? v.top_dimension}</>;
 }
 
+/** Admins only: every tester, their credits and use, with quick top-ups. */
+function TestersPanel() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [adding, setAdding] = useState(null);
+  const load = () => fetchTesters().then(setData).catch(() => setError('The tester list could not load.'));
+  useEffect(() => { load(); }, []);
+  const add = async (tester, amount) => {
+    setAdding(`${tester.user}:${amount}`); setError(null);
+    try {
+      const res = await grantCredits(tester.user, amount, 'Added by the Rewire team');
+      setData(d => ({ ...d, testers: d.testers.map(t => (t.user === tester.user ? { ...t, balance: res.balance, granted: t.granted + amount } : t)) }));
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Credits could not be added.');
+    } finally {
+      setAdding(null);
+    }
+  };
+  return (
+    <section className="testers" aria-labelledby="testers-title">
+      <div className="testers-head">
+        <h2 id="testers-title">Testers</h2>
+        <p>{data ? `${data.testers.length} ${data.testers.length === 1 ? 'person has' : 'people have'} signed in. Everyone starts with ${data.grant} credits; each video analysed uses 1.` : 'Loading testers.'}</p>
+      </div>
+      {error && <Alert tone="danger" title="Something went wrong" onDismiss={() => setError(null)}>{error}</Alert>}
+      {!data ? <Skeleton lines={2} label="Loading testers" /> : (
+        <ul className="tester-list">
+          {data.testers.map(t => (
+            <li key={t.user} className="tester-row">
+              <div className="tester-who">
+                <strong>{t.email || 'Email not seen yet'}</strong>
+                <span>{t.user}{t.admin ? ' · admin' : ''}</span>
+              </div>
+              <p className="tester-stats">
+                <Badge size="sm" tone={t.balance < 2 ? 'warning' : 'neutral'}>{t.balance} left</Badge>
+                <span>{t.used} used</span>
+                <span>{t.analyses} saved</span>
+                <span>{when(t.last / 1)}</span>
+              </p>
+              <div className="tester-actions">
+                {[10, 20].map(n => (
+                  <Button key={n} size="sm" variant="secondary" loading={adding === `${t.user}:${n}`} disabled={!!adding} onClick={() => add(t, n)}>Add {n}</Button>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /**
  * Every analysis saved on this computer: runs from videos and imported predictions. Open one to load it into the
  * dashboard (with its videos, when they were kept), rename it in place, or delete it.
  */
-export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose }) {
+export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose, admin = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
@@ -92,6 +144,7 @@ export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose }) {
         </header>
 
         {error && <Alert tone="danger" title="Something went wrong" onDismiss={() => setError(null)}>{error}</Alert>}
+        {admin && <TestersPanel />}
 
         {!data ? (
           <Skeleton lines={4} label="Loading saved analyses" />

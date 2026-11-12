@@ -12,10 +12,14 @@ const api = axios.create({
 // With sign-in on, every request carries the user's Clerk session token. The auth gate registers how to get one;
 // Clerk refreshes it as needed, so each request asks afresh. Without sign-in nothing is added.
 let getToken = null;
+let accountEmail = '';
 export const setTokenGetter = fn => { getToken = fn; };
+/** The signed-in email, sent along so admins can tell testers apart (it grants nothing; the token decides who you are). */
+export const setAccountEmail = email => { accountEmail = email || ''; };
 api.interceptors.request.use(async config => {
   const token = getToken ? await getToken() : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token && accountEmail) config.headers['X-Rewire-Email'] = accountEmail;
   return config;
 });
 
@@ -151,6 +155,14 @@ export const cancelJob = async (jobId) => {
   const response = await api.post(`/jobs/${jobId}/cancel`);
   return response.data;
 };
+
+// ── Test credits ─────────────────────────────────────────────────────────
+/** { enforced, balance, granted, used, cost_per_video, admin }. Not enforced without sign-in. */
+export const fetchCredits = async () => (await api.get('/credits')).data;
+/** Admins: every tester with balance and usage. */
+export const fetchTesters = async () => (await api.get('/admin/credits')).data;
+/** Admins: add (or with a negative number, remove) a tester's credits. */
+export const grantCredits = async (user, add, reason) => (await api.post('/admin/credits', { user, add, reason })).data;
 
 // ── Workspace: saved analyses ────────────────────────────────────────────
 export const fetchRuns = async () => (await api.get('/runs')).data;              // { runs, current }

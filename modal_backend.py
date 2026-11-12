@@ -29,6 +29,10 @@ FRONTEND_URL = "https://rewireit.vercel.app"                           # the das
 FRONTEND_ORIGINS = [
     FRONTEND_URL,
 ]
+# Test credits for the beta: what each invited person starts with, and who can see testers and add credits
+# (Clerk user ids, comma-separated; find them under Users in the Clerk dashboard).
+TEST_CREDITS = 20
+ADMINS = "user_3LzYeTNK3jepPAap9BnXpkcc8FD"
 
 app = modal.App("rewire-api")
 
@@ -50,7 +54,8 @@ image = (
         "python -c \"from nilearn import datasets; datasets.fetch_surf_fsaverage('fsaverage5')\"",
     )
     .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
-          "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS)})
+          "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS),
+          "REWIRE_TEST_CREDITS": str(TEST_CREDITS), "REWIRE_ADMINS": ADMINS})
     .add_local_file(ROOT / "brand_A_predictions.pkl", "/root/brand_A_predictions.pkl")
     .add_local_file(ROOT / "brand_B_predictions.pkl", "/root/brand_B_predictions.pkl")
     .add_local_dir(ROOT / "backend", "/root/backend", ignore=["data", "data/**", "**/__pycache__", "**/*.pyc", ".env", "**/.env"])

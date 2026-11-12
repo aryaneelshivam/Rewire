@@ -31,6 +31,8 @@ import { Alert } from '@/components/arc/alert/alert';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import { ThemeSwitch } from '@/components/arc/theme-switch/theme-switch';
 import { DropdownMenu } from '@/components/arc/dropdown-menu/dropdown-menu';
+import { Badge } from '@/components/arc/badge/badge';
+import { Tooltip } from '@/components/arc/tooltip/tooltip';
 import { LogOut } from 'lucide-react';
 import { AccountContext } from '@/lib/auth-config';
 
@@ -61,7 +63,8 @@ function App() {
   // The analysis in progress: its id, plus the files, mode and details it started with, so it can be retried.
   const [job, setJob] = useState(null);
   const [showWorkspace, setShowWorkspace] = useState(false);
-  const [runInfo, setRunInfo] = useState(null);        // the saved run on screen: id, title, names
+  const [runInfo, setRunInfo] = useState(null);
+  const [credits, setCredits] = useState(null);      // test credits: { enforced, balance, cost_per_video, admin }        // the saved run on screen: id, title, names
   const [overview, setOverview] = useState(null);
   const [engagement, setEngagement] = useState(null);
   const [topRois, setTopRois] = useState(null);
@@ -169,6 +172,7 @@ function App() {
     setLoading(true);
     try {
       const status = await fetchStatus();
+      setCredits(status.credits ?? null);
       // An analysis already running on the backend (after a reload, say) is picked up where it is.
       if (status.active_job) { setJob(j => j ?? { id: status.active_job }); setLoading(false); return; }
       if (!status.loaded) { setAwaitingUpload(true); setLoading(false); return; }
@@ -289,6 +293,7 @@ function App() {
         onOpened={openedRun}
         onNewAnalysis={() => { setShowWorkspace(false); setAwaitingUpload(true); }}
         onClose={overview ? () => { setShowWorkspace(false); loadData(); } : undefined}
+        admin={!!credits?.admin}
       />
     );
   }
@@ -299,6 +304,7 @@ function App() {
         onJobStarted={(id, videos, mode, meta) => setJob({ id, videos, mode, meta })}
         onDataLoaded={() => loadData()}
         onCancel={overview ? () => setAwaitingUpload(false) : undefined}
+        credits={credits}
         onOpenWorkspace={() => { setAwaitingUpload(false); setShowWorkspace(true); }}
       />
     );
@@ -348,6 +354,13 @@ function App() {
                 ]}
               />
             </span>
+          )}
+          {credits?.enforced && (
+            <Tooltip content={`Each video analysed uses ${credits.cost_per_video} credit. Ask the Rewire team for more.`}>
+              <span className="credit-chip" tabIndex={0}>
+                <Badge size="sm" tone={credits.balance < 2 ? 'warning' : 'neutral'}>{credits.balance} {credits.balance === 1 ? 'credit' : 'credits'}</Badge>
+              </span>
+            </Tooltip>
           )}
           <Button variant="ghost" onClick={() => { videoPause(); setShowWorkspace(true); }}>Workspace</Button>
           <Button variant="secondary" onClick={() => { videoPause(); setAwaitingUpload(true); }}>New analysis</Button>

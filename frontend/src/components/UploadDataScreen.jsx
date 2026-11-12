@@ -45,7 +45,7 @@ function useFileSlots() {
  * The start of every analysis: drop one video to analyse it, or two to compare them, in one drop zone. Rewire works
  * out the analysis from what was dropped and shows which file is which before anything runs.
  */
-const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspace }) => {
+const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspace, credits }) => {
   const videos = useFileSlots();
   const [durations, setDurations] = useState({});
   const [busy, setBusy] = useState(null);           // 'run' or 'sample'
@@ -119,6 +119,14 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
           />
         </section>
 
+        {credits?.enforced && (() => {
+          const need = Math.max(1, videos.files.length) * credits.cost_per_video;
+          const short = credits.balance < need;
+          return short
+            ? <Alert tone="warning" title="Not enough credits">This analysis needs {need} credit{need === 1 ? '' : 's'} and you have {credits.balance}. Ask the Rewire team for more.</Alert>
+            : <p className="credit-note">{videos.files.length ? `This uses ${need} credit${need === 1 ? '' : 's'}` : 'Each video uses 1 credit'}. You have <strong>{credits.balance}</strong>.</p>;
+        })()}
+
         {error && <Alert tone="danger" title="The analysis did not start">{error}</Alert>}
 
         <div className="onboard-actions">
@@ -130,7 +138,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
             {busy === 'run'
               ? <Button variant="ghost" onClick={() => upload.current?.abort()}>Cancel upload</Button>
               : onCancel && <Button variant="ghost" onClick={onCancel}>Back to results</Button>}
-            <Button loading={busy === 'run'} disabled={!ready || (busy && busy !== 'run')} onClick={run}>
+            <Button loading={busy === 'run'} disabled={!ready || (busy && busy !== 'run') || (credits?.enforced && credits.balance < Math.max(1, videos.files.length) * credits.cost_per_video)} onClick={run}>
               {busy === 'run' ? `Uploading ${uploadPct}%` : mode === 'compare' ? 'Compare videos' : 'Run analysis'}
             </Button>
           </div>

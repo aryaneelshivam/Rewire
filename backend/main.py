@@ -17,7 +17,7 @@ from collections.abc import MutableMapping
 
 import joblib
 import numpy as np
-from fastapi import Body, FastAPI, Form, HTTPException, Query, UploadFile, File
+from fastapi import Body, FastAPI, Form, HTTPException, Query, Request, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import auth
+import credits
 from pipeline import JobManager
 from score import rewire_score
 import runs
@@ -264,8 +265,13 @@ jobs.on_results = _on_job_results
 # API ENDPOINTS — each returns one entry per loaded variant
 # =============================================================================
 
+def _email(request) -> str:
+    """The email the browser says the person signed in with; used only to label them in the admin list."""
+    return (request.headers.get("x-rewire-email") or "").strip()[:254]
+
+
 @app.get("/api/status")
-def get_status():
+def get_status(request: Request):
     videos = {}
     if _run_info.get("id") and not _run_info.get("deleted"):
         try:
@@ -275,7 +281,40 @@ def get_status():
     active = jobs.active_for(auth.current_user())
     media = _media(_run_info["id"], list(_results)) if _run_info.get("id") and not _run_info.get("deleted") else {}
     return {"loaded": bool(_results), "variants": list(_results), "run": dict(_run_info), "videos": videos, "media": media,
-            "active_job": active.id if active else None}
+            "active_job": active.id if active else None, "credits": credits.summary(email=_email(request))}
+
+
+@app.get("/api/credits")
+def get_credits(request: Request):
+    """The signed-in person's test credits: balance, totals, and what one video costs."""
+    return credits.summary(email=_email(request))
+
+
+@app.get("/api/admin/credits")
+def admin_list_credits():
+    """Admins only: every tester, with their balance, usage and number of saved analyses."""
+    if not credits.is_admin():
+        raise HTTPException(status_code=403, detail="Only Rewire admins can see this.")
+    return {"testers": credits.everyone(), "grant": credits.GRANT}
+
+
+class GrantRequest(BaseModel):
+    user: str
+    add: int
+    reason: str | None = None
+
+
+@app.post("/api/admin/credits")
+def admin_grant_credits(req: GrantRequest):
+    """Admins only: adds credits to a tester (a negative number removes them)."""
+    if not credits.is_admin():
+        raise HTTPException(status_code=403, detail="Only Rewire admins can do this.")
+    if not -1000 <= req.add <= 1000 or req.add == 0:
+        raise HTTPException(status_code=400, detail="Add between 1 and 1000 credits (or remove up to 1000).")
+    try:
+        return credits.grant(req.user, req.add, (req.reason or "Added by the Rewire team").strip()[:120])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/jobs")
@@ -303,6 +342,8 @@ async def create_job(
     metadata = {v: metadata[v] for v, _, _ in files}
     try:
         job = jobs.create(mode, files, metadata)
+    except credits.InsufficientCredits as e:
+        raise HTTPException(status_code=402, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return {"job_id": job.id}
