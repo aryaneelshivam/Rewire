@@ -1,5 +1,6 @@
 """
-The workspace: every completed analysis is a folder under backend/data/runs/<id>/ holding
+The workspace: every completed analysis is a folder under backend/data/runs/<id>/ (sign-in off) or
+backend/data/users/<user id>/runs/<id>/ (each signed-in user's own workspace), holding
 
   run.json            title, mode, variants, file names, durations, creative details, result summary
   <variant>.pkl       the predictions ({"preds", "transcript"}), from the GPU or an import
@@ -17,8 +18,16 @@ from pathlib import Path
 
 import numpy as np
 
+from auth import LOCAL_USER, current_user
+
 DATA_DIR = Path(__file__).resolve().parent / "data"
-RUNS_DIR = DATA_DIR / "runs"
+RUNS_DIR = DATA_DIR / "runs"          # the local user's runs (sign-in off), where runs have always lived
+
+
+def runs_dir() -> Path:
+    """The signed-in user's runs folder. Each user sees only their own; without sign-in, everything is local."""
+    user = current_user()
+    return RUNS_DIR if user == LOCAL_USER else DATA_DIR / "users" / user / "runs"
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
 DIMENSIONS = ["visual", "auditory", "reward", "memory", "attention", "narrative", "personal", "action"]
 
@@ -31,7 +40,7 @@ def folder(run_id: str) -> Path:
     # Run ids are generated here; reject anything that could walk out of the runs folder.
     if not run_id or "/" in run_id or "\\" in run_id or run_id.startswith("."):
         raise KeyError(run_id)
-    path = RUNS_DIR / run_id
+    path = runs_dir() / run_id
     if not (path / "run.json").exists():
         raise KeyError(run_id)
     return path
@@ -120,10 +129,11 @@ def summarise(results: dict) -> dict:
 
 def list_runs() -> list[dict]:
     """Every saved run, newest first, with what the workspace list shows."""
-    if not RUNS_DIR.exists():
+    base = runs_dir()
+    if not base.exists():
         return []
     out = []
-    for path in sorted(RUNS_DIR.iterdir(), reverse=True):
+    for path in sorted(base.iterdir(), reverse=True):
         if not (path / "run.json").exists():
             continue
         try:
@@ -153,7 +163,8 @@ def list_runs() -> list[dict]:
 
 def latest_run() -> Path | None:
     """The most recent completed run folder, if any."""
-    if not RUNS_DIR.exists():
+    base = runs_dir()
+    if not base.exists():
         return None
-    runs = sorted((p for p in RUNS_DIR.iterdir() if (p / "run.json").exists()), reverse=True)
+    runs = sorted((p for p in base.iterdir() if (p / "run.json").exists()), reverse=True)
     return runs[0] if runs else None

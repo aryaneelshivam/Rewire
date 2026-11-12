@@ -12,14 +12,19 @@ import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+import threading
+from collections.abc import MutableMapping
+
 import joblib
 import numpy as np
 from fastapi import Body, FastAPI, Form, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel
 
+import auth
 from pipeline import JobManager
 from score import rewire_score
 import runs
@@ -27,10 +32,66 @@ from runs import latest_run
 from analysis import run_full_analysis, contest_winner, overall_verdict, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
 
 # ---------------------------------------------------------------------------
-# Results — the analysed variants of the current run, in order (A, then B when comparing)
+# Results: each user's open analysis. `_results` (the analysed variants, A then B) and `_run_info` (the run they came
+# from) read and write the signed-in user's own session, so every endpoint below serves only that user's work.
+# Sessions load lazily (the user's latest run) and the least recently used are released to keep memory in check;
+# a released session reloads its run on its next request.
 # ---------------------------------------------------------------------------
-_results: dict = {}
-_run_info: dict = {}
+MAX_OPEN = max(1, int(os.environ.get("REWIRE_MAX_OPEN", "6")))
+
+
+class _Session:
+    def __init__(self):
+        self.results: dict = {}
+        self.info: dict = {}
+        self.loaded = False
+        self.used = time.time()
+        self.lock = threading.RLock()
+
+
+_sessions: dict[str, _Session] = {}
+_sessions_lock = threading.Lock()
+
+
+def _session() -> _Session:
+    user = auth.current_user()
+    with _sessions_lock:
+        s = _sessions.get(user)
+        if s is None:
+            s = _sessions[user] = _Session()
+        s.used = time.time()
+        # Release the analyses of the least recently active users beyond the limit (their runs stay on disk).
+        idle = sorted((u for u, x in _sessions.items() if u != user and x.loaded), key=lambda u: _sessions[u].used)
+        for u in idle[: max(0, sum(x.loaded for x in _sessions.values()) - MAX_OPEN)]:
+            _sessions[u].results, _sessions[u].loaded = {}, False
+    if not s.loaded:
+        with s.lock:
+            if not s.loaded:
+                s.loaded = True
+                _restore(s)
+    return s
+
+
+class _View(MutableMapping):
+    """A dict that is always the current user's session results or run info."""
+    def __init__(self, attr):
+        self.attr = attr
+    def _d(self):
+        return getattr(_session(), self.attr)
+    def __getitem__(self, key):
+        return self._d()[key]
+    def __setitem__(self, key, value):
+        self._d()[key] = value
+    def __delitem__(self, key):
+        del self._d()[key]
+    def __iter__(self):
+        return iter(self._d())
+    def __len__(self):
+        return len(self._d())
+
+
+_results = _View("results")
+_run_info = _View("info")
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLE_FILES = {"A": ROOT / "brand_A_predictions.pkl", "B": ROOT / "brand_B_predictions.pkl"}
@@ -77,9 +138,8 @@ def _load_files(files: dict, metadata: dict | None = None) -> dict:
 
 
 def _set_results(results: dict, info: dict):
-    global _results, _run_info
-    _results = dict(results)
-    _run_info = info
+    s = _session()
+    s.results, s.info = dict(results), dict(info)
     # A saved run keeps a summary of its results, so the workspace can list outcomes without reopening each run.
     if info.get("source") in ("run", "import") and info.get("id"):
         try:
@@ -95,34 +155,84 @@ def _open_run(run_id: str):
     _set_results(_load_files(files, info.get("metadata")), {**info, "source": "run"})
 
 
+def _restore(s: _Session):
+    """Opens a session on its user's last analysis: the run it had open, else their latest. A new signed-in user
+    starts empty (the start screen); without sign-in, the local user falls back to the sample pair, as before."""
+    try:
+        wanted = s.info.get("id") if s.info.get("source") in ("run", "import") and not s.info.get("deleted") else None
+        if wanted:
+            try:
+                runs.folder(wanted)
+            except KeyError:
+                wanted = None
+        run = wanted or (latest_run().name if latest_run() else None)
+        if run:
+            _open_run(run)
+        elif not auth.ENABLED and all(p.exists() for p in SAMPLE_FILES.values()):
+            _set_results(_load_files(SAMPLE_FILES), {"source": "sample", "variants": ["A", "B"], "mode": "compare"})
+    except Exception as e:
+        print(f"⚠️  Could not reopen the last analysis: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Loads the latest completed run, or the bundled sample pair, so the dashboard opens with data."""
-    try:
-        run = latest_run()
-        if run:
-            _open_run(run.name)
-            print(f"✅  Loaded run {run.name}.")
-        elif all(p.exists() for p in SAMPLE_FILES.values()):
-            _set_results(_load_files(SAMPLE_FILES), {"source": "sample", "variants": ["A", "B"], "mode": "compare"})
-            print("✅  Loaded the sample pair.")
-        else:
-            print("🟡  No data yet. Waiting for an analysis.")
-    except Exception as e:
-        print(f"⚠️  Startup load skipped: {e}")
+    """Analyses load per user on their first request, so startup is quick."""
+    if auth.ENABLED:
+        print(f"🔐  Sign-in is on ({auth.ISSUER}). Each user has a private workspace.")
+    else:
+        print("🔓  Sign-in is off: one local workspace. Set CLERK_PUBLISHABLE_KEY to turn it on.")
     yield
-    _results.clear()
+    _sessions.clear()
 
 
 app = FastAPI(title="Rewire API", version="3.0.0", lifespan=lifespan)
 
+
+@app.middleware("http")
+async def authenticate(request, call_next):
+    """Every /api request needs a valid Clerk session (when sign-in is on), and then runs as that user.
+    Media links carry their own signature, since <video> and <img> cannot send a token."""
+    path = request.url.path
+    if not auth.ENABLED or request.method == "OPTIONS" or not path.startswith("/api/") or path.startswith("/api/media/"):
+        return await call_next(request)
+    header = request.headers.get("authorization", "")
+    token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+    if not token:
+        return JSONResponse({"detail": "Sign in to continue."}, status_code=401)
+    try:
+        user = await run_in_threadpool(auth.verify, token)
+    except auth.AuthError as e:
+        return JSONResponse({"detail": str(e)}, status_code=401)
+    marker = auth.set_user(user)
+    try:
+        return await call_next(request)
+    finally:
+        auth.reset_user(marker)
+
+
+# Added after the sign-in check, so it wraps it: refusals carry CORS headers too and the browser can read them.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=sorted(auth.AUTHORIZED_PARTIES) if auth.ENABLED else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _media(run_id: str, variants) -> dict:
+    """Signed links to a run's kept videos and thumbnails, per variant (None where a file is missing)."""
+    out = {}
+    try:
+        folder = runs.folder(run_id)
+    except KeyError:
+        return out
+    for v in variants:
+        out[v] = {
+            "video": f"/api/media/{auth.sign_media(run_id, v, 'video')}" if runs.video_file(run_id, v) else None,
+            "thumb": f"/api/media/{auth.sign_media(run_id, v, 'thumb')}" if (folder / f"{v}.jpg").exists() else None,
+        }
+    return out
 
 
 def _get_cache(variant: str) -> dict:
@@ -162,8 +272,10 @@ def get_status():
             videos = {v: bool(runs.video_file(_run_info["id"], v)) for v in _results}
         except KeyError:
             pass
-    return {"loaded": bool(_results), "variants": list(_results), "run": _run_info, "videos": videos,
-            "active_job": jobs.active.id if jobs.active else None}
+    active = jobs.active_for(auth.current_user())
+    media = _media(_run_info["id"], list(_results)) if _run_info.get("id") and not _run_info.get("deleted") else {}
+    return {"loaded": bool(_results), "variants": list(_results), "run": dict(_run_info), "videos": videos, "media": media,
+            "active_job": active.id if active else None}
 
 
 @app.post("/api/jobs")
@@ -230,7 +342,7 @@ async def upload_predictions(
     }
     # Imported predictions are saved as a run, so they appear in the workspace like any other analysis.
     run_id = runs.new_run_id()
-    path = runs.RUNS_DIR / run_id
+    path = runs.runs_dir() / run_id
     path.mkdir(parents=True, exist_ok=True)
     try:
         paths = {}
@@ -265,17 +377,20 @@ def _run_or_404(run_id: str):
 def list_runs():
     """Every saved analysis, newest first, with its title, files, length and result summary."""
     current = _run_info.get("id")
-    return {"runs": runs.list_runs(), "current": current}
+    listed = runs.list_runs()
+    for run in listed:
+        run["media"] = _media(run["id"], run["variants"])
+    return {"runs": listed, "current": current}
 
 
 @app.post("/api/runs/{run_id}/open")
 def open_run(run_id: str):
     """Loads a saved analysis into the dashboard."""
     _run_or_404(run_id)
-    if jobs.active:
+    if jobs.active_for(auth.current_user()):
         raise HTTPException(status_code=409, detail="An analysis is running. Open saved work when it finishes.")
     _open_run(run_id)
-    return {"status": "success", "variants": list(_results), "run": _run_info}
+    return {"status": "success", "variants": list(_results), "run": dict(_run_info)}
 
 
 @app.patch("/api/runs/{run_id}")
@@ -294,7 +409,8 @@ def rename_run(run_id: str, title: str = Body(..., embed=True)):
 def delete_run(run_id: str):
     """Deletes a saved analysis and its files. The dashboard keeps showing it until something else is opened."""
     _run_or_404(run_id)
-    if jobs.active and jobs.active.id == run_id:
+    active = jobs.active_for(auth.current_user())
+    if active and active.id == run_id:
         raise HTTPException(status_code=409, detail="This analysis is still running")
     runs.delete(run_id)
     if _run_info.get("id") == run_id:
@@ -317,6 +433,25 @@ def run_thumb(run_id: str, variant: str):
     if not path.exists() or variant not in ("A", "B"):
         raise HTTPException(status_code=404, detail="No thumbnail")
     return FileResponse(path, media_type="image/jpeg")
+
+
+@app.get("/api/media/{token}")
+def media(token: str):
+    """A run's video or thumbnail, through a signed link from /api/status or /api/runs. The link names its user,
+    so the file is looked up in that user's workspace."""
+    try:
+        claims = auth.read_media(token)
+    except auth.AuthError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    marker = auth.set_user(claims["u"])
+    try:
+        if claims["k"] == "video":
+            return run_video(claims["r"], claims["v"])
+        if claims["k"] == "thumb":
+            return run_thumb(claims["r"], claims["v"])
+        raise HTTPException(status_code=404, detail="Unknown file")
+    finally:
+        auth.reset_user(marker)
 
 
 @app.post("/api/load-sample-data")

@@ -2,8 +2,12 @@
 The analysis pipeline as a background job: check the videos, predict brain response on the GPU,
 simulate the audience, score, and hand the results to the API. The frontend polls the job for progress.
 
-One job runs at a time; this is a single-user local app. Runs are saved under backend/data/runs/<job id>/.
+Each job belongs to the user who started it and runs as that user, so its run is saved in their own workspace
+(see runs.runs_dir). Jobs share a small number of slots (REWIRE_MAX_JOBS, default 1): a job that finds them all in use
+waits its turn instead of being refused. Each user can have one job in progress at a time.
 """
+import contextvars
+import os
 import shutil
 import subprocess
 import threading
@@ -18,7 +22,8 @@ from typing import Callable
 import joblib
 
 from engines import Cancelled, get_engine
-from runs import RUNS_DIR, default_title, new_run_id, thumbnail, write
+from auth import current_user
+from runs import default_title, new_run_id, runs_dir, thumbnail, write
 MAX_SECONDS = 180
 MAX_BYTES = 500 * 1024 * 1024
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
@@ -93,6 +98,8 @@ class Job:
     finished: float | None = None
     cancel_requested: bool = False
     events: list[dict] = field(default_factory=list)
+    owner: str = ""                 # the user who started it; never sent to the browser
+    folder: str = ""                # where its run is saved, in the owner's workspace
 
     def log(self, title: str, actor: str | None = None, meta: str | None = None, tone: str = "neutral", detail: str | None = None):
         """Appends to the job's event log, which the progress screen shows newest first."""
@@ -108,6 +115,8 @@ class Job:
     def to_dict(self) -> dict:
         data = asdict(self)
         data.pop("cancel_requested")
+        data.pop("owner")
+        data.pop("folder")
         for v in data["videos"]:
             v.pop("path")
         data["video_stages"] = [{"key": k, "label": label} for k, label in VIDEO_STAGES]
@@ -145,17 +154,19 @@ class JobManager:
         self.lock = threading.Lock()
         self.on_results = on_results          # (results by variant, job id) -> None
         self.analyse = analyse                # (preds, transcript, metadata, seed, on_step) -> cache
+        self.slots = threading.Semaphore(max(1, int(os.environ.get("REWIRE_MAX_JOBS", "1"))))
 
-    @property
-    def active(self) -> Job | None:
-        return next((j for j in self.jobs.values() if j.status == "running"), None)
+    def active_for(self, user: str) -> Job | None:
+        """The user's analysis in progress, if any."""
+        return next((j for j in self.jobs.values() if j.status == "running" and j.owner == user), None)
 
     def create(self, mode: str, files: list[tuple[str, str, bytes]], metadata: dict) -> Job:
-        """files: (variant, original name, bytes)."""
-        if self.active:
-            raise RuntimeError("Another analysis is still running. Wait for it or cancel it first.")
+        """files: (variant, original name, bytes). Runs as the current user."""
+        owner = current_user()
+        if self.active_for(owner):
+            raise RuntimeError("You already have an analysis running. Wait for it or cancel it first.")
         job_id = new_run_id()
-        folder = RUNS_DIR / job_id
+        folder = runs_dir() / job_id
         folder.mkdir(parents=True, exist_ok=True)
         videos = []
         for variant, name, data in files:
@@ -163,21 +174,25 @@ class JobManager:
             path = folder / f"{variant}{suffix}"
             path.write_bytes(data)
             videos.append(VideoTask(variant=variant, name=name, path=str(path), size=len(data)))
-        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata)
+        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder))
         self._begin(job, "received", f"{len(videos)} video{'s' if len(videos) > 1 else ''}")
         mb = sum(v.size for v in videos) / (1024 * 1024)
         job.log("Upload received", meta=f"{', '.join(v.name for v in videos)}, {mb:.1f} MB")
         self._finish(job, "received", quiet=True)
         with self.lock:
             self.jobs[job_id] = job
-        threading.Thread(target=self._run, args=(job,), daemon=True).start()
+        # The thread carries the request's context, so the job runs as its owner (their workspace, their results).
+        context = contextvars.copy_context()
+        threading.Thread(target=context.run, args=(self._queued, job), daemon=True).start()
         return job
 
     def get(self, job_id: str) -> Job | None:
-        return self.jobs.get(job_id)
+        """A job, only for the user who started it."""
+        job = self.jobs.get(job_id)
+        return job if job and job.owner == current_user() else None
 
     def cancel(self, job_id: str) -> Job | None:
-        job = self.jobs.get(job_id)
+        job = self.get(job_id)
         if job and job.status == "running" and not job.cancel_requested:
             job.cancel_requested = True
             active = next((s for s in job.stages if s.state == "running"), None)
@@ -206,6 +221,21 @@ class JobManager:
             raise Cancelled()
 
     # ── the run ───────────────────────────────────────────────────────
+    def _queued(self, job: Job):
+        """Waits for a free slot (logging that it is waiting), runs the job, then frees the slot."""
+        if not self.slots.acquire(blocking=False):
+            job.log("Waiting for another analysis to finish", meta="It starts as soon as a slot is free")
+            while not self.slots.acquire(timeout=1):
+                if job.cancel_requested:
+                    job.status, job.error, job.finished = "cancelled", "The analysis was cancelled.", time.time()
+                    job.log("Analysis cancelled", meta="Nothing was saved")
+                    shutil.rmtree(job.folder, ignore_errors=True)
+                    return
+        try:
+            self._run(job)
+        finally:
+            self.slots.release()
+
     def _run(self, job: Job):
         current = "checked"
         try:
@@ -230,7 +260,7 @@ class JobManager:
                 outputs = list(pool.map(lambda v: self._predict(job, engine, v), job.videos))
             self._finish(job, "predicting")
 
-            folder = RUNS_DIR / job.id
+            folder = Path(job.folder)
             for v, (preds, transcript) in zip(job.videos, outputs):
                 joblib.dump({"preds": preds, "transcript": transcript}, folder / f"{v.variant}.pkl")
 
@@ -271,7 +301,7 @@ class JobManager:
             job.status, job.error = "cancelled", "The analysis was cancelled."
             self._fail(job, current, "Cancelled")
             job.log("Analysis cancelled", meta="Nothing was saved")
-            shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
+            shutil.rmtree(job.folder, ignore_errors=True)
         except Exception as exc:
             traceback.print_exc()
             # Problems with the uploaded videos are worth telling people; anything else stays in the server log,
@@ -280,7 +310,7 @@ class JobManager:
             job.status, job.error = "failed", message
             self._fail(job, current, message)
             job.log("Analysis stopped", meta=message, tone="danger")
-            shutil.rmtree(RUNS_DIR / job.id, ignore_errors=True)
+            shutil.rmtree(job.folder, ignore_errors=True)
         finally:
             job.finished = time.time()
 

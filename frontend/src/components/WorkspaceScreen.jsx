@@ -9,7 +9,7 @@ import { ConfirmMorph } from '@/components/arc/confirm-morph/confirm-morph';
 import { EmptyState } from '@/components/arc/empty-state/empty-state';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import { Alert } from '@/components/arc/alert/alert';
-import { fetchRuns, openRun, renameRun, deleteRun, runMediaUrl } from '../api';
+import { fetchRuns, openRun, renameRun, deleteRun, mediaUrl } from '../api';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -82,7 +82,7 @@ export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose }) {
           <div>
             <h1>Workspace</h1>
             <p className="onboard-lede">
-              {data ? `${total} ${total === 1 ? 'analysis' : 'analyses'} saved on this computer${total ? `, ${disk.toFixed(0)} MB` : ''}.` : 'Loading saved analyses.'}
+              {data ? `${total} ${total === 1 ? 'analysis' : 'analyses'} in your workspace${total ? `, ${disk.toFixed(0)} MB` : ''}.` : 'Loading saved analyses.'}
             </p>
           </div>
           <div className="onboard-actions-end">
@@ -111,8 +111,8 @@ export default function WorkspaceScreen({ onOpened, onNewAnalysis, onClose }) {
                 {shown.map(run => (
                   <li key={run.id} className={`run-row ${data.current === run.id ? 'is-current' : ''}`}>
                     <div className={`run-thumbs ${run.variants.length > 1 ? 'is-pair' : ''}`} aria-hidden="true">
-                      {run.variants.map(v => run.thumbs?.[v]
-                        ? <img key={v} src={runMediaUrl(run.id, v, 'thumb')} alt="" loading="lazy" />
+                      {run.variants.map(v => run.media?.[v]?.thumb
+                        ? <img key={v} src={mediaUrl(run.media[v].thumb)} alt="" loading="lazy" />
                         : <span key={v} className="run-thumb-empty">{run.source === 'import' ? 'Predictions' : 'No video'}</span>)}
                     </div>
 

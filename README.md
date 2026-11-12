@@ -90,6 +90,20 @@ npm run dev
 ```
 Then open http://localhost:5173.
 
+### 4. Sign-in (optional, for a hosted beta)
+Without it, Rewire runs as one local workspace. With it, every person signs in with Clerk and gets a private workspace: their own analyses, open analysis and jobs, which nobody else can see.
+
+1. **Create a Clerk application** at dashboard.clerk.com and copy its publishable key (`pk_test_...`).
+2. **Configure it** in the Clerk dashboard:
+   - *User & authentication*: require an email address, turn on **Email verification code**, turn off password.
+   - *Restrictions*: set sign-up mode to **Restricted**, so only invited people can join.
+   - *Invitations* (under Users): invite testers by email, with the redirect URL set to your app (http://localhost:5173 locally). The invite link signs them up and in.
+   - Optional: turn on Google under *SSO connections*, then set `VITE_CLERK_GOOGLE=true`.
+3. **Add the key** to both sides. Copy `frontend/.env.example` to `frontend/.env.local` and `backend/.env.example` to `backend/.env`, and set the key in each. In production, set `CLERK_AUTHORIZED_PARTIES` to your app's origin.
+4. Restart both servers. The backend logs `Sign-in is on`.
+
+The backend needs only the publishable key: it checks each session token against Clerk's public signing keys, so no Clerk secret is stored on the server. Videos and thumbnails are served through short-lived signed links, because `<video>` and `<img>` cannot send a token. Each user's runs live in `backend/data/users/<user id>/runs/`; runs made before sign-in stay in `backend/data/runs/`, the local workspace.
+
 ### Optional: Streamlit explorer
 ```bash
 streamlit run app.py
@@ -116,7 +130,8 @@ streamlit run app.py
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/status` | Loaded variants, the current run, and any analysis in progress |
+| (all `/api` routes) | With sign-in on, need `Authorization: Bearer <Clerk session token>` and serve only that user's work |
+| `GET /api/status` | Loaded variants, the current run, signed media links, and any analysis in progress |
 | `POST /api/jobs` | Starts an analysis of one video (`mode=single`) or two (`mode=compare`) |
 | `GET /api/jobs/{id}` | The job's stages, each video's progress, and its status |
 | `POST /api/jobs/{id}/cancel` | Cancels a running analysis |
@@ -147,6 +162,7 @@ streamlit run app.py
 Rewire/
 ├── backend/
 │   ├── main.py              # FastAPI app and endpoints
+│   ├── auth.py              # Clerk session check, the current user, signed media links
 │   ├── pipeline.py          # Analysis jobs: checks, GPU prediction, synthesis, scoring
 │   ├── engines.py           # Inference engines: Modal GPU, or replay for testing
 │   ├── runs.py              # The workspace: saved runs, thumbnails, summaries
@@ -156,6 +172,7 @@ Rewire/
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx          # Layout, playhead and tabs
+│   │   ├── auth/            # Clerk sign-in gate and the Arc sign-in screens
 │   │   ├── api.js           # API client
 │   │   ├── components/      # Panels, brain viewer, player, timeline, ensemble explorer
 │   │   │   └── arc/         # Arc design system components

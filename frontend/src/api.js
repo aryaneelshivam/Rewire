@@ -1,10 +1,24 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_ORIGIN = 'http://127.0.0.1:8000';
+const API_BASE_URL = `${API_ORIGIN}/api`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
 });
+
+// With sign-in on, every request carries the user's Clerk session token. The auth gate registers how to get one;
+// Clerk refreshes it as needed, so each request asks afresh. Without sign-in nothing is added.
+let getToken = null;
+export const setTokenGetter = fn => { getToken = fn; };
+api.interceptors.request.use(async config => {
+  const token = getToken ? await getToken() : null;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+/** A media link from the API (a signed /api/media/... path) as a full URL for <video> and <img>. */
+export const mediaUrl = path => (path ? `${API_ORIGIN}${path}` : null);
 
 export const fetchOverview = async () => {
   const response = await api.get('/overview');
@@ -141,8 +155,6 @@ export const fetchRuns = async () => (await api.get('/runs')).data;             
 export const openRun = async (id) => (await api.post(`/runs/${id}/open`)).data;
 export const renameRun = async (id, title) => (await api.patch(`/runs/${id}`, { title })).data;
 export const deleteRun = async (id) => (await api.delete(`/runs/${id}`)).data;
-/** URL of a saved run's video or thumbnail, for <video> and <img>. */
 /** The Rewire Score per variant: measures, ranks once benchmarked, and the per-second response. */
 export const fetchScore = async () => (await api.get('/score')).data;
 
-export const runMediaUrl = (id, variant, kind = 'video') => `${API_BASE_URL}/runs/${id}/${kind}/${variant}`;

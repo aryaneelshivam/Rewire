@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useContext } from 'react';
 import { flushSync } from 'react-dom';
 import {
   fetchStatus, fetchOverview, fetchEngagement, fetchTopRois,
-  fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary, createJob, runMediaUrl
+  fetchTimeSeries, fetchHeatmap, fetchDemographics, fetchABSummary, createJob, mediaUrl
 } from './api';
 import UploadDataScreen from './components/UploadDataScreen';
 import PipelineScreen from './components/PipelineScreen';
@@ -30,6 +30,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/arc/tabs/
 import { Alert } from '@/components/arc/alert/alert';
 import { Skeleton } from '@/components/arc/skeleton/skeleton';
 import { ThemeSwitch } from '@/components/arc/theme-switch/theme-switch';
+import { DropdownMenu } from '@/components/arc/dropdown-menu/dropdown-menu';
+import { LogOut } from 'lucide-react';
+import { AccountContext } from '@/lib/auth-config';
 
 const TABS = [
   { id: 'overview', label: 'Overview', title: 'A/B overview', desc: 'Which creative drives stronger predicted cortical response, and when.' },
@@ -52,6 +55,7 @@ function winnerOf(summary) {
 }
 
 function App() {
+  const account = useContext(AccountContext);   // the signed-in person, or null without sign-in
   const [loading, setLoading] = useState(true);
   const [awaitingUpload, setAwaitingUpload] = useState(false);
   // The analysis in progress: its id, plus the files, mode and details it started with, so it can be retried.
@@ -170,7 +174,7 @@ function App() {
       if (!status.loaded) { setAwaitingUpload(true); setLoading(false); return; }
       // A saved run plays the videos it kept; samples and runs without them play nothing.
       setRunInfo(status.run?.id && !status.run.deleted ? status.run : null);
-      applyVideos(Object.fromEntries(Object.entries(status.videos || {}).filter(([, kept]) => kept).map(([v]) => [v, runMediaUrl(status.run.id, v)])));
+      applyVideos(Object.fromEntries(Object.entries(status.media || {}).filter(([, m]) => m?.video).map(([v, m]) => [v, mediaUrl(m.video)])));
       setAwaitingUpload(false);
       const [ov, en, tr, ts, hm, dm, ab] = await Promise.all([
         fetchOverview(), fetchEngagement(), fetchTopRois(),
@@ -334,6 +338,17 @@ function App() {
         </div>
         <div className="header-actions">
           <span className="theme-toggle"><ThemeSwitch theme={theme} variant="rise" iconOnly onThemeChange={changeTheme} /></span>
+          {account && (
+            <span className="account-menu">
+              <DropdownMenu
+                label={account.name || account.email || 'Account'}
+                items={[
+                  { label: account.email || 'Signed in', disabled: true },
+                  { label: 'Sign out', icon: <LogOut size={16} strokeWidth={1.75} />, separatorBefore: true, onSelect: () => { videoPause(); account.signOut(); } },
+                ]}
+              />
+            </span>
+          )}
           <Button variant="ghost" onClick={() => { videoPause(); setShowWorkspace(true); }}>Workspace</Button>
           <Button variant="secondary" onClick={() => { videoPause(); setAwaitingUpload(true); }}>New analysis</Button>
           <Button variant={single ? 'primary' : 'secondary'} onClick={() => { videoPause(); setSharing(true); }}>
