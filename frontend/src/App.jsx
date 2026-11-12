@@ -35,7 +35,7 @@ import { DropdownMenu } from '@/components/arc/dropdown-menu/dropdown-menu';
 import { Badge } from '@/components/arc/badge/badge';
 import { Tooltip } from '@/components/arc/tooltip/tooltip';
 import { LogOut } from 'lucide-react';
-import { AccountContext } from '@/lib/auth-config';
+import { AccountContext, AUTH_ENABLED } from '@/lib/auth-config';
 
 const TABS = [
   { id: 'overview', label: 'Overview', title: 'A/B overview', desc: 'Which creative drives stronger predicted cortical response, and when.' },
@@ -63,10 +63,12 @@ function App() {
   const [awaitingUpload, setAwaitingUpload] = useState(false);
   // What the new analysis is for: null asks first (video, audio or text); 'video' goes to the upload screen.
   const [assetType, setAssetType] = useState(null);
-  const startNew = (type = null) => { setAssetType(type); setAwaitingUpload(true); };
+  const startNew = (type = null) => { setAssetType(type); setShowWorkspace(false); setAwaitingUpload(true); };
   // The analysis in progress: its id, plus the files, mode and details it started with, so it can be retried.
   const [job, setJob] = useState(null);
-  const [showWorkspace, setShowWorkspace] = useState(false);
+  // Signed-in people land in their workspace each time they come back; the last analysis loads behind it, so
+  // "Back to results" is ready. (An analysis still running opens its progress screen instead.)
+  const [showWorkspace, setShowWorkspace] = useState(AUTH_ENABLED);
   const [runInfo, setRunInfo] = useState(null);
   const [credits, setCredits] = useState(null);      // test credits: { enforced, balance, cost_per_video, admin }        // the saved run on screen: id, title, names
   const [overview, setOverview] = useState(null);
@@ -279,7 +281,7 @@ function App() {
       <PipelineScreen
         key={job.id}
         jobId={job.id}
-        onDone={() => { setJob(null); setAwaitingUpload(false); setActiveTab('overview'); setCurrentTime(0); loadData(); }}
+        onDone={() => { setJob(null); setAwaitingUpload(false); setShowWorkspace(false); setActiveTab('overview'); setCurrentTime(0); loadData(); }}
         onBack={() => { setJob(null); loadData(); }}
         onRetry={job.videos ? async () => {
           const { job_id } = await createJob(job.mode, job.videos, job.meta);
