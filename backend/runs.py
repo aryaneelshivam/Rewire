@@ -10,6 +10,7 @@ backend/data/users/<user id>/runs/<id>/ (each signed-in user's own workspace), h
 Nothing here holds analysed results in memory; opening a run re-runs the (fast, seeded) synthesis.
 """
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -20,7 +21,8 @@ import numpy as np
 
 from auth import LOCAL_USER, current_user
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+# backend/data locally; REWIRE_DATA_DIR points it elsewhere, such as a mounted volume when hosted.
+DATA_DIR = Path(os.environ.get("REWIRE_DATA_DIR", Path(__file__).resolve().parent / "data"))
 RUNS_DIR = DATA_DIR / "runs"          # the local user's runs (sign-in off), where runs have always lived
 
 

@@ -51,7 +51,7 @@ MIN_ADS_PER_BAND = 30          # fewer than this and ranks are not reported
 PROVISIONAL_HOLD_LEVEL = 0.18  # placeholder until a benchmark exists (median of the first test videos); the benchmark sets it
 
 BENCHMARK_PATH = Path(os.environ.get(
-    "REWIRE_BENCHMARK", Path(__file__).resolve().parent / "data" / "benchmark" / f"{METHOD}.json"))
+    "REWIRE_BENCHMARK", Path(os.environ.get("REWIRE_DATA_DIR", Path(__file__).resolve().parent / "data")) / "benchmark" / f"{METHOD}.json"))
 
 _index = {name: i for i, name in enumerate(ROI_LABEL_NAMES)}
 _DIM_IDX = {d: [_index[r] for r in rois if r in _index] for d, (rois, _) in DIMENSIONS.items()}

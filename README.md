@@ -104,6 +104,21 @@ Without it, Rewire runs as one local workspace. With it, every person signs in w
 
 The backend needs only the publishable key: it checks each session token against Clerk's public signing keys, so no Clerk secret is stored on the server. Videos and thumbnails are served through short-lived signed links, because `<video>` and `<img>` cannot send a token. Each user's runs live in `backend/data/users/<user id>/runs/`; runs made before sign-in stay in `backend/data/runs/`, the local workspace.
 
+### 5. Hosting on Modal
+The whole app (dashboard and API) runs on Modal next to the GPU service, at one address:
+`https://<your-workspace>--rewire-api-web.<region>.modal.run` (the deploy prints it; set it as `APP_URL` in `modal_backend.py`).
+
+```bash
+cd frontend && npm run build && cd ..
+modal deploy modal_backend.py
+```
+
+- **One container, sleeping when idle.** Each user's open analysis and the job queue live in memory, so the app runs at most one container. It costs nothing while asleep; the first visit after a quiet spell takes 10 to 30 seconds while it wakes. It stays up 15 minutes after the last request, so a running analysis can finish.
+- **Data** lives on the `rewire-data` Modal volume (`REWIRE_DATA_DIR=/data`): each user's runs, and the key for signed media links, generated on first start. Analyses saved on your laptop are not uploaded.
+- **Sign-in settings** are set in `modal_backend.py`: the Clerk publishable key, and the app's own address as the authorized origin. Both are public values; no secret is stored.
+- **Clerk:** add the app's address as the redirect URL on invitations. A Clerk development instance works on this address for a closed beta; for a production instance (`pk_live_`), Clerk needs a domain you own.
+- Redeploy after any change to the frontend (rebuild first) or the backend.
+
 ### Optional: Streamlit explorer
 ```bash
 streamlit run app.py
@@ -185,6 +200,7 @@ Rewire/
 ├── scripts/build_benchmark.py  # Builds the benchmark library the score ranks against
 ├── app.py                   # Streamlit explorer
 ├── modal_inference.py       # Cloud inference service (deployed to Modal)
+├── modal_backend.py         # The hosted app: dashboard and API on Modal
 └── process.md               # Technical notes
 ```
 

@@ -1,0 +1,95 @@
+"""
+Rewire's API and web app on Modal: one address serves the dashboard and the API.
+
+    cd frontend && npm run build && cd ..        # the dashboard this serves
+    modal deploy modal_backend.py
+
+What runs where:
+  - This app (rewire-api, CPU) serves the built frontend and the FastAPI backend from backend/.
+  - Saved runs live on the rewire-data volume, mounted at /data (REWIRE_DATA_DIR).
+  - Predictions run on the separate rewire-inference GPU app; calls between apps in one workspace need no token.
+  - Sign-in settings are public values, set below: the Clerk publishable key and this app's own address. No secret
+    is needed: the key for signed media links is generated on first start and kept on the data volume.
+
+One container at most: each user's open analysis and the job queue live in its memory. It sleeps when idle (no cost)
+and wakes on the next request, which then takes 10 to 30 seconds while it starts and reopens analyses.
+"""
+from pathlib import Path
+
+import modal
+
+ROOT = Path(__file__).resolve().parent
+WEB_DIR = "/root/web"
+
+# Public settings (the publishable key is meant to be shared; it only names the Clerk instance).
+CLERK_PUBLISHABLE_KEY = "pk_test_bW92ZWQtdG91Y2FuLTc1NTEuY2xlcmsuYWNjb3VudHMuZGV2JA"
+APP_URL = "https://aryaneelshivam--rewire-api-web.us-east.modal.run"
+
+app = modal.App("rewire-api")
+
+image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .apt_install("git", "ffmpeg")
+    .pip_install("uv")
+    # The same library versions as the GPU image, with CPU-only torch: the API only uses the model's atlas helpers.
+    .run_commands("pip install torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu")
+    .run_commands(
+        "uv pip install --system 'tribev2 @ git+https://github.com/facebookresearch/tribev2.git'",
+        "pip uninstall -y numpy scipy",
+        "pip install 'numpy<2.0.0' 'scipy<1.13.0' --force-reinstall",
+    )
+    .pip_install("fastapi[standard]", "joblib", "pandas", "nilearn", "pyjwt[crypto]>=2.10", "python-multipart", "modal")
+    # The cortical atlas and surface mesh download once, into the image, not on every container start.
+    .run_commands(
+        "python -c \"from tribev2.utils import get_hcp_labels; [get_hcp_labels(mesh='fsaverage5', combine=False, hemi=h) for h in ('both', 'left', 'right')]\"",
+        "python -c \"from nilearn import datasets; datasets.fetch_surf_fsaverage('fsaverage5')\"",
+    )
+    .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
+          "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": APP_URL})
+    .add_local_file(ROOT / "brand_A_predictions.pkl", "/root/brand_A_predictions.pkl")
+    .add_local_file(ROOT / "brand_B_predictions.pkl", "/root/brand_B_predictions.pkl")
+    .add_local_dir(ROOT / "frontend" / "dist", WEB_DIR)
+    .add_local_dir(ROOT / "backend", "/root/backend", ignore=["data", "data/**", "**/__pycache__", "**/*.pyc", ".env", "**/.env"])
+)
+
+data = modal.Volume.from_name("rewire-data", create_if_missing=True, version=2)
+
+
+@app.function(
+    image=image,
+    volumes={"/data": data},
+    cpu=2.0,
+    memory=4096,
+    max_containers=1,          # sessions and jobs are in memory: never split them across containers
+    scaledown_window=900,      # stay up 15 minutes after the last request, so a running analysis can finish
+    timeout=600,
+)
+@modal.concurrent(max_inputs=50)
+@modal.asgi_app()
+def web():
+    import os
+    import sys
+
+    os.chdir("/root/backend")
+    sys.path.insert(0, "/root/backend")
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    import main
+
+    web_dir = Path(WEB_DIR)
+    main.app.mount("/assets", StaticFiles(directory=web_dir / "assets"), name="assets")
+
+    # Everything that isn't the API is the single-page app: a real file if there is one, else index.html
+    # (so /sso-callback and other client routes load the app). Registered after the API routes, so those win.
+    @main.app.get("/{path:path}", include_in_schema=False)
+    def frontend(path: str):
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        target = (web_dir / path).resolve()
+        if path and target.is_file() and web_dir.resolve() in target.parents:
+            return FileResponse(target)
+        return FileResponse(web_dir / "index.html", headers={"Cache-Control": "no-cache"})
+
+    return main.app

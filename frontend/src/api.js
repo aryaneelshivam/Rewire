@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_ORIGIN = 'http://127.0.0.1:8000';
+// The API's address. Local development talks to the backend on port 8000; a production build is served by the same
+// server as the API, so it uses its own address. VITE_API_URL overrides both (for a frontend hosted elsewhere).
+const API_ORIGIN = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://127.0.0.1:8000');
 const API_BASE_URL = `${API_ORIGIN}/api`;
 
 const api = axios.create({

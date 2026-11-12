@@ -9,7 +9,8 @@ instance), so no Clerk secret lives on this server.
                              local user, as before. VITE_CLERK_PUBLISHABLE_KEY is read too, so one .env can serve both.
   CLERK_AUTHORIZED_PARTIES   comma-separated origins the app is served from (default: the local dev server)
   REWIRE_AUTH=off            turn sign-in off even when a key is set
-  REWIRE_MEDIA_SECRET        key for signed media links; generated and kept in backend/data/ when not set
+  REWIRE_MEDIA_SECRET        key for signed media links; generated and kept in the data folder when not set
+  REWIRE_DATA_DIR            where runs and other data live (default backend/data; a Modal volume when hosted)
 
 <video> and <img> cannot send a token, so the API hands out short-lived signed links for a run's videos and images.
 """
@@ -120,7 +121,7 @@ def _media_secret() -> bytes:
     value = os.environ.get("REWIRE_MEDIA_SECRET")
     if value:
         return value.encode()
-    path = HERE / "data" / ".media_secret"
+    path = Path(os.environ.get("REWIRE_DATA_DIR", HERE / "data")) / ".media_secret"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(secrets.token_urlsafe(48))
