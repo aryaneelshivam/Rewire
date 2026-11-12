@@ -119,6 +119,16 @@ modal deploy modal_backend.py
 - **Clerk:** add the app's address as the redirect URL on invitations. A Clerk development instance works on this address for a closed beta; for a production instance (`pk_live_`), Clerk needs a domain you own.
 - Redeploy after any change to the frontend (rebuild first) or the backend.
 
+### 6. Frontend on Vercel
+The dashboard can be served by Vercel while the API stays on Modal.
+
+1. In Vercel, **Add New → Project**, import this GitHub repository, and set **Root Directory** to `frontend`. Vercel reads `frontend/vercel.json` (Vite build, `dist`, and a rewrite so routes like `/sso-callback` load the app). No environment variables are needed: `frontend/.env.production` holds the API address and the Clerk publishable key, both public.
+2. Deploy, and note the production address (`https://<project>.vercel.app`).
+3. Add that address to `FRONTEND_ORIGINS` in `modal_backend.py` and run `modal deploy modal_backend.py`, so the API accepts sign-ins from it.
+4. In Clerk, send invitations with the Vercel address as the redirect URL.
+
+Every push to `main` then redeploys the frontend. Preview deployments get their own addresses, which the API does not accept unless you add them. Vercel's free Hobby plan is for non-commercial use; a commercial beta belongs on Pro.
+
 ### Optional: Streamlit explorer
 ```bash
 streamlit run app.py

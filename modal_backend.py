@@ -24,6 +24,12 @@ WEB_DIR = "/root/web"
 # Public settings (the publishable key is meant to be shared; it only names the Clerk instance).
 CLERK_PUBLISHABLE_KEY = "pk_test_bW92ZWQtdG91Y2FuLTc1NTEuY2xlcmsuYWNjb3VudHMuZGV2JA"
 APP_URL = "https://aryaneelshivam--rewire-api-web.us-east.modal.run"
+# Every address a Rewire frontend is served from. Sign-in tokens issued anywhere else are refused, and only these
+# origins may call the API from a browser. Add the Vercel production address (https://<project>.vercel.app) and any
+# custom domain here, then redeploy.
+FRONTEND_ORIGINS = [
+    APP_URL,
+]
 
 app = modal.App("rewire-api")
 
@@ -45,7 +51,7 @@ image = (
         "python -c \"from nilearn import datasets; datasets.fetch_surf_fsaverage('fsaverage5')\"",
     )
     .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
-          "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": APP_URL})
+          "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS)})
     .add_local_file(ROOT / "brand_A_predictions.pkl", "/root/brand_A_predictions.pkl")
     .add_local_file(ROOT / "brand_B_predictions.pkl", "/root/brand_B_predictions.pkl")
     .add_local_dir(ROOT / "frontend" / "dist", WEB_DIR)
