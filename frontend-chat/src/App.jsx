@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle } from 'lucide-react';
 import AudiencePicker from './AudiencePicker';
 import * as api from './api';
@@ -251,11 +251,12 @@ export default function App() {
   // Peek, in the greeting: leans in when a video is added, gets to work while it's analysed.
   const peekState = busy ? 'working' : files.length ? 'listening' : 'idle';
 
+  const asked = useMemo(() => new Set(messages.filter(m => m.kind === 'answer').map(m => m.topic)), [messages]);
   const thread = (
     <div className="thread" ref={scroller}>
       <div className="thread-inner">
         {messages.map((m, i) => (
-          <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood} peekState={peekState}
+          <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood} peekState={peekState} asked={asked}
             onAsk={ask} onSample={sample} onCancel={cancel} />
         ))}
       </div>
@@ -388,15 +389,18 @@ export default function App() {
   );
 }
 
-function Chips({ onAsk, mode }) {
+// Follow-ups not yet answered in this chat: once a question has been asked, its chip goes.
+function Chips({ onAsk, mode, asked }) {
+  const left = TOPICS.filter(t => (t.key !== 'how' || mode === 'any') && !asked?.has(t.key));
+  if (!left.length) return null;
   return (
     <div className="chips">
-      {TOPICS.filter(t => t.key !== 'how' || mode === 'any').map(t => <button key={t.key} className="chip" onClick={() => onAsk(t.key)}>{t.label}</button>)}
+      {left.map(t => <button key={t.key} className="chip" onClick={() => onAsk(t.key)}>{t.label}</button>)}
     </div>
   );
 }
 
-function Message({ m, last, busy, mood, peekState, onAsk, onSample, onCancel }) {
+function Message({ m, last, busy, mood, peekState, asked, onAsk, onSample, onCancel }) {
   if (m.role === 'user') {
     return (
       <div className="msg msg-user">
@@ -440,12 +444,12 @@ function Message({ m, last, busy, mood, peekState, onAsk, onSample, onCancel }) 
         )}
         {m.kind === 'typing' && <div className="typing" aria-label="Thinking"><span /><span /><span /></div>}
         {m.kind === 'text' && <div className="answer"><p>{m.text}</p></div>}
-        {m.kind === 'menu' && <div className="answer"><p>{m.text}</p><Chips onAsk={onAsk} mode="any" /></div>}
+        {m.kind === 'menu' && <div className="answer"><p>{m.text}</p><Chips onAsk={onAsk} mode="any" asked={asked} /></div>}
         {m.kind === 'progress' && <Progress m={m} onCancel={onCancel} />}
         {m.kind === 'verdict' && (
           <>
             <Verdict ins={m.ins} />
-            {last && <Chips onAsk={onAsk} />}
+            {last && <Chips onAsk={onAsk} asked={asked} />}
           </>
         )}
         {m.kind === 'answer' && (() => {
@@ -453,7 +457,7 @@ function Message({ m, last, busy, mood, peekState, onAsk, onSample, onCancel }) 
           return (
             <>
               <Answer ins={m.ins} />
-              {last && m.ins && <Chips onAsk={onAsk} />}
+              {last && m.ins && <Chips onAsk={onAsk} asked={asked} />}
             </>
           );
         })()}
