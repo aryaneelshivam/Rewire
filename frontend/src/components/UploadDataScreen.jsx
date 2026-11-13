@@ -75,7 +75,9 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   // Credits by length, worked out from the lengths the browser reads (the API measures again and charges).
   const lengths = videos.files.map(f => durations[f.id]);
   const knownLengths = lengths.length > 0 && lengths.every(d => d > 0);
-  const need = knownLengths ? creditCost(lengths, credits?.seconds_per_credit) : null;
+  const surcharge = credits?.viewer_surcharge ?? 0.5;
+  const need = knownLengths ? creditCost(lengths, credits?.seconds_per_credit, viewers, surcharge) : null;
+  const forViewers = knownLengths ? need - creditCost(lengths, credits?.seconds_per_credit) : 0;
   const short = credits?.enforced && need != null && credits.balance < need;
   const lengthsText = knownLengths ? lengths.map(d => `${Math.round(d)}s`).join(' and ') : '';
   const chooseViewers = n => {
@@ -167,18 +169,18 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
           />
           <p className="viewer-note">
             {viewers > VIEWERS.default
-              ? 'More viewers smooth the averages and steady close calls; the results themselves barely change. Simulating them adds time to the analysis.'
-              : 'Split evenly across four age groups. More viewers smooth the averages and steady close calls, and add time to the analysis.'}
+              ? 'More viewers smooth the averages and steady close calls; the results themselves barely change. Simulating them adds time to the analysis and a few credits to its cost.'
+              : 'Split evenly across four age groups. More viewers smooth the averages and steady close calls, and add a little time and cost.'}
           </p>
         </section>
 
         {credits?.enforced && (() => {
           const per = credits.seconds_per_credit ?? 10;
-          if (!videos.files.length) return <p className="credit-note">Analyses use 1 credit per {per} seconds of video. You have <strong>{credits.balance}</strong>.</p>;
+          if (!videos.files.length) return <p className="credit-note">Analyses use 1 credit per {per} seconds of video{surcharge > 0 ? `, plus up to ${Math.round(surcharge * 100)}% more for a bigger audience` : ''}. You have <strong>{credits.balance}</strong>.</p>;
           if (!knownLengths) return <p className="credit-note">Working out the cost from the video length. You have <strong>{credits.balance}</strong>.</p>;
           return short
             ? <Alert tone="warning" title="Not enough credits">This analysis needs {need} credits and you have {credits.balance}. Ask the Rewire team for more.</Alert>
-            : <p className="credit-note">This uses <strong>{need}</strong> credit{need === 1 ? '' : 's'} ({lengthsText}). You have <strong>{credits.balance}</strong>.</p>;
+            : <p className="credit-note">This uses <strong>{need}</strong> credit{need === 1 ? '' : 's'} ({lengthsText}{forViewers > 0 ? `, including ${forViewers} for ${viewerCount(viewers)} viewers` : ''}). You have <strong>{credits.balance}</strong>.</p>;
         })()}
 
         {error && <Alert tone="danger" title="The analysis did not start">{error}</Alert>}

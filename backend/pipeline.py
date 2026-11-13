@@ -187,7 +187,7 @@ class JobManager:
             except Exception:
                 lengths.append(0.0)
         try:
-            charged = credits.charge(lengths, ref=job_id)
+            charged = credits.charge(lengths, ref=job_id, viewers=viewers)
         except credits.InsufficientCredits:
             shutil.rmtree(folder, ignore_errors=True)
             raise

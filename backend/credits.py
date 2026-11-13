@@ -4,6 +4,8 @@ Test credits for the invite-only beta.
 Every signed-in person gets REWIRE_TEST_CREDITS credits (default 60) the first time they use Rewire. Analyses cost by
 length, since GPU time grows with it: one credit per REWIRE_SECONDS_PER_CREDIT seconds of video (default 10, so about
 the GPU cost of ten seconds), rounded up per video, at least one. A 30-second ad costs 3; comparing two costs 6.
+A bigger simulated audience adds a little: up to REWIRE_VIEWER_SURCHARGE (default 0.5, so half as much again) at
+1,000 viewers, in proportion above 200, rounded up. The same 30-second ad costs 4 at 400 viewers and 5 at 1,000.
 Credits are taken when an analysis starts (once the videos' lengths are measured) and given back if it fails or is
 cancelled. When the grant is raised, everyone who started under a lower one gets the difference. Admins (REWIRE_ADMINS, comma-separated Clerk user ids) can see every tester and add credits.
 
@@ -27,6 +29,8 @@ import runs
 GRANT = int(os.environ.get("REWIRE_TEST_CREDITS", "60"))
 SECONDS_PER_CREDIT = max(1, int(os.environ.get("REWIRE_SECONDS_PER_CREDIT", "10")))
 GRACE_S = 0.5
+VIEWER_SURCHARGE = max(0.0, float(os.environ.get("REWIRE_VIEWER_SURCHARGE", "0.5")))
+VIEWERS_BASE, VIEWERS_TOP = 200, 1000     # the default audience, and the size that costs the full surcharge
 ADMINS = {u.strip() for u in os.environ.get("REWIRE_ADMINS", "").split(",") if u.strip()}
 HISTORY_KEPT = 200
 
@@ -48,10 +52,13 @@ def is_admin(user: str | None = None) -> bool:
     return (user or auth.current_user()) in ADMINS
 
 
-def cost(seconds: list[float]) -> int:
-    """Credits for an analysis of videos of these lengths: per video, one per started SECONDS_PER_CREDIT, at least 1."""
+def cost(seconds: list[float], viewers: int = VIEWERS_BASE) -> int:
+    """Credits for an analysis of videos of these lengths: per video, one per started SECONDS_PER_CREDIT, at least 1,
+    plus the audience surcharge for more than 200 simulated viewers."""
     # Half a second of grace, so a 30.03-second "30-second ad" isn't charged for a fourth block of 10.
-    return sum(max(1, math.ceil(max(0.0, s - GRACE_S) / SECONDS_PER_CREDIT - 1e-9)) for s in seconds) or 1
+    base = sum(max(1, math.ceil(max(0.0, s - GRACE_S) / SECONDS_PER_CREDIT - 1e-9)) for s in seconds) or 1
+    share = max(0, viewers - VIEWERS_BASE) / (VIEWERS_TOP - VIEWERS_BASE)
+    return base + math.ceil(base * VIEWER_SURCHARGE * share - 1e-9)
 
 
 def _path(user: str) -> Path:
@@ -130,7 +137,8 @@ def summary(user: str | None = None, email: str | None = None) -> dict:
     """The user's balance (created with the beta grant on first use). Records their email for the admin list."""
     user = user or auth.current_user()
     if not enforced():
-        return {"enforced": False, "balance": None, "seconds_per_credit": SECONDS_PER_CREDIT, "admin": False}
+        return {"enforced": False, "balance": None, "seconds_per_credit": SECONDS_PER_CREDIT,
+                "viewer_surcharge": VIEWER_SURCHARGE, "admin": False}
     with _lock:
         ledger = _read(user)
         fresh = not _path(user).exists()
@@ -141,14 +149,16 @@ def summary(user: str | None = None, email: str | None = None) -> dict:
         if fresh:
             _write(user, ledger)
     return {"enforced": True, "balance": ledger["balance"], "granted": ledger["granted"], "used": ledger["used"],
-            "seconds_per_credit": SECONDS_PER_CREDIT, "admin": is_admin(user), "usage": usage(ledger)}
+            "seconds_per_credit": SECONDS_PER_CREDIT, "viewer_surcharge": VIEWER_SURCHARGE, "admin": is_admin(user),
+            "usage": usage(ledger)}
 
 
-def charge(seconds: list[float], ref: str) -> int:
-    """Takes the credits for an analysis of videos of these lengths, or raises InsufficientCredits. Returns the amount."""
+def charge(seconds: list[float], ref: str, viewers: int = VIEWERS_BASE) -> int:
+    """Takes the credits for an analysis of videos of these lengths with this many simulated viewers, or raises
+    InsufficientCredits. Returns the amount."""
     if not enforced():
         return 0
-    amount = cost(seconds)
+    amount = cost(seconds, viewers)
     user = auth.current_user()
     with _lock:
         ledger = _read(user)
@@ -157,7 +167,8 @@ def charge(seconds: list[float], ref: str) -> int:
         if ledger["balance"] < amount:
             raise InsufficientCredits(amount, ledger["balance"])
         lengths = " and ".join(f"{round(s)}s" for s in seconds)
-        _change(user, -amount, f"Analysis of {len(seconds)} video{'s' if len(seconds) != 1 else ''} ({lengths})", ref)
+        audience = f", {viewers:,} viewers" if viewers != VIEWERS_BASE else ""
+        _change(user, -amount, f"Analysis of {len(seconds)} video{'s' if len(seconds) != 1 else ''} ({lengths}{audience})", ref)
     return amount
 
 

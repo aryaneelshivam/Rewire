@@ -34,6 +34,7 @@ FRONTEND_ORIGINS = [
 # comma-separated; find them under Users in the Clerk dashboard).
 TEST_CREDITS = 60
 SECONDS_PER_CREDIT = 10
+VIEWER_SURCHARGE = 0.5      # extra share of the cost at 1,000 simulated viewers (in proportion above 200)
 ADMINS = "user_3LzYeTNK3jepPAap9BnXpkcc8FD"
 
 app = modal.App("rewire-api")
@@ -58,7 +59,8 @@ image = (
     .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
           "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS),
           "REWIRE_TEST_CREDITS": str(TEST_CREDITS),
-          "REWIRE_SECONDS_PER_CREDIT": str(SECONDS_PER_CREDIT), "REWIRE_ADMINS": ADMINS})
+          "REWIRE_SECONDS_PER_CREDIT": str(SECONDS_PER_CREDIT), "REWIRE_VIEWER_SURCHARGE": str(VIEWER_SURCHARGE),
+          "REWIRE_ADMINS": ADMINS})
     .add_local_file(ROOT / "brand_A_predictions.pkl", "/root/brand_A_predictions.pkl")
     .add_local_file(ROOT / "brand_B_predictions.pkl", "/root/brand_B_predictions.pkl")
     .add_local_dir(ROOT / "backend", "/root/backend", ignore=["data", "data/**", "**/__pycache__", "**/*.pyc", ".env", "**/.env"])
