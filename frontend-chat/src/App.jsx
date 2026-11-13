@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Menu, Paperclip, Plus, Users, X, Square, Check, Loader2 } from 'lucide-react';
+import { ArrowUp, Menu, Paperclip, Plus, X, Square, Check, Loader2 } from 'lucide-react';
+import AudiencePicker from './AudiencePicker';
 import * as api from './api';
 import { buildInsights, routeQuestion, TOPICS } from './insights';
 import { ANSWERS, Verdict } from './answers';
@@ -10,7 +11,6 @@ const THEMES = [
   { key: 'night', label: 'Night' },
   { key: 'bold', label: 'Bold' },
 ];
-const VIEWER_OPTIONS = [200, 400, 600, 800, 1000];
 const MAX_FILES = 2;
 const MAX_SECONDS = 180;
 const ACCEPT = 'video/mp4,video/quicktime,video/webm,video/x-m4v,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv';
@@ -79,6 +79,9 @@ export default function App() {
 
   const refreshRuns = useCallback(() => api.fetchRuns().then(r => { setRuns(r.runs ?? []); setOffline(false); }).catch(() => setOffline(true)), []);
   useEffect(() => { refreshRuns(); }, [refreshRuns]);
+  // How credits are counted (per seconds of video, and the bigger-audience surcharge), for the audience picker.
+  const [credits, setCredits] = useState(null);
+  useEffect(() => { api.fetchStatus().then(s => setCredits(s.credits ?? null)).catch(() => {}); }, []);
 
   const add = (...msgs) => setMessages(m => [...m, ...msgs]);
   const patch = (id, change) => setMessages(m => m.map(x => (x.id === id ? { ...x, ...change } : x)));
@@ -283,12 +286,8 @@ export default function App() {
             />
             <div className="composer-row">
               <button type="button" className="icon-btn" onClick={() => picker.current?.click()} disabled={busy || files.length >= MAX_FILES} aria-label="Attach a video"><Paperclip size={18} /></button>
-              <label className="audience">
-                <Users size={15} aria-hidden="true" />
-                <select value={viewers} onChange={e => setViewers(Number(e.target.value))} disabled={busy} aria-label="Simulated viewers">
-                  {VIEWER_OPTIONS.map(n => <option key={n} value={n}>{n.toLocaleString('en')} viewers</option>)}
-                </select>
-              </label>
+              <AudiencePicker value={viewers} onChange={setViewers} disabled={busy} credits={credits}
+                lengths={files.length && files.every(f => f.seconds > 0) ? files.map(f => f.seconds) : []} />
               <button type="submit" className="send" disabled={!ready} aria-label="Send"><ArrowUp size={18} /></button>
             </div>
             <input ref={picker} type="file" accept={ACCEPT} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />

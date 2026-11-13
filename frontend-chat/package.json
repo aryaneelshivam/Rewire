@@ -10,6 +10,7 @@
     "preview": "vite preview --port 5174"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
