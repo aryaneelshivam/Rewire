@@ -238,8 +238,11 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 /* A compact player, so the timeline is in view with it. */
 .results .player-panel { gap: 10px; }
-.results .player-stage { flex: none; min-height: 0; height: clamp(150px, 25vh, 300px); }
-.results .player-stage video { max-height: 100%; }
+/* The stage takes the video's own shape, so there's no black box around it: landscape fills the width, portrait
+   stands centred, both capped in height so the timeline stays in view. */
+.results .player-stage { flex: none; min-height: 0; height: auto; display: flex; justify-content: center; background: none; border-radius: 0; overflow: visible; }
+.results .player-stage video { display: block; width: auto; height: auto; max-width: 100%; max-height: clamp(200px, 36vh, 400px); border-radius: 14px; background: #000; }
+.results .player-stage:not(:has(video)) { min-height: 160px; border-radius: 14px; background: var(--surface-muted); }
 /* Compact controls: one slim row of small buttons, the scrubber, then the time. The peak's label goes (the timeline
    and the readout both show the best moment). The Arc slider's parts are CSS-module classes, matched by prefix. */
 .results .player-controls.player-controls { grid-template-columns: auto auto auto minmax(0, 1fr); align-items: center; gap: 4px; }
@@ -476,7 +479,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   [data-look="aura"] .results-top { align-items: stretch; gap: 0; }
   [data-look="aura"] .results .now { padding: 0 0 0 22px; margin-left: 22px; border-top: 0; border-left: 1px solid var(--ws-line); }
 }
-[data-look="aura"] .results .player-stage { border-radius: 14px; }
 [data-look="aura"] .results .now-bar { background: rgb(19 19 18 / .07); }
 [data-look="aura"] .drv-legend { margin: 0; }
 /* The chat beside the results, and the header above them: solid, in the same family as the page. */
