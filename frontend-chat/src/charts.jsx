@@ -1,5 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { clock } from './insights';
+import { Compact } from './compact';
 
 /**
  * Minimal charts for the chat: an attention line, plain bars and A-versus-B bars. No axes or numbers that only make
@@ -32,7 +33,7 @@ export function AttentionChart({ series, marks = [], bands = [], upTo, label = '
   const id = useId();
   const [hover, setHover] = useState(null);
   const [frame, W] = useWidth();
-  const H = W < 480 ? 140 : 160;
+  const H = useContext(Compact) ? 112 : W < 480 ? 140 : 160;
   const lengths = series.map(s => (upTo ? Math.min(upTo, s.curve.length) : s.curve.length));
   const n = Math.max(2, ...lengths);
   const all = series.flatMap((s, i) => s.curve.slice(0, lengths[i]));

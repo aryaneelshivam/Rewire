@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { LineChart } from '@/components/arc/line-chart/line-chart';
 import { Sparkline } from '@/components/arc/sparkline/sparkline';
 import { DonutChart } from '@/components/arc/donut-chart/donut-chart';
@@ -9,6 +9,9 @@ import { MetricCard } from '@/components/arc/metric-card/metric-card';
 import { AttentionChart, BarList, VersusBars } from './charts';
 import { clock, COHORT_LABELS } from './insights';
 import { COHORTS, MIX, MIX_KEYS } from './detail';
+import { Compact } from './compact';
+
+const useSize = (full, compact) => (useContext(Compact) ? compact : full);
 
 /**
  * The bot's replies about a finished analysis: the verdict, then one answer per follow-up topic. Charts are Arc's
@@ -35,7 +38,8 @@ function indexer(videos) {
 }
 
 /** The attention curve(s) as Arc's interactive line chart: hover for each second, the legend toggles a video. */
-function AttentionLine({ ins, upTo, height = 180 }) {
+function AttentionLine({ ins, upTo, height: full = 180 }) {
+  const height = useSize(full, Math.round(full * 0.7));
   const idx = indexer(ins.videos);
   const n = Math.max(...ins.videos.map(v => v.curve.length));
   const len = upTo ? Math.min(upTo, n) : n;
@@ -110,6 +114,7 @@ export function Verdict({ ins }) {
 
 /** The first eight seconds of each video as Arc sparklines, with how the opening compares. */
 function Opening({ ins }) {
+  const sparkH = useSize(56, 40);
   const idx = indexer(ins.videos);
   const sparks = (
     <div className="sparks">
@@ -117,7 +122,7 @@ function Opening({ ins }) {
         <Sparkline key={v.key} data={v.curve.slice(0, 8).map(idx)} label={ins.mode === 'single' ? 'The first 8 seconds' : v.name}
           value={OPENING[v.hookTag]} change={`${pct(v.hook, v.depth) >= 0 ? '+' : ''}${pct(v.hook, v.depth)}% vs the rest`}
           tone={v.hookTag === 'strong' ? 'success' : v.hookTag === 'slow' ? 'warning' : 'accent'}
-          labels={v.curve.slice(0, 8).map((_, t) => clock(Math.max(0, t - LAG)))} formatValue={x => `${Math.round(x)}`} width={260} height={56} />
+          labels={v.curve.slice(0, 8).map((_, t) => clock(Math.max(0, t - LAG)))} formatValue={x => `${Math.round(x)}`} width={260} height={sparkH} />
       ))}
     </div>
   );
@@ -172,6 +177,7 @@ const avg = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 /** What carries it: the share of each driver (donut), and for a comparison, A against B per driver. */
 function Working({ ins }) {
+  const donut = useSize({ size: 168, thickness: 20 }, { size: 128, thickness: 16 });
   if (ins.mode === 'single') {
     const v = ins.videos[0];
     const [first, second] = v.drivers;
@@ -181,7 +187,7 @@ function Working({ ins }) {
         <p>Most of the pull comes from <strong>{first.label.toLowerCase()}</strong> ({first.means}) and <strong>{second.label.toLowerCase()}</strong> ({second.means}).</p>
         <div className="donut-wrap">
           <DonutChart data={positive.map(d => ({ key: d.key, label: d.label, value: Math.round(d.value * 1000) / 10 }))}
-            label="What drives it" formatValue={x => x.toFixed(0)} totalLabel="Total pull" size={168} thickness={20} maxSegments={6} otherLabel="Other" />
+            label="What drives it" formatValue={x => x.toFixed(0)} totalLabel="Total pull" size={donut.size} thickness={donut.thickness} maxSegments={6} otherLabel="Other" />
         </div>
         <MixStream v={v} />
       </div>
@@ -204,6 +210,7 @@ function Working({ ins }) {
 
 /** The drivers over time as Arc's streamgraph: which ones swell and fade through the video. */
 function MixStream({ v, title = 'How the pull shifts through the video' }) {
+  const streamH = useSize(200, 140);
   if (!v?.detail) return null;
   const { mix, n } = v.detail;
   const floor = Math.min(...MIX_KEYS.flatMap(k => mix[k]));
@@ -216,13 +223,15 @@ function MixStream({ v, title = 'How the pull shifts through the video' }) {
     <div className="answer-block">
       <p className="answer-sub">{title}</p>
       <Streamgraph data={data} series={MIX_KEYS.map(k => ({ key: k, label: MIX[k], color: `var(--drv-${k})` }))}
-        label={title} height={200} offset="wiggle" categoryLabel="Moment" formatValue={x => x.toFixed(1)} legend directLabels={false} />
+        label={title} height={streamH} offset="wiggle" categoryLabel="Moment" formatValue={x => x.toFixed(1)} legend directLabels={false} />
     </div>
   );
 }
 
 /** Who it lands with: each audience's spread over the video (ridgeline), or A against B per audience (slope). */
 function Audience({ ins }) {
+  const rowH = useSize(30, 22);
+  const slopeH = useSize(220, 160);
   if (ins.mode === 'single') {
     const v = ins.videos[0];
     const d = v.detail;
@@ -237,7 +246,7 @@ function Audience({ ins }) {
           <div className="answer-block">
             <p className="answer-sub">How steady each audience is, second to second</p>
             <Ridgeline series={COHORTS.filter(c => d.audiences[c]).map(c => ({ id: c, label: COHORT_LABELS[c], values: d.audiences[c].map(x => Math.round((x - lo) / (hi - lo || 1) * 100)) }))}
-              label="Each audience's response across the video" domain={[0, 100]} formatValue={x => `${Math.round(x)}`} rowHeight={30} />
+              label="Each audience's response across the video" domain={[0, 100]} formatValue={x => `${Math.round(x)}`} rowHeight={rowH} />
           </div>
         )}
       </div>
@@ -258,7 +267,7 @@ function Audience({ ins }) {
     <div className="answer">
       <p>{aLeads === rows.length ? `${a.name} wins with every age group.` : aLeads === 0 ? `${b.name} wins with every age group.` : `It splits: ${a.name} wins with ${aLeads} of ${rows.length} age groups.`}</p>
       <SlopeChart data={scaled} label="Each audience, from one version to the other" startLabel={a.name} endLabel={b.name}
-        formatValue={x => `${Math.round(x)}`} formatChange={c => `${c > 0 ? '+' : ''}${Math.round(c)}`} height={220} />
+        formatValue={x => `${Math.round(x)}`} formatChange={c => `${c > 0 ? '+' : ''}${Math.round(c)}`} height={slopeH} />
     </div>
   );
 }

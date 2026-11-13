@@ -6,6 +6,7 @@ import { buildInsights, routeQuestion, TOPICS } from './insights';
 import { ANSWERS, Verdict } from './answers';
 import Mascot from './Mascot';
 import Peek from './Peek';
+import { Compact } from './compact';
 import ResultsView from './ResultsView';
 import StartScreen from './StartScreen';
 
@@ -378,7 +379,7 @@ export default function App() {
               <span className="sheet-title">Ask Rewire</span>
               <button type="button" className="icon-btn" onClick={() => setChatOpen(false)} aria-label="Hide chat"><X size={18} /></button>
             </header>
-            {thread}
+            <Compact.Provider value={true}>{thread}</Compact.Provider>
             {composer}
           </div>
         </aside>

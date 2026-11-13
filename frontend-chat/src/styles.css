@@ -659,10 +659,32 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .ai-inner { width: clamp(340px, 30vw, 420px); height: 100%; display: flex; flex-direction: column; min-height: 0; }
   .ai-head { display: flex; align-items: center; gap: 10px; min-height: 57px; padding: 6px 8px 6px 14px; border-bottom: var(--c-border); }
   .ai-side .thread { flex: 1; }
-  .ai-side .thread-inner { padding: 16px 14px 8px; gap: 16px; }
+  .ai-side .thread-inner { padding: 12px 12px 6px; gap: 12px; }
   .ai-side .avatar { display: none; }
-  .ai-side .answer { padding: 14px; }
-  .ai-side .verdict-head { font-size: 20px; }
+  /* Compact: the sidebar is a narrow column, so answers tighten up (charts also draw shorter, see compact.js). */
+  .ai-side .answer { padding: 12px; gap: 9px; border-radius: 16px; font-size: 14px; line-height: 1.45; }
+  .ai-side .answer p { margin: 0; }
+  .ai-side .answer-block { gap: 8px; }
+  .ai-side .answer-block + .answer-block { padding-top: 10px; }
+  .ai-side .verdict-head { font-size: 17px; line-height: 1.2; }
+  .ai-side .bubble { font-size: 14px; padding: 8px 12px; }
+  .ai-side .msg-videos figure { width: 72px; }
+  .ai-side .metrics { gap: 6px; }
+  .ai-side .metrics > [class*="_card_"] { padding: 10px 12px; gap: 4px; border-radius: 12px; }
+  .ai-side .metrics [class*="_counter_"] { font-size: 24px; }
+  .ai-side .metrics [class*="_top_"] { margin-bottom: 8px; }
+  .ai-side .metrics [class*="_top_"], .ai-side .metrics p { font-size: 12px; }
+  .ai-side .versus-table { font-size: 13px; }
+  .ai-side .versus-table th, .ai-side .versus-table td { padding: 5px 4px; }
+  .ai-side .versus li { grid-template-columns: 78px minmax(0, 1fr); gap: 8px; }
+  .ai-side .versus ul { gap: 7px; }
+  .ai-side .versus-label { font-size: 12.5px; }
+  .ai-side .versus-head { padding-left: 86px; }
+  .ai-side .fixes { gap: 6px; padding-left: 18px; }
+  .ai-side .sparks { gap: 6px; }
+  .ai-side .chips { gap: 6px; }
+  .ai-side .chip { min-height: 30px; padding: 0 11px; font-size: 13px; }
+  .ai-side [class*="_legend_"] > [class*="_toggle_"] { font-size: 12px; min-height: 0; padding: 2px 6px; }
   .ai-side .composer-wrap { padding: 6px 12px 14px; }
   .ai-side .upload-zone { flex-direction: column; align-items: flex-start; }
 }
