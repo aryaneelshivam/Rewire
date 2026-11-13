@@ -14,6 +14,7 @@ const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,
 const MAX_MB = 500;
 const MAX_SECONDS = 180;
 const VIEWERS_KEY = 'rewire:viewers';
+const VIEWER_STEPS = Array.from({ length: (VIEWERS.max - VIEWERS.min) / VIEWERS.step + 1 }, (_, i) => VIEWERS.min + i * VIEWERS.step);
 
 /** The audience size this person chose last time, if this browser remembers it. */
 function rememberedViewers() {
@@ -153,26 +154,22 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
           />
         </section>
 
-        <section className="viewer-choice" aria-label="Simulated audience">
+        <div className="viewer-choice">
           <Slider
+            className="viewer-slider"
             label="Simulated viewers"
             value={viewers}
             onValueChange={chooseViewers}
             min={VIEWERS.min}
             max={VIEWERS.max}
             step={VIEWERS.step}
-            largeStep={200}
-            marks={[{ value: VIEWERS.min, label: viewerCount(VIEWERS.min) }, { value: 600 }, { value: VIEWERS.max, label: viewerCount(VIEWERS.max) }]}
+            largeStep={VIEWERS.step * 2}
+            marks={VIEWER_STEPS}
             format={viewerCount}
-            showValue
             disabled={!!busy}
           />
-          <p className="viewer-note">
-            {viewers > VIEWERS.default
-              ? 'More viewers smooth the averages and steady close calls; the results themselves barely change. Simulating them adds time to the analysis and a few credits to its cost.'
-              : 'Split evenly across four age groups. More viewers smooth the averages and steady close calls, and add a little time and cost.'}
-          </p>
-        </section>
+          <p className="viewer-note">More viewers smooth the averages. They add time and a little to the cost.</p>
+        </div>
 
         {credits?.enforced && (() => {
           const per = credits.seconds_per_credit ?? 10;
