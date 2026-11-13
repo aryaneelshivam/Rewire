@@ -433,22 +433,27 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 [data-look="aura"] .msg-videos figure { border-color: rgb(255 255 255 / .9); box-shadow: var(--c-shadow); }
 
 /* ── Aura, after an analysis: the gradient is for arriving; the results are a workspace. Once they load the
-   gradient fades to a solid warm off-white, and the panels are plain white cards with a hairline edge. ── */
+   gradient fades to a solid warm off-white and the results lie flat on it, split by hairlines. ── */
 [data-look="aura"] .app { --ws-bg: #f4f0e9; --ws-side: #faf7f2; --ws-line: rgb(19 19 18 / .08); transition: background-color .7s ease; }
 [data-look="aura"] .app[data-results] { background-color: var(--ws-bg); }
-[data-look="aura"] .results { gap: 14px; }
+[data-look="aura"] .results { gap: 18px; }
+/* Flat: no cards. The player sits on the page, the readout is set off by a hairline, the timeline by a rule above. */
 [data-look="aura"] .results .player-panel,
 [data-look="aura"] .results .now,
 [data-look="aura"] .results .timeline {
-  padding: 14px 16px; border: 1px solid var(--ws-line); border-radius: 20px;
-  background: #ffffff; box-shadow: 0 1px 2px rgb(60 40 20 / .04);
+  padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-[data-look="aura"] .results .timeline { padding: 16px 18px 18px; }
+[data-look="aura"] .results .timeline { padding-top: 18px; border-top: 1px solid var(--ws-line); }
+[data-look="aura"] .results .now { padding-top: 14px; border-top: 1px solid var(--ws-line); }
+@container (min-width: 760px) {
+  [data-look="aura"] .results-top { align-items: stretch; gap: 0; }
+  [data-look="aura"] .results .now { padding: 0 0 0 22px; margin-left: 22px; border-top: 0; border-left: 1px solid var(--ws-line); }
+}
 [data-look="aura"] .results .player-stage { border-radius: 14px; }
 [data-look="aura"] .results .now-bar { background: rgb(19 19 18 / .07); }
 [data-look="aura"] .results .lane-aud-row { background: rgb(19 19 18 / .05); }
-[data-look="aura"] .drv-legend { padding: 8px 14px; border-radius: 99px; background: #ffffff; border: 1px solid var(--ws-line); justify-self: start; align-self: flex-start; margin: 0; }
+[data-look="aura"] .drv-legend { margin: 0; }
 /* The chat beside the results, and the header above them: solid, in the same family as the page. */
 [data-look="aura"] .ai-side, [data-look="aura"] .sheet { background: var(--ws-side); border-left-color: var(--ws-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 [data-look="aura"] .ai-side .answer, [data-look="aura"] .sheet .answer { background: #ffffff; border-color: rgb(19 19 18 / .07); box-shadow: 0 1px 2px rgb(60 40 20 / .05); }
