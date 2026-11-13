@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle } from 'lucide-react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle, Coins, HelpCircle, PlayCircle, LogOut } from 'lucide-react';
+import { AccountContext } from '@/lib/auth-config';
 import AudiencePicker from './AudiencePicker';
 import * as api from './api';
 import { buildInsights, routeQuestion, TOPICS } from './insights';
@@ -341,6 +342,8 @@ export default function App() {
               </button>
             ))}
           </nav>
+          <SideFooter credits={credits} runs={runs} onHow={() => { setStarted(true); ask('how'); if (!wide) setMenu(false); }}
+            onSample={() => { sample(); if (!wide) setMenu(false); }} busy={busy} />
         </div>
       </aside>
       {menu && !wide && <div className="scrim" onClick={() => setMenu(false)} />}
@@ -394,6 +397,53 @@ export default function App() {
         </aside>
       )}
     </div>
+  );
+}
+
+/**
+ * The bottom of the history sidebar: what's in the history, the credits left and how they're charged, help, and who
+ * is signed in (with sign out). Without sign-in it says this is a local workspace.
+ */
+function SideFooter({ credits, runs, onHow, onSample, busy }) {
+  const account = useContext(AccountContext);
+  const compares = runs.filter(r => r.mode === 'compare').length;
+  const enforced = credits?.enforced;
+  const balance = credits?.balance ?? 0;
+  const granted = Math.max(credits?.granted ?? 0, balance + (credits?.used ?? 0), 1);
+  const low = enforced && balance < 3;
+  const initial = (account?.name || account?.email || '?').trim().charAt(0).toUpperCase();
+  return (
+    <footer className="side-foot">
+      {runs.length > 0 && (
+        <p className="side-stat">{runs.length} {runs.length === 1 ? 'analysis' : 'analyses'}{compares ? ` · ${compares} ${compares === 1 ? 'comparison' : 'comparisons'}` : ''}</p>
+      )}
+      {enforced && (
+        <div className="side-credits" data-low={low || undefined}>
+          <p className="side-credits-head"><Coins size={14} aria-hidden="true" /><strong>{balance}</strong> {balance === 1 ? 'credit left' : 'credits left'}</p>
+          <div className="acct-meter" role="meter" aria-label="Credits left" aria-valuemin={0} aria-valuemax={granted} aria-valuenow={balance}>
+            <span style={{ width: `${Math.min(100, (balance / granted) * 100)}%` }} />
+          </div>
+          <p className="side-fine">1 credit per {credits.seconds_per_credit ?? 10} seconds of video; bigger audiences cost a little more.{low ? ' Running low? Ask the Rewire team for more.' : ''}</p>
+        </div>
+      )}
+      <div className="side-links">
+        <button type="button" onClick={onHow}><HelpCircle size={15} aria-hidden="true" />How Rewire works</button>
+        <button type="button" onClick={onSample} disabled={busy}><PlayCircle size={15} aria-hidden="true" />Try the sample</button>
+      </div>
+      {account ? (
+        <div className="side-account">
+          {account.imageUrl
+            ? <img className="acct-avatar" src={account.imageUrl} alt="" referrerPolicy="no-referrer" />
+            : <span className="acct-avatar" aria-hidden="true">{initial}</span>}
+          <span className="side-account-id">
+            <strong>{account.name || account.email}</strong>
+            {account.name && account.email && <span>{account.email}</span>}
+          </span>
+          <button type="button" className="icon-btn" onClick={account.signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>
+        </div>
+      ) : null}
+      <p className="side-fine side-legal">{account ? 'Private beta. Your videos and results are private to your account.' : 'Local workspace: sign-in is off, so everything here stays on this computer.'}</p>
+    </footer>
   );
 }
 

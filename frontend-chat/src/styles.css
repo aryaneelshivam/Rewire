@@ -100,6 +100,24 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .side-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .side-meta, .side-empty { font-size: 13px; color: var(--c-text-3); }
 .side-empty { padding: 4px 10px; margin: 0; }
+/* The sidebar's foot: history count, credits, help, the signed-in person, and a line on privacy. */
+.side-foot { flex: none; display: grid; gap: 10px; padding: 12px 4px 0; border-top: 1px solid rgb(19 19 18 / .08); }
+.side-stat { margin: 0 6px; font-size: 12px; color: var(--c-text-3); }
+.side-credits { display: grid; gap: 6px; padding: 10px 12px; border-radius: 14px; background: rgb(255 255 255 / .7); border: 1px solid rgb(19 19 18 / .06); }
+.side-credits-head { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-text-2); }
+.side-credits-head svg { color: #c98a1b; }
+.side-credits-head strong { font-size: 16px; color: var(--c-text); font-variant-numeric: tabular-nums; }
+.side-credits[data-low] .side-credits-head strong { color: #b4471c; }
+.side-fine { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--c-text-3); }
+.side-links { display: grid; gap: 2px; }
+.side-links button { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 10px; background: none; color: var(--c-text-2); font-size: 13.5px; text-align: left; cursor: pointer; }
+.side-links button:hover:not(:disabled) { background: rgb(19 19 18 / .05); color: var(--c-text); }
+.side-account { display: flex; align-items: center; gap: 10px; padding: 4px 0 0 4px; min-width: 0; }
+.side-account .acct-avatar { width: 32px; height: 32px; font-size: 13px; }
+.side-account-id { flex: 1; display: grid; min-width: 0; }
+.side-account-id strong { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-account-id span { font-size: 12px; color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-legal { padding: 0 6px; }
 
 /* ── Messages ─────────────────────────────────────────── */
 .msg { display: flex; gap: 12px; animation: rise .35s cubic-bezier(.2, .8, .2, 1) both; }
