@@ -11,6 +11,7 @@ import { Input } from '@/components/arc/input/input';
 import { EVENT_TYPES, buildTrack, meanOver, fmtClock } from '@/lib/timeline-events';
 import { useVideoAnalyses } from '@/lib/use-video-analysis';
 import { ChipGroup } from '@/components/arc/chip-group/chip-group';
+import './CreativeTimeline.css';
 
 const ICONS = { cut: Scissors, dialogue: MessageSquare, sound: Music, brand: Tag, cta: MousePointerClick, rise: TrendingUp, fall: TrendingDown, peak: Star, bookmark: Bookmark, reveal: Flag };
 const FILTERS = [
@@ -48,7 +49,11 @@ function stack(events, duration, gap = 2.4, rows = 2) {
  * The creative on a time axis: a filmstrip per variant, cut into scenes and narrative sections, with markers for
  * what happens and where the predicted response moves. It navigates and annotates; the charts live in the tabs.
  */
-export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, focus, onFocusChange, onOpenTab, onPlayRange, loopRange, storageKey }) {
+/**
+ * eventTypes overrides how markers are named and sourced (EVENT_TYPES by default); without onOpenTab the
+ * "Open in" menus are left out, for hosts that have no analysis tabs to open.
+ */
+export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, focus, onFocusChange, onOpenTab, onPlayRange, loopRange, storageKey, eventTypes = EVENT_TYPES }) {
   const videoOf = useVideoAnalyses(tracks.map(t => t.videoUrl), fullDuration);
   const all = useMemo(() => tracks.map(track => {
     const video = videoOf(track.videoUrl);
@@ -130,7 +135,7 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
   const looping = loopRange && range && loopRange.start === spanFor(built[0])?.start && loopRange.end === spanFor(built[0])?.end;
 
   const marker = (track, e) => {
-    const meta = EVENT_TYPES[e.type];
+    const meta = eventTypes[e.type] ?? EVENT_TYPES[e.type];
     return (
       <Popover key={e.id}>
         <PopoverTrigger asChild>
@@ -150,7 +155,7 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
           <p className="tl-pop-source">{meta.source}.</p>
           <div className="tl-pop-actions">
             <Button size="sm" variant="secondary" onClick={() => addBookmark('bookmark', Math.floor(e.t))}>Bookmark</Button>
-            <DropdownMenu label="Open in" items={openIn(e.t)} />
+            {onOpenTab && <DropdownMenu label="Open in" items={openIn(e.t)} />}
           </div>
         </PopoverContent>
       </Popover>
@@ -293,7 +298,7 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
               <Repeat size={16} strokeWidth={1.75} aria-hidden="true" />{looping ? 'Stop loop' : 'Loop range'}
             </Button>
             <Button size="sm" variant="secondary" onClick={() => addBookmark('bookmark', Math.floor(range.start), Math.ceil(range.end))}>Bookmark range</Button>
-            <DropdownMenu label="Open in" items={openIn(range.start)} />
+            {onOpenTab && <DropdownMenu label="Open in" items={openIn(range.start)} />}
             <Button size="sm" variant="ghost" onClick={() => { setRange(null); if (looping) onPlayRange(null); }}>Clear</Button>
           </div>
         </div>
@@ -312,7 +317,7 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
                       {icon(b.kind, 14)}{fmtClock(b.t)}{b.end != null && `–${fmtClock(b.end)}`}
                     </Button>
                     <Input label={b.kind === 'reveal' ? 'Product reveal note' : 'Note'} value={b.note} placeholder="What happens here" onChange={e => setBookmarks(list => list.map(x => x.id === b.id ? { ...x, note: e.target.value } : x))} />
-                    <DropdownMenu label="Open in" items={openIn(b.t)} />
+                    {onOpenTab && <DropdownMenu label="Open in" items={openIn(b.t)} />}
                     <Tooltip content="Remove">
                       <Button size="sm" variant="ghost" className="icon-only" aria-label={`Remove the note at ${fmtClock(b.t)}`} onClick={() => setBookmarks(list => list.filter(x => x.id !== b.id))}><Trash2 size={16} strokeWidth={1.75} aria-hidden="true" /></Button>
                     </Tooltip>

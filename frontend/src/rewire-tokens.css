@@ -1,0 +1,65 @@
+/* Rewire's tokens on top of Arc's foundation: the two variants' colours and a few tokens raised to WCAG AA.
+   Shared by the dashboard (index.css) and the chat frontend, which reuses the player and timeline. */
+:root {
+  --font-geist: "Geist";
+  --font-inter: "Inter";
+
+  /* The two creatives. A carries the accent, B stays neutral. */
+  --variant-a: var(--accent);
+  --variant-a-soft: var(--accent-subtle);
+  --variant-b: oklch(56% 0 0);           /* B's lines and marks clear the 3:1 non-text bar */
+  --series-1: var(--variant-a);
+
+  /* Chart palette. Colour is used only inside charts; the interface around them stays neutral.
+     Every mark below clears 3:1 against white (WCAG 1.4.11). */
+  --chart-a: var(--accent);              /* Variant A: Arc blue */
+  --chart-b: oklch(60% .17 45);          /* Variant B: warm orange, the complement of A */
+  /* Numbers are text, so they need 4.5:1, not the 3:1 of chart marks. */
+  --num-a: var(--accent-strong);         /* deep blue */
+  --num-b: oklch(52% .16 42);            /* deep orange */
+  --chart-tie: oklch(64% 0 0);
+  /* Categories (networks, regions) come from Arc's own tone palette, so hues stay in the system. */
+  --chart-1: var(--tone-sky);
+  --chart-2: var(--tone-teal);
+  --chart-3: var(--tone-violet);
+  --chart-4: var(--tone-amber);
+  --chart-5: var(--tone-rose);
+  --chart-6: var(--tone-orchid);
+  --chart-7: var(--tone-green);
+
+  /* WCAG AA. Arc's muted grey (4.1:1) and control edges (1.2:1) fall short on white. */
+  --text-muted: oklch(52% 0 0);          /* text: 4.5:1 or more on white and on the muted surface */
+  --control-edge: oklch(60% 0 0);        /* 3:1 or more: the edge of a control that has no fill */
+  --control-track: oklch(64% 0 0);       /* 3:1 or more: slider rail */
+  --focus-outline: var(--accent-strong); /* keyboard focus ring at full strength */
+
+  --header-h: 64px;
+
+  --gutter: clamp(16px, 4vw, 40px);
+
+  /* Aliases kept for the printable report, which has its own inline styles. */
+  --ink: var(--foreground);
+  --body: var(--text-secondary);
+  --charcoal: var(--text-secondary);
+  --mute: var(--text-muted);
+  --hairline: var(--border);
+  --hairline-strong: var(--control-edge);
+  --surface-soft: var(--surface-muted);
+  --font-mono: var(--font-body);
+  --rounded-sm: 6px;
+  --rounded-md: 10px;
+  --rounded-lg: 16px;
+}
+
+/* Dark theme. Arc's foundation already switches every surface and text token; these replace the light-only
+   AA overrides above with values that clear the same bars on the dark surfaces. */
+:root[data-theme="dark"] {
+  --variant-b: oklch(68% 0 0);
+  --text-muted: oklch(72% 0 0);          /* text: 4.5:1 or more on the dark surfaces */
+  --control-edge: oklch(56% 0 0);        /* 3:1 or more against the dark surface */
+  --control-track: oklch(54% 0 0);
+  --chart-b: oklch(74% .15 50);          /* orange lifted for the dark surface */
+  --num-a: var(--chart-a);
+  --num-b: var(--chart-b);
+  --chart-tie: oklch(58% 0 0);
+}

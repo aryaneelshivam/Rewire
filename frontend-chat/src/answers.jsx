@@ -43,14 +43,14 @@ export function Verdict({ ins }) {
     <div className="answer">
       <p className="verdict-kicker">Verdict · {ins.viewers.toLocaleString('en')} viewers each</p>
       <h2 className="verdict-head">
-        {winner && <span className="winner-dot" style={{ background: `var(--series-${winner.key})` }} aria-hidden="true" />}
+        {winner && <span className="winner-dot" style={{ background: `var(--c-series-${winner.key})` }} aria-hidden="true" />}
         {verdict.headline}
       </h2>
       {verdict.sub && <p>{verdict.sub}</p>}
       <AttentionChart series={series(ins)} marks={ins.videos.map(peakMark)} />
       <table className="versus-table">
         <thead>
-          <tr><th scope="col"><span className="sr-only">Measure</span></th>{ins.videos.map(v => <th key={v.key} scope="col"><span className="stats-name"><i style={{ background: `var(--series-${v.key})` }} />{v.name}</span></th>)}</tr>
+          <tr><th scope="col"><span className="sr-only">Measure</span></th>{ins.videos.map(v => <th key={v.key} scope="col"><span className="stats-name"><i style={{ background: `var(--c-series-${v.key})` }} />{v.name}</span></th>)}</tr>
         </thead>
         <tbody>
           <tr><th scope="row">Opening</th>{ins.videos.map(v => <td key={v.key}>{OPENING[v.hookTag]}</td>)}</tr>
@@ -91,7 +91,7 @@ function Drift({ ins }) {
     <div className="answer">
       {ins.videos.map(v => (
         <div key={v.key} className="answer-block">
-          {ins.mode === 'compare' && <p className="answer-name"><i style={{ background: `var(--series-${v.key})` }} />{v.name}</p>}
+          {ins.mode === 'compare' && <p className="answer-name"><i style={{ background: `var(--c-series-${v.key})` }} />{v.name}</p>}
           {v.dips.length
             ? <p>Attention sags at {v.dips.map(span).join(' and ')}. Those are the stretches to tighten, cut or liven up.</p>
             : <p>No real dips. It holds steady all the way through.</p>}
@@ -152,13 +152,13 @@ function Audience({ ins }) {
           <li key={r.key}>
             <span className="bars-label">{COHORT_LABELS[r.key]}</span>
             <span className="pairs-bars">
-              <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, r.va / top * 100)}%`, background: 'var(--series-A)' }} /></span>
-              <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, r.vb / top * 100)}%`, background: 'var(--series-B)' }} /></span>
+              <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, r.va / top * 100)}%`, background: 'var(--c-series-A)' }} /></span>
+              <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, r.vb / top * 100)}%`, background: 'var(--c-series-B)' }} /></span>
             </span>
           </li>
         ))}
       </ul>
-      <p className="chart-legend"><span><i style={{ background: 'var(--series-A)' }} />{a.name}</span><span><i style={{ background: 'var(--series-B)' }} />{b.name}</span></p>
+      <p className="chart-legend"><span><i style={{ background: 'var(--c-series-A)' }} />{a.name}</span><span><i style={{ background: 'var(--c-series-B)' }} />{b.name}</span></p>
     </div>
   );
 }

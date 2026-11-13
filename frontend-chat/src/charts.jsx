@@ -54,8 +54,8 @@ export function AttentionChart({ series, marks = [], bands = [], upTo, label = '
         <defs>
           {series.map((s, i) => (
             <linearGradient key={s.key} id={`${id}-g${i}`} x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stopColor={`var(--series-${s.key})`} stopOpacity={series.length > 1 ? 0.14 : 0.24} />
-              <stop offset="1" stopColor={`var(--series-${s.key})`} stopOpacity="0" />
+              <stop offset="0" stopColor={`var(--c-series-${s.key})`} stopOpacity={series.length > 1 ? 0.14 : 0.24} />
+              <stop offset="1" stopColor={`var(--c-series-${s.key})`} stopOpacity="0" />
             </linearGradient>
           ))}
         </defs>
@@ -66,12 +66,12 @@ export function AttentionChart({ series, marks = [], bands = [], upTo, label = '
         {series.map((s, i) => (
           <g key={s.key}>
             <path d={`${path(s.curve, lengths[i])}L${x(lengths[i] - 1)},${H - PAD.b}L${x(0)},${H - PAD.b}Z`} fill={`url(#${id}-g${i})`} />
-            <path d={path(s.curve, lengths[i])} className="chart-line" stroke={`var(--series-${s.key})`} />
+            <path d={path(s.curve, lengths[i])} className="chart-line" stroke={`var(--c-series-${s.key})`} />
           </g>
         ))}
         {marks.map((m, i) => (
           <g key={i} className="chart-mark">
-            <circle cx={x(m.at)} cy={y(m.value)} r="5" fill={`var(--series-${m.series ?? 'A'})`} />
+            <circle cx={x(m.at)} cy={y(m.value)} r="5" fill={`var(--c-series-${m.series ?? 'A'})`} />
             <text x={Math.min(W - 36, Math.max(30, x(m.at)))} y={Math.max(12, y(m.value) - 11)} textAnchor="middle">{m.label}</text>
           </g>
         ))}
@@ -81,7 +81,7 @@ export function AttentionChart({ series, marks = [], bands = [], upTo, label = '
       </svg>
       {series.length > 1 && (
         <figcaption className="chart-legend">
-          {series.map(s => <span key={s.key}><i style={{ background: `var(--series-${s.key})` }} />{s.name}</span>)}
+          {series.map(s => <span key={s.key}><i style={{ background: `var(--c-series-${s.key})` }} />{s.name}</span>)}
         </figcaption>
       )}
     </figure>
@@ -96,7 +96,7 @@ export function BarList({ rows, tone = 'A' }) {
       {rows.map((r, i) => (
         <li key={r.key}>
           <span className="bars-label">{r.label}</span>
-          <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, Math.max(0, r.value) / top * 100)}%`, background: `var(--series-${r.tone ?? tone})`, animationDelay: `${i * 60}ms` }} /></span>
+          <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, Math.max(0, r.value) / top * 100)}%`, background: `var(--c-series-${r.tone ?? tone})`, animationDelay: `${i * 60}ms` }} /></span>
           {r.note && <span className="bars-note">{r.note}</span>}
         </li>
       ))}
@@ -118,7 +118,7 @@ export function VersusBars({ rows, names }) {
               <span className="versus-label">{r.label}</span>
               <span className="versus-track">
                 <span className="versus-mid" />
-                <span className="versus-fill" style={{ width: `${w}%`, [r.gap >= 0 ? 'left' : 'right']: '50%', background: `var(--series-${r.gap >= 0 ? 'A' : 'B'})`, animationDelay: `${i * 60}ms` }} />
+                <span className="versus-fill" style={{ width: `${w}%`, [r.gap >= 0 ? 'left' : 'right']: '50%', background: `var(--c-series-${r.gap >= 0 ? 'A' : 'B'})`, animationDelay: `${i * 60}ms` }} />
               </span>
             </li>
           );

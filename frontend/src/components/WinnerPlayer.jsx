@@ -6,6 +6,7 @@ import { Tooltip } from '@/components/arc/tooltip/tooltip';
 import { Badge } from '@/components/arc/badge/badge';
 import { EmptyState } from '@/components/arc/empty-state/empty-state';
 import { PlayPauseIcon } from '@/components/arc/icon-morph/icon-morph';
+import './WinnerPlayer.css';
 
 const SPEEDS = [1, 1.5, 2, 0.5];
 const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

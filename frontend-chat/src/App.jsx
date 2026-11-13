@@ -5,6 +5,7 @@ import * as api from './api';
 import { buildInsights, routeQuestion, TOPICS } from './insights';
 import { ANSWERS, Verdict } from './answers';
 import Mascot from './Mascot';
+import ResultsView from './ResultsView';
 
 const THEMES = [
   { key: 'soft', label: 'Soft' },
@@ -62,10 +63,16 @@ export default function App() {
   const polling = useRef(null);
   const lastSent = useRef([]);           // the videos last sent, put back in the box if the analysis fails
   const [sentCount, setSentCount] = useState(1);
-  const [uploadAgain, setUploadAgain] = useState(false);   // in a chat, the person asked for the upload box back
+  const [uploadAgain, setUploadAgain] = useState(false);
+  const [results, setResults] = useState(null);        // what the player and timeline show
+  const [chatOpen, setChatOpen] = useState(false);     // the conversation popover, over the results   // in a chat, the person asked for the upload box back
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    // The chat's own look, plus the matching Arc theme and accent for the shared player and timeline.
+    const root = document.documentElement;
+    root.dataset.look = theme;
+    root.dataset.theme = theme === 'night' ? 'dark' : 'light';
+    root.dataset.accent = { soft: 'coral', night: 'green', bold: 'rose' }[theme] ?? 'blue';
     store.set('rewire-chat:theme', theme);
     // The phone's status bar and browser chrome take the page's background.
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.body).backgroundColor);
@@ -98,11 +105,14 @@ export default function App() {
     setRunId(id ?? data.status.run?.id ?? null);
     setMessages(m => m.filter(x => x.kind !== 'typing'));
     add({ id: uid(), role: 'bot', kind: 'verdict', ins });
-    return ins;
     replayTopics.forEach(topic => add(
       { id: uid(), role: 'user', text: TOPICS.find(t => t.key === topic)?.label },
       { id: uid(), role: 'bot', kind: 'answer', topic, ins },
     ));
+    // The player and timeline take the page; the conversation opens over them.
+    setResults({ overview: data.overview, media: data.status.media, winner: ins.verdict.winner ?? 'A', key: id ?? data.status.run?.id ?? 'sample' });
+    setChatOpen(true);
+    return ins;
   };
 
   const remember = topic => {
@@ -112,6 +122,7 @@ export default function App() {
   };
 
   const ask = (topic, label) => {
+    setChatOpen(true);
     add({ id: uid(), role: 'user', text: label ?? TOPICS.find(t => t.key === topic)?.label });
     if (topic !== 'how' && !insights) {
       add({ id: uid(), role: 'bot', kind: 'text', text: 'Send me a video first, and I’ll tell you that and more.' });
@@ -147,6 +158,7 @@ export default function App() {
     const text = draft.trim();
     if (busy || !text) return;
     setDraft('');
+    setChatOpen(true);
     const topic = routeQuestion(text);
     if (topic) { ask(topic, text); return; }
     add({ id: uid(), role: 'user', text }, { id: uid(), role: 'bot', kind: 'menu', text: 'I can tell you about any of these:' });
@@ -159,7 +171,7 @@ export default function App() {
     if (files.some(f => f.seconds > MAX_SECONDS)) { setNotice('Videos can be up to 3 minutes long.'); return; }
     const sent = files;
     lastSent.current = sent;
-    setFiles([]); setBusy(true); setSentCount(sent.length);
+    setFiles([]); setBusy(true); setSentCount(sent.length); setChatOpen(true);
     add({ id: uid(), role: 'user', text: sent.length === 2 ? 'Which one works better?' : '', videos: sent.map(f => ({ name: f.file.name, url: f.url })) });
     const msgId = uid();
     add({ id: msgId, role: 'bot', kind: 'progress', viewers, count: sent.length });
@@ -188,7 +200,7 @@ export default function App() {
   const newChat = () => {
     if (busy) return;
     clearTimeout(polling.current);
-    setMessages([GREETING]); setInsights(null); setRunId(null); setMenu(false); setNotice(null); setUploadAgain(false);
+    setMessages([GREETING]); setInsights(null); setRunId(null); setMenu(false); setNotice(null); setUploadAgain(false); setResults(null); setChatOpen(false);
   };
 
   const openPast = async run => {
@@ -196,7 +208,7 @@ export default function App() {
     setMenu(false);
     const msgId = uid();
     setMessages([{ id: msgId, role: 'user', text: run.title }]);
-    setInsights(null);
+    setInsights(null); setResults(null);
     setBusy(true);
     add({ id: uid(), role: 'bot', kind: 'typing' });
     try {
@@ -227,6 +239,17 @@ export default function App() {
     if (mode === 'chat' && window.matchMedia('(hover: hover) and (pointer: fine)').matches) setTimeout(() => textRef.current?.focus(), 380);
   }, [mode]);
   const mood = busy ? 'thinking' : insights ? 'happy' : 'idle';
+
+  const thread = (
+    <div className="thread" ref={scroller}>
+      <div className="thread-inner">
+        {messages.map((m, i) => (
+          <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood}
+            onAsk={ask} onSample={sample} onCancel={cancel} />
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="app" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) { attach(e.dataTransfer.files); setUploadAgain(true); } }}>
@@ -262,16 +285,19 @@ export default function App() {
           <button className="icon-btn drawer-only" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>
         </header>
 
-        <div className="thread" ref={scroller}>
-          <div className="thread-inner">
-            {messages.map((m, i) => (
-              <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood}
-                onAsk={ask} onSample={sample} onCancel={cancel} />
-            ))}
+        {results ? (
+          <div className="results-scroll">
+            <ResultsView key={results.key} overview={results.overview} media={results.media} winner={results.winner}
+              runKey={results.key} onNewVideo={() => setUploadAgain(true)} />
           </div>
-        </div>
+        ) : thread}
 
         <div className="composer-wrap">
+          {results && (
+            <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} mood={mood} busy={busy}>
+              {thread}
+            </ChatSheet>
+          )}
           {notice && <p className="notice" role="status">{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X size={14} /></button></p>}
           <Crossfade active={mode}>
             <UploadBox
@@ -289,11 +315,17 @@ export default function App() {
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                 aria-label="Ask about this result"
+                onFocus={() => setChatOpen(true)}
               />
               <div className="composer-row">
                 <button type="button" className="new-video" onClick={() => setUploadAgain(true)} disabled={busy}>
                   <Clapperboard size={16} aria-hidden="true" />New video
                 </button>
+                {results && (
+                  <button type="button" className="new-video" onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen}>
+                    <MessageCircle size={16} aria-hidden="true" />{chatOpen ? 'Hide chat' : 'Chat'}
+                  </button>
+                )}
                 <button type="submit" className="send" disabled={busy || !draft.trim()} aria-label="Send"><ArrowUp size={18} /></button>
               </div>
             </form>
@@ -434,12 +466,12 @@ function Crossfade({ active, children }) {
     return () => ro.disconnect();
   }, [active]);
   return (
-    <div className="stage" style={height == null ? undefined : { height }}>
+    <div className="swap" style={height == null ? undefined : { height }}>
       {React.Children.map(children, child => {
         const on = child.key?.replace(/^\.\$/, '') === active || child.key === active;
         const key = child.key?.replace(/^\.\$/, '');
         return (
-          <div className="stage-layer" data-active={on || undefined} inert={!on} ref={el => { refs.current[key] = el; }}>
+          <div className="swap-layer" data-active={on || undefined} inert={!on} ref={el => { refs.current[key] = el; }}>
             {child}
           </div>
         );
@@ -511,5 +543,32 @@ function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPic
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * The conversation over a finished analysis: a popover anchored above the chat box, with a scrim over the player
+ * and timeline. It opens when the results arrive and whenever the person asks something; the scrim, Escape or the
+ * close button put it away, and the chat box brings it back.
+ */
+function ChatSheet({ open, onClose, mood, busy, children }) {
+  useEffect(() => {
+    if (!open) return;
+    const close = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [open, onClose]);
+  return (
+    <>
+      <div className="sheet-scrim" data-open={open || undefined} onClick={onClose} aria-hidden="true" />
+      <section className="sheet" data-open={open || undefined} role="dialog" aria-modal="false" aria-label="Chat about this result" inert={!open}>
+        <header className="sheet-head">
+          <Mascot mood={busy ? 'thinking' : mood} size={26} />
+          <span className="sheet-title">Ask Rewire</span>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Hide chat"><X size={18} /></button>
+        </header>
+        {children}
+      </section>
+    </>
   );
 }
