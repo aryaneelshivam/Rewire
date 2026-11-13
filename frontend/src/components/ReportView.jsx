@@ -1,4 +1,5 @@
 import React from 'react';
+import { viewerCount } from '@/lib/viewers';
 import { FileText, Brain, ShieldCheck, CheckCircle2, Award, Printer, X } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -152,8 +153,8 @@ const ReportView = ({ data, snapshots, onClose }) => {
               </h3>
               <p style={{ fontSize: '13px', lineHeight: 1.6, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
                 {winner === 'TIE'
-                  ? <>Across 200 simulated viewers, the two variants' overall engagement scores, averaged over the four audiences, are within 5% of each other.</>
-                  : <>Across 200 simulated viewers, <strong>Variant {winner}</strong> scores {leadPct != null ? <strong>{leadPct}% higher</strong> : 'higher'} on overall engagement, averaged over the four audiences{verdict?.cohorts_led?.[winner] === verdict?.cohorts ? ', and leads with every one of them' : ''}. The cohort and dimension breakdown below shows where each variant is stronger.</>}
+                  ? <>Across {viewerCount(data.viewers)} simulated viewers, the two variants' overall engagement scores, averaged over the four audiences, are within 5% of each other.</>
+                  : <>Across {viewerCount(data.viewers)} simulated viewers, <strong>Variant {winner}</strong> scores {leadPct != null ? <strong>{leadPct}% higher</strong> : 'higher'} on overall engagement, averaged over the four audiences{verdict?.cohorts_led?.[winner] === verdict?.cohorts ? ', and leads with every one of them' : ''}. The cohort and dimension breakdown below shows where each variant is stronger.</>}
               </p>
             </div>
             <div style={{

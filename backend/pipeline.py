@@ -34,7 +34,7 @@ STAGES = [
     ("received", "Upload received"),
     ("checked", "Videos checked"),
     ("predicting", "Brain response predicted"),
-    ("synthesis", "200 viewers simulated"),
+    ("synthesis", "Viewers simulated"),
     ("scoring", "Scored and compared"),
     ("ready", "Ready"),
 ]
@@ -42,7 +42,7 @@ STAGES = [
 STAGE_STARTS = {
     "checked": "Checking the videos",
     "predicting": "Predicting brain response",
-    "synthesis": "Simulating 200 viewers",
+    "synthesis": "Simulating {viewers} viewers",
     "scoring": "Scoring the results",
 }
 # Per-video events complete the video's name: "Variant A is being transcribed".
@@ -102,6 +102,7 @@ class Job:
     owner: str = ""                 # the user who started it; never sent to the browser
     folder: str = ""                # where its run is saved, in the owner's workspace
     charged: int = 0                # credits taken when it started; given back if it doesn't finish
+    viewers: int = 200              # simulated audience size
 
     def log(self, title: str, actor: str | None = None, meta: str | None = None, tone: str = "neutral", detail: str | None = None):
         """Appends to the job's event log, which the progress screen shows newest first."""
@@ -156,14 +157,14 @@ class JobManager:
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
         self.on_results = on_results          # (results by variant, job id) -> None
-        self.analyse = analyse                # (preds, transcript, metadata, seed, on_step) -> cache
+        self.analyse = analyse                # (preds, transcript, metadata, seed, on_step, viewers) -> cache
         self.slots = threading.Semaphore(max(1, int(os.environ.get("REWIRE_MAX_JOBS", "1"))))
 
     def active_for(self, user: str) -> Job | None:
         """The user's analysis in progress, if any."""
         return next((j for j in self.jobs.values() if j.status == "running" and j.owner == user), None)
 
-    def create(self, mode: str, files: list[tuple[str, str, bytes]], metadata: dict) -> Job:
+    def create(self, mode: str, files: list[tuple[str, str, bytes]], metadata: dict, viewers: int = 200) -> Job:
         """files: (variant, original name, bytes). Runs as the current user."""
         owner = current_user()
         if self.active_for(owner):
@@ -190,7 +191,8 @@ class JobManager:
         except credits.InsufficientCredits:
             shutil.rmtree(folder, ignore_errors=True)
             raise
-        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder), charged=charged)
+        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder), charged=charged, viewers=viewers)
+        job.stage("synthesis").label = f"{viewers:,} viewers simulated"
         self._begin(job, "received", f"{len(videos)} video{'s' if len(videos) > 1 else ''}")
         mb = sum(v.size for v in videos) / (1024 * 1024)
         job.log("Upload received", meta=f"{', '.join(v.name for v in videos)}, {mb:.1f} MB")
@@ -212,7 +214,7 @@ class JobManager:
         if job and job.status == "running" and not job.cancel_requested:
             job.cancel_requested = True
             active = next((s for s in job.stages if s.state == "running"), None)
-            doing = STAGE_STARTS.get(active.key) if active else None
+            doing = STAGE_STARTS.get(active.key, "").format(viewers=f"{job.viewers:,}") if active else None
             job.log("Cancel requested", meta=f"Stopping while {doing[0].lower()}{doing[1:]}" if doing else None)
         return job
 
@@ -221,7 +223,7 @@ class JobManager:
         s = job.stage(key)
         s.state, s.started, s.detail = "running", time.time(), detail
         if key in STAGE_STARTS:
-            job.log(STAGE_STARTS[key], meta=detail or None)
+            job.log(STAGE_STARTS[key].format(viewers=f"{job.viewers:,}"), meta=detail or None)
 
     def _finish(self, job: Job, key: str, detail: str | None = None, quiet: bool = False):
         s = job.stage(key)
@@ -292,7 +294,7 @@ class JobManager:
                         self._begin(job, "scoring")
                 job.stage("synthesis").detail = f"Variant {v.variant}"
                 # One seed for every variant: the same simulated viewers watch each video.
-                results[v.variant] = self.analyse(preds, transcript, job.metadata.get(v.variant), 42, on_step)
+                results[v.variant] = self.analyse(preds, transcript, job.metadata.get(v.variant), 42, on_step, job.viewers)
             current = "scoring"
             if job.stage("synthesis").state == "running":
                 self._finish(job, "synthesis")
@@ -308,6 +310,7 @@ class JobManager:
                 "id": job.id, "title": default_title(names), "mode": job.mode, "source": "video", "engine": job.engine,
                 "created": job.created, "variants": [v.variant for v in job.videos], "names": names,
                 "durations": {v.variant: v.duration for v in job.videos}, "metadata": job.metadata,
+                "viewers": job.viewers,
             })
             self.on_results(results, job.id)
             self._begin(job, "ready")

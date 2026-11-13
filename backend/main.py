@@ -31,7 +31,9 @@ from pipeline import JobManager
 from score import rewire_score
 import runs
 from runs import latest_run
-from analysis import run_full_analysis, contest_winner, overall_verdict, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES, LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER
+from analysis import (run_full_analysis, contest_winner, overall_verdict, cohens_d, CONTENT_METADATA_DEFAULTS, ROI_LABEL_NAMES,
+                      LABELLED_ROIS, VERTEX_ROI, DEMO_ORDER, VIEWERS_DEFAULT, VIEWERS_MIN, VIEWERS_MAX, VIEWERS_STEP,
+                      check_viewers)
 
 # ---------------------------------------------------------------------------
 # Results: each user's open analysis. `_results` (the analysed variants, A then B) and `_run_info` (the run they came
@@ -118,24 +120,25 @@ def _clean_transcript(data):
     return []
 
 
-def _analyse(preds, transcript, metadata=None, seed=42, on_step=None) -> dict:
-    """Runs the audience synthesis and scoring on one variant's predictions."""
+def _analyse(preds, transcript, metadata=None, seed=42, on_step=None, viewers=VIEWERS_DEFAULT) -> dict:
+    """Runs the audience synthesis and scoring on one variant's predictions, with `viewers` simulated viewers."""
     transcript = _clean_transcript({"transcript": transcript})
     cache = run_full_analysis(np.asarray(preds), content_metadata=metadata or None, transcript=transcript,
-                              n_subjects=50, seed=seed, on_step=on_step)
+                              n_subjects=viewers // len(DEMO_ORDER), seed=seed, on_step=on_step)
     cache["transcript"] = transcript
     cache["rewire_score"] = rewire_score(preds)
     return cache
 
 
-def _load_files(files: dict, metadata: dict | None = None) -> dict:
+def _load_files(files: dict, metadata: dict | None = None, viewers: int = VIEWERS_DEFAULT) -> dict:
     """Analyses saved prediction files ({variant: path}). Every variant uses the same seed, so the same simulated
     viewers watch each video and A/B differences come from the videos."""
     out = {}
     for i, (variant, path) in enumerate(files.items()):
         data = joblib.load(str(path))
         print(f"🧠  Analysing Variant {variant} from {Path(path).name}...")
-        out[variant] = _analyse(data["preds"], data.get("transcript", []), (metadata or {}).get(variant), 42)
+        out[variant] = _analyse(data["preds"], data.get("transcript", []), (metadata or {}).get(variant), 42,
+                                viewers=viewers)
     return out
 
 
@@ -154,7 +157,7 @@ def _open_run(run_id: str):
     info = runs.read(run_id)
     path = runs.folder(run_id)
     files = {v: path / f"{v}.pkl" for v in info["variants"]}
-    _set_results(_load_files(files, info.get("metadata")), {**info, "source": "run"})
+    _set_results(_load_files(files, info.get("metadata"), info.get("viewers", VIEWERS_DEFAULT)), {**info, "source": "run"})
 
 
 def _restore(s: _Session):
@@ -297,7 +300,9 @@ def get_status(request: Request):
             pass
     active = jobs.active_for(auth.current_user())
     media = _media(_run_info["id"], list(_results)) if _run_info.get("id") and not _run_info.get("deleted") else {}
+    viewers = next((c.get("n_viewers", VIEWERS_DEFAULT) for c in _results.values()), VIEWERS_DEFAULT)
     return {"loaded": bool(_results), "variants": list(_results), "run": dict(_run_info), "videos": videos, "media": media,
+            "viewers": viewers, "viewer_options": {"min": VIEWERS_MIN, "max": VIEWERS_MAX, "step": VIEWERS_STEP, "default": VIEWERS_DEFAULT},
             "active_job": active.id if active else None, "credits": credits.summary(email=_email(request))}
 
 
@@ -343,12 +348,17 @@ async def create_job(
     content_type_A: str = Form("video_ad"), content_type_B: str = Form("video_ad"),
     pacing_A: str = Form("medium"), pacing_B: str = Form("medium"),
     audio_profile_A: str = Form("mixed"), audio_profile_B: str = Form("mixed"),
+    viewers: int = Form(VIEWERS_DEFAULT),
 ):
-    """Starts an analysis of one video, or two to compare. Poll GET /api/jobs/{id} for progress."""
+    """Starts an analysis of one video, or two to compare, with `viewers` simulated viewers. Poll GET /api/jobs/{id}."""
     if mode not in ("single", "compare"):
         raise HTTPException(status_code=400, detail="mode must be 'single' or 'compare'")
     if mode == "compare" and videoB is None:
         raise HTTPException(status_code=400, detail="Comparing needs two videos")
+    try:
+        viewers = check_viewers(viewers)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     files = [("A", videoA.filename or "video-a.mp4", await videoA.read())]
     if mode == "compare":
         files.append(("B", videoB.filename or "video-b.mp4", await videoB.read()))
@@ -358,7 +368,7 @@ async def create_job(
     }
     metadata = {v: metadata[v] for v, _, _ in files}
     try:
-        job = jobs.create(mode, files, metadata)
+        job = jobs.create(mode, files, metadata, viewers)
     except credits.InsufficientCredits as e:
         raise HTTPException(status_code=402, detail=str(e))
     except RuntimeError as e:
@@ -391,8 +401,13 @@ async def upload_predictions(
     pacing_A: str = Form("medium"), pacing_B: str = Form("medium"),
     audio_profile_A: str = Form("mixed"), audio_profile_B: str = Form("mixed"),
     brand_reveal_A: int = Form(-1), brand_reveal_B: int = Form(-1),
+    viewers: int = Form(VIEWERS_DEFAULT),
 ):
     """Imports saved prediction files: one to analyse, or two to compare."""
+    try:
+        viewers = check_viewers(viewers)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     uploads = {"A": fileA, **({"B": fileB} if fileB is not None else {})}
     metadata = {
         "A": {"genre": genre_A, "content_type": content_type_A, "pacing": pacing_A, "audio_profile": audio_profile_A, "brand_reveal_timestamp": brand_reveal_A},
@@ -407,7 +422,7 @@ async def upload_predictions(
         for v, up in uploads.items():
             paths[v] = path / f"{v}.pkl"
             paths[v].write_bytes(await up.read())
-        results = _load_files(paths, metadata)
+        results = _load_files(paths, metadata, viewers)
     except Exception as e:
         shutil.rmtree(path, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"These files could not be read as predictions: {e}")
@@ -417,6 +432,7 @@ async def upload_predictions(
         "id": run_id, "title": runs.default_title(names), "mode": "compare" if len(results) > 1 else "single",
         "source": "import", "engine": None, "created": time.time(), "variants": list(results), "names": names,
         "durations": {v: int(c["n_timesteps"]) for v, c in results.items()}, "metadata": metadata,
+        "viewers": viewers,
     })
     _set_results(results, {**runs.read(run_id), "source": "import"})
     return {"status": "success", "variants": list(results), "run_id": run_id}

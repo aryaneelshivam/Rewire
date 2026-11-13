@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { viewerCount } from '@/lib/viewers';
 import { RotateCw } from 'lucide-react';
 import SegmentedControl from '@/components/arc/segmented-control/segmented-control';
 import { Select } from '@/components/arc/select/select';
@@ -33,7 +34,7 @@ const BRAIN_MODES = [
 ];
 
 /**
- * The 200 simulated viewers as a graph. Viewers who respond alike sit together and are joined; groups found in
+ * The simulated viewers (200 to 1,000) as a graph. Viewers who respond alike sit together and are joined; groups found in
  * the chosen basis keep their colour across views. Selecting a group shows what sets it apart from the rest.
  */
 export default function EnsembleExplorer({ variants, winner, currentTime, theme }) {
@@ -127,7 +128,7 @@ export default function EnsembleExplorer({ variants, winner, currentTime, theme 
       <Card
         title="Neural ensemble"
         exportName="neural-ensemble"
-        description={`${data.n_profiles} simulated viewers${variants.length > 1 ? ` of Variant ${variant}` : ''}, grouped by how alike their predicted responses are.`}
+        description={`${viewerCount(data.n_profiles)} simulated viewers${variants.length > 1 ? ` of Variant ${variant}` : ''}, grouped by how alike their predicted responses are.`}
         actions={variants.length > 1 && (
           <div className="ensemble-variant">
             <Select label="Variant" options={variants.map(v => ({ value: v, label: `Variant ${v}${v === winner ? ', winner' : ''}` }))} value={variant} onValueChange={regroup(setVariant)} />

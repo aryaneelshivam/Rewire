@@ -24,7 +24,7 @@ const canShareFiles = () => {
  * Builds a shareable image of the open analysis: pick a size and a theme, then download, copy or share it.
  * The preview is the image itself, scaled to fit.
  */
-export default function ShareDialog({ onClose, overview, engagement, abSummary, runInfo, videos, timeSeries, captureBrain }) {
+export default function ShareDialog({ onClose, overview, engagement, abSummary, runInfo, videos, timeSeries, captureBrain, viewers }) {
   const [score, setScore] = useState(undefined);
   const [frames, setFrames] = useState(null);
   const [brains, setBrains] = useState({});
@@ -39,8 +39,8 @@ export default function ShareDialog({ onClose, overview, engagement, abSummary, 
   const closeRef = useRef(null);
 
   useEffect(() => { fetchScore().then(setScore).catch(() => setScore(null)); }, []);
-  const card = useMemo(() => (score === undefined ? null : buildCard({ overview, engagement, abSummary, score, runInfo, videos, timeSeries })),
-    [score, overview, engagement, abSummary, runInfo, videos, timeSeries]);
+  const card = useMemo(() => (score === undefined ? null : buildCard({ overview, engagement, abSummary, score, runInfo, videos, timeSeries, viewers })),
+    [score, overview, engagement, abSummary, runInfo, videos, timeSeries, viewers]);
 
   // A frame from each video, at the moment its response peaks.
   useEffect(() => {

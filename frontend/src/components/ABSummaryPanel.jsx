@@ -1,4 +1,5 @@
 import React from 'react';
+import { viewerCount } from '@/lib/viewers';
 import { AnimatedCounter } from '@/components/arc/animated-counter/animated-counter';
 import { leadPct } from '@/lib/chart-data';
 
@@ -7,7 +8,7 @@ const COHORT_NAMES = { kids: 'kids (6 to 12)', genz: 'Gen Z (13 to 24)', adults:
 const DIMENSION_NAMES = { visual: 'visual', auditory: 'auditory', reward: 'reward', memory: 'memory', attention: 'attention', narrative: 'narrative', personal: 'self-relevance', action: 'action' };
 
 /** One creative: where it lands hardest, and its three headline numbers. */
-function SingleSummary({ data }) {
+function SingleSummary({ data, viewers }) {
   const best = data.best_demographic;
   const dims = Object.entries(data.scores[best] || {}).filter(([k]) => k !== 'overall').sort((a, b) => b[1] - a[1]);
   const [topDim, topScore] = dims[0] ?? ['', 0];
@@ -16,7 +17,7 @@ function SingleSummary({ data }) {
       <div className="verdict-copy">
         <h2 id="verdict-title">{data.best_demographic_clear === false ? 'Narrowly strongest with ' : 'Strongest with '}<span className="num-a">{COHORT_NAMES[best] ?? best}</span></h2>
         <p>
-          Predicted whole-brain response across 200 simulated viewers. Each age group is measured against its own baseline.
+          Predicted whole-brain response across {viewerCount(viewers)} simulated viewers. Each age group is measured against its own baseline.
           {data.best_demographic_clear === false ? ' The age groups respond similarly; the lead is within 5%.' : ''} It leads on {DIMENSION_NAMES[topDim] ?? topDim} for that cohort.
         </p>
       </div>
@@ -41,9 +42,9 @@ function SingleSummary({ data }) {
   );
 }
 
-const ABSummaryPanel = ({ data }) => {
+const ABSummaryPanel = ({ data, viewers }) => {
   if (!data) return null;
-  if (data.mode === 'single') return <SingleSummary data={data} />;
+  if (data.mode === 'single') return <SingleSummary data={data} viewers={viewers} />;
   const { A_global_mean, B_global_mean, A_peak_activation, B_peak_activation, dimension_winners } = data;
 
   let aWins = 0, bWins = 0, total = 0;
@@ -66,7 +67,7 @@ const ABSummaryPanel = ({ data }) => {
             : verdict?.lead_pct != null
               ? `A ${verdict.lead_pct.toFixed(0)}% higher overall score, averaged across the four audiences${verdict.cohorts_led?.[winner] === verdict.cohorts ? ', and ahead with every one of them' : ''}.`
               : 'A higher overall score, averaged across the four audiences.'}
-          {' '}Predicted response of 200 simulated viewers.
+          {' '}Predicted response of {viewerCount(viewers)} simulated viewers.
         </p>
       </div>
       <dl className="stat-strip">

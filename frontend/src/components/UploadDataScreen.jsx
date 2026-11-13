@@ -3,14 +3,27 @@ import React, { useRef, useState } from 'react';
 import { Button } from '@/components/arc/button/button';
 import { FileDropzone } from '@/components/arc/file-dropzone/file-dropzone';
 import { Alert } from '@/components/arc/alert/alert';
+import { Slider } from '@/components/arc/slider/slider';
 import { createJob, loadSampleData } from '../api';
 import { creditCost } from '@/lib/credits';
 import AssetList from './AssetList';
 import { releaseUrl } from '@/lib/object-urls';
+import { VIEWERS, viewerCount } from '@/lib/viewers';
 
 const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv';
 const MAX_MB = 500;
 const MAX_SECONDS = 180;
+const VIEWERS_KEY = 'rewire:viewers';
+
+/** The audience size this person chose last time, if this browser remembers it. */
+function rememberedViewers() {
+  try {
+    const n = Number(localStorage.getItem(VIEWERS_KEY));
+    return n >= VIEWERS.min && n <= VIEWERS.max && n % VIEWERS.step === 0 ? n : VIEWERS.default;
+  } catch {
+    return VIEWERS.default;
+  }
+}
 
 let nextId = 0;
 const fileIds = new WeakMap();
@@ -53,6 +66,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   const [busy, setBusy] = useState(null);           // 'run' or 'sample'
   const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState(null);
+  const [viewers, setViewers] = useState(rememberedViewers);
   const upload = useRef(null);    // aborts the upload when the person cancels it
 
   const mode = videos.files.length === 2 ? 'compare' : 'single';
@@ -64,6 +78,10 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   const need = knownLengths ? creditCost(lengths, credits?.seconds_per_credit) : null;
   const short = credits?.enforced && need != null && credits.balance < need;
   const lengthsText = knownLengths ? lengths.map(d => `${Math.round(d)}s`).join(' and ') : '';
+  const chooseViewers = n => {
+    setViewers(n);
+    try { localStorage.setItem(VIEWERS_KEY, String(n)); } catch { /* not remembered; fine */ }
+  };
   const bySlot = (slots, pick) => Object.fromEntries(slots.files.map((f, i) => [i === 0 ? 'A' : 'B', pick(f)]));
 
   const run = async () => {
@@ -72,8 +90,9 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
     upload.current = new AbortController();
     try {
       const chosen = bySlot(videos, f => f.file);
-      const { job_id } = await createJob(mode, chosen, {}, e => e.total && setUploadPct(Math.round((e.loaded / e.total) * 100)), upload.current.signal);
-      onJobStarted(job_id, chosen, mode, {});
+      const meta = { viewers };
+      const { job_id } = await createJob(mode, chosen, meta, e => e.total && setUploadPct(Math.round((e.loaded / e.total) * 100)), upload.current.signal);
+      onJobStarted(job_id, chosen, mode, meta);
     } catch (err) {
       // A cancelled upload is the person's choice, not an error to report.
       if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
@@ -106,7 +125,7 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
         )}
         <header className="onboard-head">
           <h1>{mode === 'compare' ? 'Compare two videos' : 'Analyse a video'}</h1>
-          <p className="onboard-lede">Drop one video to analyse it, or two to compare them. Rewire predicts how 200 simulated viewers respond, second by second. Videos up to 3 minutes and {MAX_MB} MB each.</p>
+          <p className="onboard-lede">Drop one video to analyse it, or two to compare them. Rewire predicts how {viewerCount(viewers)} simulated viewers respond, second by second. Videos up to 3 minutes and {MAX_MB} MB each.</p>
         </header>
 
         <section className="single-drop" aria-label="Videos">
@@ -130,6 +149,27 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
             onSwap={videos.swap}
             onRemove={videos.remove}
           />
+        </section>
+
+        <section className="viewer-choice" aria-label="Simulated audience">
+          <Slider
+            label="Simulated viewers"
+            value={viewers}
+            onValueChange={chooseViewers}
+            min={VIEWERS.min}
+            max={VIEWERS.max}
+            step={VIEWERS.step}
+            largeStep={200}
+            marks={[{ value: VIEWERS.min, label: viewerCount(VIEWERS.min) }, { value: 600 }, { value: VIEWERS.max, label: viewerCount(VIEWERS.max) }]}
+            format={viewerCount}
+            showValue
+            disabled={!!busy}
+          />
+          <p className="viewer-note">
+            {viewers > VIEWERS.default
+              ? 'More viewers smooth the averages and steady close calls; the results themselves barely change. Simulating them adds time to the analysis.'
+              : 'Split evenly across four age groups. More viewers smooth the averages and steady close calls, and add time to the analysis.'}
+          </p>
         </section>
 
         {credits?.enforced && (() => {

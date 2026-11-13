@@ -1,4 +1,5 @@
 import React, { forwardRef } from 'react';
+import { viewerCount } from '@/lib/viewers';
 import { Sparkline } from '@/components/arc/sparkline/sparkline';
 import { Progress } from '@/components/arc/progress/progress';
 import { Badge } from '@/components/arc/badge/badge';
@@ -245,7 +246,7 @@ const ScoreCard = forwardRef(function ScoreCard({ card, format, theme, frames, b
       )}
 
       <footer className="sc-foot">
-        <span>Predicted brain response of 200 simulated viewers{card.benchmarked ? ', Rewire Score v1' : ''}</span>
+        <span>Predicted brain response of {viewerCount(card.viewers)} simulated viewers{card.benchmarked ? ', Rewire Score v1' : ''}</span>
         <span>{card.date}</span>
       </footer>
     </div>

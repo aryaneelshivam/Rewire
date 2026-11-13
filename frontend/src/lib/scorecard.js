@@ -78,7 +78,7 @@ function contests(summary) {
   return { ...out, total: out.A + out.B + out.TIE };
 }
 
-export function buildCard({ overview, engagement, abSummary, score, runInfo, videos, timeSeries }) {
+export function buildCard({ overview, engagement, abSummary, score, runInfo, videos, timeSeries, viewers }) {
   const keys = Object.keys(overview || {});
   const compare = keys.length > 1;
   const variants = keys.map(v => {
@@ -129,6 +129,7 @@ export function buildCard({ overview, engagement, abSummary, score, runInfo, vid
     contests: tally,
     overall: abSummary?.overall ?? null,
     benchmarked: variants.every(v => v.score != null),
+    viewers,
     date: new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date()),
   };
 }

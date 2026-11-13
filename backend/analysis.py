@@ -4,6 +4,9 @@ Ported from triberewire6_updated.py (Cells 5-12)
 All computation is pure numpy/scipy — no GPU required.
 """
 
+import os
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy import sparse
@@ -542,15 +545,39 @@ def cohort_baseline_roi_matrix(base_preds, demographic, content_context=None, te
     return np.asarray(resp @ ROI_AVERAGER)
 
 
-def generate_demographic_ensemble(
+# How many simulated viewers an analysis uses, split evenly across the four cohorts. More viewers only smooth the
+# averages (the same first viewers are always included), so the default stays at 200.
+VIEWERS_DEFAULT = 200
+VIEWERS_MIN = 200
+VIEWERS_MAX = 1000
+VIEWERS_STEP = 100
+# Cohorts simulated at once (numpy does the heavy lifting outside the GIL). Match it to the CPU cores available.
+SIM_THREADS = max(1, int(os.environ.get("REWIRE_SIM_THREADS", "2")))
+
+
+def check_viewers(viewers) -> int:
+    """The audience size as a whole number in range, or ValueError with a message for people."""
+    try:
+        n = int(viewers)
+    except (TypeError, ValueError):
+        raise ValueError("Choose how many viewers to simulate.") from None
+    if not VIEWERS_MIN <= n <= VIEWERS_MAX or n % VIEWERS_STEP:
+        raise ValueError(f"Simulate between {VIEWERS_MIN} and {VIEWERS_MAX:,} viewers, in steps of {VIEWERS_STEP}.")
+    return n
+
+
+def iter_demographic_viewers(
     base_preds: np.ndarray,
     demographic: str,
     content_context: dict = None,
     temporal_events: list = None,
     n_subjects: int = 50,
     seed: int = 42,
-) -> np.ndarray:
-    """Simulated viewers of one cohort watching one video: an (n_subjects, T, V) float32 array.
+):
+    """Simulated viewers of one cohort watching one video, one at a time: n_subjects (T, V) float32 arrays.
+
+    Yielded one by one so a large audience never has to fit in memory at once; the draws are the same, in the same
+    order, as generating them all together, and the first n viewers are the same whatever n_subjects is.
 
     Each viewer is the model's prediction, delayed by the cohort's (sub-second) latency plus personal jitter,
     scaled by their overall responsiveness and per-region factors, given slow fatigue, plus noise with
@@ -600,8 +627,7 @@ def generate_demographic_ensemble(
 
     hemi_bias = hemisphere_bias(V)
 
-    ensemble = np.empty((n_subjects, T, V), dtype=np.float32)
-    for s_i in range(n_subjects):
+    for _ in range(n_subjects):
         global_scalar, roi_scalars, roi_sigmas = subject_profile(rng, scalars, sigmas, loadings)
         delay = max(0.0, params["latency_s"] + rng.normal(0, LATENCY_JITTER_S))
         subj = shift_time(base, delay) * global_scalar * fatigue_vec
@@ -617,9 +643,45 @@ def generate_demographic_ensemble(
 
         subj = subj * roi_scalars[VERTEX_ROI] + noise
         subj *= hemi_bias
-        ensemble[s_i] = nonlinear_saturate(subj, params["saturation"])
+        yield np.asarray(nonlinear_saturate(subj, params["saturation"]), dtype=np.float32)
 
+
+def generate_demographic_ensemble(base_preds, demographic, content_context=None, temporal_events=None,
+                                  n_subjects: int = 50, seed: int = 42) -> np.ndarray:
+    """All of one cohort's simulated viewers as one (n_subjects, T, V) float32 array. Only for small audiences."""
+    T, V = base_preds.shape
+    ensemble = np.empty((n_subjects, T, V), dtype=np.float32)
+    for s_i, viewer in enumerate(iter_demographic_viewers(base_preds, demographic, content_context, temporal_events,
+                                                          n_subjects, seed)):
+        ensemble[s_i] = viewer
     return ensemble
+
+
+def simulate_cohort(base_preds, demographic, content_context=None, temporal_events=None,
+                    n_subjects: int = 50, seed: int = 42) -> dict:
+    """Simulates one cohort viewer by viewer, keeping only what the analysis uses, so memory stays small at any
+    audience size. Gives the same numbers as summarising the full (n_subjects, T, V) ensemble:
+
+      mean_brain  (T, V)     the cohort's average response (summed in viewer order, as numpy's mean does)
+      roi         (S, T, R)  each viewer's response per region, per second
+      trajectory  (S, T)     each viewer's whole-brain response per second
+      time_avg_roi (S, R)    each viewer's time-averaged response per region (for the variation heatmap)
+    """
+    T, V = base_preds.shape
+    total = None
+    roi = np.empty((n_subjects, T, N_ROIS), dtype=np.float32)
+    trajectory = np.empty((n_subjects, T), dtype=np.float32)
+    time_avg_roi = np.empty((n_subjects, N_ROIS))
+    for s_i, viewer in enumerate(iter_demographic_viewers(base_preds, demographic, content_context, temporal_events,
+                                                          n_subjects, seed)):
+        if total is None:
+            total = viewer.copy()
+        else:
+            total += viewer
+        roi[s_i] = np.asarray(viewer @ ROI_AVERAGER)
+        trajectory[s_i] = viewer.mean(axis=1)
+        time_avg_roi[s_i] = summarize_by_roi(viewer.mean(axis=0), hemi="both", mesh="fsaverage5")
+    return {"mean_brain": total / np.float32(n_subjects), "roi": roi, "trajectory": trajectory, "time_avg_roi": time_avg_roi}
 
 
 # =============================================================================
@@ -668,20 +730,18 @@ NETWORK_GROUPS = [
 ]
 
 
-def build_profiles(ensembles: dict, weights: dict) -> dict:
-    """Keep a compact record of every simulated viewer before the ensembles are averaged away.
+def build_profiles(cohort_stats: dict, weights: dict) -> dict:
+    """Keep a compact record of every simulated viewer (from simulate_cohort's per-viewer summaries).
 
-    For each of the cohorts' viewers (4 x 50 = 200 by default): the per-region response at every second,
-    the whole-brain trajectory, the network trajectories, and the engagement score on each dimension.
+    For each of the cohorts' viewers (4 x 50 = 200 by default, up to 1,000): the per-region response at every
+    second, the whole-brain trajectory, the network trajectories, and the engagement score on each dimension.
     """
     cohorts, roi_parts, traj_parts = [], [], []
     for demo in DEMO_ORDER:
-        ens = ensembles[demo]                       # (S, T, V)
-        S, T, V = ens.shape
-        flat = ens.reshape(S * T, V)
-        roi_parts.append(np.asarray(flat @ ROI_AVERAGER).reshape(S, T, N_ROIS).astype(np.float32))
-        traj_parts.append(ens.mean(axis=2).astype(np.float32))
-        cohorts += [demo] * S
+        stats = cohort_stats[demo]
+        roi_parts.append(stats["roi"])
+        traj_parts.append(stats["trajectory"])
+        cohorts += [demo] * stats["roi"].shape[0]
     roi_tensor = np.concatenate(roi_parts)          # (N, T, R)
     networks = {}
     for name, group in NETWORK_GROUPS:
@@ -784,16 +844,17 @@ def run_full_analysis(
     # ── 4. Demographic ensembles (V4: content-aware) ──────────────────────
     if on_step:
         on_step("synthesis")
-    ensembles = {}
-    for demo in DEMO_ORDER:
-        ensembles[demo] = generate_demographic_ensemble(
+    # Each cohort has its own random stream, so simulating them side by side gives the same viewers as one by one.
+    with ThreadPoolExecutor(max_workers=SIM_THREADS) as pool:
+        stats = pool.map(lambda demo: simulate_cohort(
             base_preds=preds,
             demographic=demo,
             content_context=content_context,
             temporal_events=temporal_events,
             n_subjects=n_subjects,
             seed=seed,
-        )
+        ), DEMO_ORDER)
+        cohort_stats = dict(zip(DEMO_ORDER, stats))
 
     if on_step:
         on_step("scoring")
@@ -801,8 +862,8 @@ def run_full_analysis(
     # ── 5. Per-demographic ROI summary matrices (T x n_rois) ──────────────
     demo_roi_matrices = {}
     demo_mean_brains = {}
-    for demo, ens in ensembles.items():
-        mean_brain = ens.mean(axis=0)  # (T, 20484)
+    for demo, stats in cohort_stats.items():
+        mean_brain = stats["mean_brain"]  # (T, 20484)
         demo_mean_brains[demo] = mean_brain.tolist()
         demo_roi_matrices[demo] = np.vstack([
             summarize_by_roi(mean_brain[t], hemi="both", mesh="fsaverage5")
@@ -839,7 +900,7 @@ def run_full_analysis(
     best_clear = contest_winner(engagement_lift[ranked[1]]["overall"], engagement_lift[best_demo]["overall"]) == "B"
 
     # ── 6b. Individual profiles for the ensemble explorer ─────────────────
-    profiles = build_profiles(ensembles, active_weights)
+    profiles = build_profiles(cohort_stats, active_weights)
 
     # ── 7. Demographic time-series for specific ROI groups (Cell 8) ───────
     demo_timeseries = {}
@@ -860,12 +921,7 @@ def run_full_analysis(
     TOP_K_VARIANCE = 30
     var_matrix = np.zeros((len(DEMO_ORDER), N_ROIS))
     for d_idx, demo in enumerate(DEMO_ORDER):
-        subj_time_avg = ensembles[demo].mean(axis=1)  # (50, 20484)
-        subj_roi = np.vstack([
-            summarize_by_roi(subj_time_avg[s], hemi="both", mesh="fsaverage5")
-            for s in range(subj_time_avg.shape[0])
-        ])
-        var_matrix[d_idx] = subj_roi.std(axis=0)
+        var_matrix[d_idx] = cohort_stats[demo]["time_avg_roi"].std(axis=0)
 
     mean_var_across_demos = var_matrix.mean(axis=0)
     top_k_var_idx = np.argsort(mean_var_across_demos)[::-1][:TOP_K_VARIANCE]
@@ -882,7 +938,7 @@ def run_full_analysis(
     # Per-demographic peak data
     demo_peak_data = {}
     for demo in DEMO_ORDER:
-        mean_brain = ensembles[demo].mean(axis=0)
+        mean_brain = cohort_stats[demo]["mean_brain"]
         demo_peak_t = int(mean_brain.mean(axis=1).argmax())
         demo_peak_data[demo] = {
             "peak_timestep": demo_peak_t,
@@ -921,4 +977,5 @@ def run_full_analysis(
         "demo_colors": DEMO_COLORS,
         "content_profile": content_profile,
         "profiles": profiles,
+        "n_viewers": n_subjects * len(DEMO_ORDER),
     }

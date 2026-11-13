@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { viewerCount } from '@/lib/viewers';
 import { Upload, ScanSearch, Cpu, Users, ChartColumn, CircleCheck, CircleX, Ban, AudioLines, Hourglass, Brain } from 'lucide-react';
 import { Timeline } from '@/components/arc/timeline/timeline';
 import { Progress } from '@/components/arc/progress/progress';
@@ -111,7 +112,7 @@ export default function PipelineScreen({ jobId, onDone, onBack, onRetry }) {
   const stageLabel = key => job.video_stages.find(st => st.key === key)?.label ?? key;
   const videoStageIndex = key => Math.max(0, job.video_stages.findIndex(st => st.key === key));
   const title = { running: 'Analysing', done: 'Analysis complete', failed: 'The analysis stopped', cancelled: 'Analysis cancelled' }[job.status];
-  const activeText = active ? { checked: 'Checking the videos', predicting: 'Predicting brain response', synthesis: 'Simulating 200 viewers', scoring: 'Scoring the results' }[active.key] ?? active.label : title;
+  const activeText = active ? { checked: 'Checking the videos', predicting: 'Predicting brain response', synthesis: `Simulating ${viewerCount(job.viewers)} viewers`, scoring: 'Scoring the results' }[active.key] ?? active.label : title;
 
   return (
     <main className="onboard pipeline">

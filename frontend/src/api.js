@@ -140,10 +140,12 @@ const appendDetails = (formData, meta = {}) => {
   });
 };
 
-/** Starts an analysis of one video ("single") or two ("compare"). Resolves to { job_id }. */
+/** Starts an analysis of one video ("single") or two ("compare"). meta.viewers sets the simulated audience size.
+ * Resolves to { job_id }. */
 export const createJob = async (mode, videos, meta = {}, onUploadProgress, signal) => {
   const formData = new FormData();
   formData.append('mode', mode);
+  if (meta.viewers) formData.append('viewers', meta.viewers);
   formData.append('videoA', videos.A);
   if (mode === 'compare') formData.append('videoB', videos.B);
   appendDetails(formData, meta);

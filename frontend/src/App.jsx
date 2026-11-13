@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useContext } from 'react';
+import { VIEWERS, viewerCount } from '@/lib/viewers';
 import { flushSync } from 'react-dom';
 import {
   fetchStatus, fetchOverview, fetchEngagement, fetchTopRois,
@@ -42,7 +43,7 @@ const TABS = [
   { id: 'audiences', label: 'Audiences', title: 'Audience dynamics', desc: 'How each age cohort responds across eight cognitive dimensions.' },
   { id: 'scenes', label: 'Key moments', title: 'High-impact moments', desc: 'The seconds where each variant drives the strongest response.' },
   { id: 'regions', label: 'Brain regions', title: 'Brain regions', desc: 'Top cortical regions and how consistent the response is across simulated viewers.' },
-  { id: 'ensemble', label: 'Ensemble', title: 'Neural ensemble explorer', desc: 'All 200 simulated viewers, grouped by how alike they respond. Find a group and see what sets it apart.' },
+  { id: 'ensemble', label: 'Ensemble', title: 'Neural ensemble explorer', desc: 'All {viewers} simulated viewers, grouped by how alike they respond. Find a group and see what sets it apart.' },
 ];
 
 /** The variant with the higher overall score across the audiences ('TIE' within 5%), as the backend decides it.
@@ -70,6 +71,7 @@ function App() {
   // "Back to results" is ready. (An analysis still running opens its progress screen instead.)
   const [showWorkspace, setShowWorkspace] = useState(AUTH_ENABLED);
   const [runInfo, setRunInfo] = useState(null);
+  const [viewers, setViewers] = useState(VIEWERS.default);
   const [credits, setCredits] = useState(null);      // test credits: { enforced, balance, cost_per_video, admin }        // the saved run on screen: id, title, names
   const [overview, setOverview] = useState(null);
   const [engagement, setEngagement] = useState(null);
@@ -138,7 +140,7 @@ function App() {
       }
       setBrainOverride(null);
       setReportSnapshots(snaps);
-      setReportData({ summary: sum, engagement: eng, topRois: rois, overview, demographics, videoUrlA, videoUrlB });
+      setReportData({ summary: sum, engagement: eng, topRois: rois, overview, demographics, videoUrlA, videoUrlB, viewers });
     } catch (err) {
       console.error('Report generation failed:', err);
       setReportError(err.message);
@@ -184,6 +186,7 @@ function App() {
       if (!status.loaded) { setAwaitingUpload(true); setLoading(false); return; }
       // A saved run plays the videos it kept; samples and runs without them play nothing.
       setRunInfo(status.run?.id && !status.run.deleted ? status.run : null);
+      setViewers(status.viewers ?? VIEWERS.default);
       applyVideos(Object.fromEntries(Object.entries(status.media || {}).filter(([, m]) => m?.video).map(([v, m]) => [v, mediaUrl(m.video)])));
       setAwaitingUpload(false);
       const [ov, en, tr, ts, hm, dm, ab] = await Promise.all([
@@ -357,7 +360,7 @@ function App() {
         <div className="brand">
           <span className="brand-name">Rewire</span>
           {runInfo?.title && <span className="brand-run">{runInfo.title}</span>}
-          <span className="brand-sub">{single ? 'One creative' : 'Two creatives'}, {maxTimesteps}s, 200 simulated viewers</span>
+          <span className="brand-sub">{single ? 'One creative' : 'Two creatives'}, {maxTimesteps}s, {viewerCount(viewers)} simulated viewers</span>
         </div>
         <div className="header-actions">
           <span className="theme-toggle"><ThemeSwitch theme={theme} variant="rise" iconOnly onThemeChange={changeTheme} /></span>
@@ -405,6 +408,7 @@ function App() {
           videos={shareVideos}
           timeSeries={timeSeries}
           captureBrain={captureBrain}
+          viewers={viewers}
         />
       )}
 
@@ -454,7 +458,7 @@ function App() {
             <div className="content-head">
               <div>
                 <h1>{tab.title}</h1>
-                <p>{tab.desc}</p>
+                <p>{tab.desc.replace('{viewers}', viewerCount(viewers))}</p>
               </div>
               <TabsList aria-label="Analysis sections">
                 {TABS.map(t => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}
@@ -467,7 +471,7 @@ function App() {
 
             <TabsContent value="overview">
               <div className="bento">
-                <div className="span-12">{abSummary && <ABSummaryPanel data={abSummary} />}</div>
+                <div className="span-12">{abSummary && <ABSummaryPanel data={abSummary} viewers={viewers} />}</div>
                 <div className="span-7"><OverviewPanel dataA={overview.A} dataB={overview.B} onSeekToTimestamp={handleSeekToTimestamp} /></div>
                 <div className="span-5"><KeyMetricsPanel overview={overview} engagement={engagement} demographics={demographics} /></div>
                 <div className="span-12"><AsymmetryPanel dataA={overview.A} dataB={overview.B} /></div>
