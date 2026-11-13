@@ -109,7 +109,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .icon-btn:active:not(:disabled) { background: var(--c-surface-2); }
 
 /* The sidebar is a drawer on phones and tablets. */
-.side { position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(320px, 86vw); display: flex; flex-direction: column; gap: 8px; padding: 12px; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); background: var(--c-surface-2); border-right: var(--c-border); transform: translateX(-102%); transition: transform .28s cubic-bezier(.2, .8, .2, 1); visibility: hidden; }
+.side { position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(320px, 86vw); background: var(--c-surface-2); border-right: var(--c-border); transform: translateX(-102%); transition: transform .28s cubic-bezier(.2, .8, .2, 1); visibility: hidden; }
+.side-inner { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 12px; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 .side[data-open] { transform: none; visibility: visible; box-shadow: 0 0 40px rgb(0 0 0 / .18); }
 .scrim { position: fixed; inset: 0; z-index: 10; background: rgb(0 0 0 / .32); animation: fade .2s ease both; }
 .side-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 4px 6px; }
@@ -431,12 +432,16 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .upload-back-text { display: inline; }
 }
 
-/* ── Desktop: the sidebar stays open ──────────────────── */
+/* ── Desktop: history on the left and the conversation on the right, both sliding columns ── */
 @media (min-width: 900px) {
-  .app { grid-template-columns: 260px minmax(0, 1fr); }
-  .side { position: static; transform: none; visibility: visible; width: auto; box-shadow: none !important; padding: 16px 12px; }
-  .scrim, .drawer-only { display: none !important; }
-  .chat-head { padding: 10px 20px; }
+  .app { --hist-w: 0px; --ai-w: 0px; grid-template-columns: var(--hist-w) minmax(0, 1fr) var(--ai-w); transition: grid-template-columns .32s cubic-bezier(.2, .8, .2, 1); }
+  .app[data-history] { --hist-w: 260px; }
+  .app[data-ai] { --ai-w: clamp(340px, 30vw, 420px); }
+  .side { position: static; transform: none; visibility: visible; width: auto; min-width: 0; overflow: hidden; box-shadow: none !important; transition: border-color .32s; }
+  .side:not([data-open]) { border-right-color: transparent; }
+  .side-inner { width: 260px; padding: 16px 12px; }
+  .scrim { display: none !important; }
+  .chat-head { padding: 10px 16px 10px 10px; }
   .chat-title { text-align: left; }
   .icon-btn { width: 36px; height: 36px; border-radius: 10px; }
   .send { width: 38px; height: 38px; }
@@ -444,4 +449,19 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .new-chat { min-height: 42px; }
   .side-item { padding: 8px 10px; }
   .theme-pick button { min-height: 32px; font-size: 13px; }
+
+  .ai-side { min-width: 0; overflow: hidden; border-left: var(--c-border); background: var(--c-bg); transition: border-color .32s; }
+  .ai-side:not([data-open]) { border-left-color: transparent; }
+  .ai-inner { width: clamp(340px, 30vw, 420px); height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  .ai-head { display: flex; align-items: center; gap: 10px; min-height: 57px; padding: 6px 8px 6px 14px; border-bottom: var(--c-border); }
+  .ai-side .thread { flex: 1; }
+  .ai-side .thread-inner { padding: 16px 14px 8px; gap: 16px; }
+  .ai-side .avatar { display: none; }
+  .ai-side .answer { padding: 14px; }
+  .ai-side .verdict-head { font-size: 20px; }
+  .ai-side .composer-wrap { padding: 6px 12px 14px; }
+  .ai-side .upload-zone { flex-direction: column; align-items: flex-start; }
 }
+.head-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: var(--c-border); border-radius: 99px; background: var(--c-surface); color: var(--c-text-2); font-size: 14px; white-space: nowrap; }
+.head-btn[data-on] { background: var(--c-text); color: var(--c-bg); border-color: transparent; }
+@media (hover: hover) and (pointer: fine) { .head-btn:not([data-on]):hover:not(:disabled) { color: var(--c-text); background: var(--c-surface-2); } }

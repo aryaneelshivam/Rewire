@@ -60,6 +60,14 @@ export default function App() {
   const scroller = useRef(null);
   const picker = useRef(null);
   const textRef = useRef(null);
+  // Wide screens (900px and up, as in the CSS) put the history and the conversation in sidebars.
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 900px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 900px)');
+    const update = () => setWide(mq.matches);
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
   const polling = useRef(null);
   const lastSent = useRef([]);           // the videos last sent, put back in the box if the analysis fails
   const [sentCount, setSentCount] = useState(1);
@@ -200,12 +208,12 @@ export default function App() {
   const newChat = () => {
     if (busy) return;
     clearTimeout(polling.current);
-    setMessages([GREETING]); setInsights(null); setRunId(null); setMenu(false); setNotice(null); setUploadAgain(false); setResults(null); setChatOpen(false);
+    setMessages([GREETING]); setInsights(null); setRunId(null); if (!wide) setMenu(false); setNotice(null); setUploadAgain(false); setResults(null); setChatOpen(false);
   };
 
   const openPast = async run => {
     if (busy) return;
-    setMenu(false);
+    if (!wide) setMenu(false);
     const msgId = uid();
     setMessages([{ id: msgId, role: 'user', text: run.title }]);
     setInsights(null); setResults(null);
@@ -251,88 +259,123 @@ export default function App() {
     </div>
   );
 
-  return (
-    <div className="app" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) { attach(e.dataTransfer.files); setUploadAgain(true); } }}>
-      <aside className="side" data-open={menu || undefined}>
-        <div className="side-head">
-          <span className="brand"><Mascot mood={mood} size={26} />rewire</span>
-          <button className="icon-btn drawer-only" onClick={() => setMenu(false)} aria-label="Close menu"><X size={18} /></button>
-        </div>
-        <button className="new-chat" onClick={newChat} disabled={busy}><Plus size={16} />New chat</button>
-        <p className="side-label">Recent</p>
-        <nav className="side-list">
-          {offline && <p className="side-empty">Can’t reach Rewire. Is the backend running?</p>}
-          {!offline && !runs.length && <p className="side-empty">Your chats will show up here.</p>}
-          {runs.map(r => (
-            <button key={r.id} className="side-item" data-current={r.id === runId || undefined} onClick={() => openPast(r)} disabled={busy}>
-              <span className="side-title">{r.title}</span>
-              <span className="side-meta">{r.mode === 'compare' ? 'Comparison' : 'One video'} · {new Date(r.created * 1000).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
+  // Desktop has room for the conversation beside the results; phones get it as a popover over them.
+  const sideChat = wide && !!results;
+  const composer = (
+    <div className="composer-wrap">
+      {results && !wide && (
+        <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} mood={mood} busy={busy}>
+          {thread}
+        </ChatSheet>
+      )}
+      {notice && <p className="notice" role="status">{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X size={14} /></button></p>}
+      <Crossfade active={mode}>
+        <UploadBox
+          key="upload"
+          files={files} busy={busy} sentCount={sentCount} viewers={viewers} setViewers={setViewers} credits={credits}
+          onPick={() => picker.current?.click()} onDropFiles={list => attach(list)} onRemove={unattach}
+          onAnalyse={analyse} onBack={insights ? () => setUploadAgain(false) : null}
+        />
+        <form key="chat" className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
+          <textarea
+            ref={textRef}
+            rows={1}
+            value={draft}
+            placeholder="Ask about this result"
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            aria-label="Ask about this result"
+            onFocus={() => setChatOpen(true)}
+          />
+          <div className="composer-row">
+            <button type="button" className="new-video" onClick={() => setUploadAgain(true)} disabled={busy}>
+              <Clapperboard size={16} aria-hidden="true" />New video
             </button>
-          ))}
-        </nav>
-        <div className="theme-pick" role="radiogroup" aria-label="Design">
-          {THEMES.map(t => (
-            <button key={t.key} role="radio" aria-checked={theme === t.key} onClick={() => setTheme(t.key)}>{t.label}</button>
-          ))}
+            {results && !wide && (
+              <button type="button" className="new-video" onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen}>
+                <MessageCircle size={16} aria-hidden="true" />{chatOpen ? 'Hide chat' : 'Chat'}
+              </button>
+            )}
+            <button type="submit" className="send" disabled={busy || !draft.trim()} aria-label="Send"><ArrowUp size={18} /></button>
+          </div>
+        </form>
+      </Crossfade>
+      <input ref={picker} type="file" accept={ACCEPT} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />
+    </div>
+  );
+
+  return (
+    <div className="app" data-history={menu || undefined} data-ai={(sideChat && chatOpen) || undefined}
+      onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) { attach(e.dataTransfer.files); setUploadAgain(true); if (sideChat) setChatOpen(true); } }}>
+      <aside className="side" data-open={menu || undefined} inert={!menu} aria-label="Your analyses">
+        <div className="side-inner">
+          <div className="side-head">
+            <span className="brand"><Mascot mood={mood} size={26} />rewire</span>
+            <button className="icon-btn" onClick={() => setMenu(false)} aria-label="Close sidebar"><X size={18} /></button>
+          </div>
+          <button className="new-chat" onClick={newChat} disabled={busy}><Plus size={16} />New chat</button>
+          <p className="side-label">Recent</p>
+          <nav className="side-list">
+            {offline && <p className="side-empty">Can’t reach Rewire. Is the backend running?</p>}
+            {!offline && !runs.length && <p className="side-empty">Your chats will show up here.</p>}
+            {runs.map(r => (
+              <button key={r.id} className="side-item" data-current={r.id === runId || undefined} onClick={() => openPast(r)} disabled={busy}>
+                <span className="side-title">{r.title}</span>
+                <span className="side-meta">{r.mode === 'compare' ? 'Comparison' : 'One video'} · {new Date(r.created * 1000).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="theme-pick" role="radiogroup" aria-label="Design">
+            {THEMES.map(t => (
+              <button key={t.key} role="radio" aria-checked={theme === t.key} onClick={() => setTheme(t.key)}>{t.label}</button>
+            ))}
+          </div>
         </div>
       </aside>
-      {menu && <div className="scrim" onClick={() => setMenu(false)} />}
+      {menu && !wide && <div className="scrim" onClick={() => setMenu(false)} />}
 
       <main className="chat">
         <header className="chat-head">
-          <button className="icon-btn drawer-only" onClick={() => setMenu(true)} aria-label="Open menu"><Menu size={20} /></button>
+          <button className="icon-btn" onClick={() => setMenu(o => !o)} aria-label={menu ? 'Close sidebar' : 'Open sidebar'} aria-expanded={menu}><Menu size={20} /></button>
           <span className="chat-title">{insights?.title || 'New chat'}</span>
-          <button className="icon-btn drawer-only" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>
+          {sideChat && (
+            <>
+              {!chatOpen && (
+                <button className="head-btn" onClick={() => { setUploadAgain(true); setChatOpen(true); }} disabled={busy}>
+                  <Clapperboard size={16} aria-hidden="true" />New video
+                </button>
+              )}
+              <button className="head-btn" data-on={chatOpen || undefined} onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen} aria-controls="ai-side">
+                <MessageCircle size={16} aria-hidden="true" />Ask Rewire
+              </button>
+            </>
+          )}
+          {!sideChat && <button className="icon-btn" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>}
         </header>
 
         {results ? (
           <div className="results-scroll">
             <ResultsView key={results.key} overview={results.overview} media={results.media} winner={results.winner}
-              runKey={results.key} onNewVideo={() => setUploadAgain(true)} />
+              runKey={results.key} onNewVideo={() => { setUploadAgain(true); setChatOpen(true); }} />
           </div>
         ) : thread}
 
-        <div className="composer-wrap">
-          {results && (
-            <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} mood={mood} busy={busy}>
-              {thread}
-            </ChatSheet>
-          )}
-          {notice && <p className="notice" role="status">{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X size={14} /></button></p>}
-          <Crossfade active={mode}>
-            <UploadBox
-              key="upload"
-              files={files} busy={busy} sentCount={sentCount} viewers={viewers} setViewers={setViewers} credits={credits}
-              onPick={() => picker.current?.click()} onDropFiles={list => attach(list)} onRemove={unattach}
-              onAnalyse={analyse} onBack={insights ? () => setUploadAgain(false) : null}
-            />
-            <form key="chat" className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
-              <textarea
-                ref={textRef}
-                rows={1}
-                value={draft}
-                placeholder="Ask about this result"
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-                aria-label="Ask about this result"
-                onFocus={() => setChatOpen(true)}
-              />
-              <div className="composer-row">
-                <button type="button" className="new-video" onClick={() => setUploadAgain(true)} disabled={busy}>
-                  <Clapperboard size={16} aria-hidden="true" />New video
-                </button>
-                {results && (
-                  <button type="button" className="new-video" onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen}>
-                    <MessageCircle size={16} aria-hidden="true" />{chatOpen ? 'Hide chat' : 'Chat'}
-                  </button>
-                )}
-                <button type="submit" className="send" disabled={busy || !draft.trim()} aria-label="Send"><ArrowUp size={18} /></button>
-              </div>
-            </form>
-          </Crossfade>
-          <input ref={picker} type="file" accept={ACCEPT} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />
-        </div>
+        {!sideChat && composer}
       </main>
+
+      {sideChat && (
+        <aside id="ai-side" className="ai-side" data-open={chatOpen || undefined} inert={!chatOpen} aria-label="Chat about this result">
+          <div className="ai-inner">
+            <header className="ai-head">
+              <Mascot mood={busy ? 'thinking' : mood} size={26} />
+              <span className="sheet-title">Ask Rewire</span>
+              <button type="button" className="icon-btn" onClick={() => setChatOpen(false)} aria-label="Hide chat"><X size={18} /></button>
+            </header>
+            {thread}
+            {composer}
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
