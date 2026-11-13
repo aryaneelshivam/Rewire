@@ -48,7 +48,7 @@ function MetricBar({ label, value, info, invert }) {
           </Tooltip.Portal>
         </Tooltip.Root>
       </div>
-      <div className="metric-bar" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={10} aria-valuenow={value} aria-valuetext={info} data-invert={invert || undefined}>
+      <div className="metric-bar" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={10} aria-valuenow={value} aria-valuetext={info} data-invert={invert || undefined} data-metric={label.toLowerCase()}>
         {Array.from({ length: 10 }, (_, i) => <span key={i} data-on={i < value || undefined} style={{ transitionDelay: `${i * 18}ms` }} />)}
       </div>
     </div>

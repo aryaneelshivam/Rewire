@@ -404,6 +404,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .metric-bar span { height: 8px; border-radius: 2px; background: var(--c-surface-2); transition: background-color .25s; }
 .metric-bar span[data-on] { background: var(--c-accent); }
 .metric-bar[data-invert] span[data-on] { background: var(--c-series-B); }
+/* Each metric in its own colour, so the four read apart at a glance. */
+.metric-bar[data-metric="precision"] span[data-on] { background: #7b68e0; }
+.metric-bar[data-metric="depth"] span[data-on] { background: #e8642c; }
+.metric-bar[data-metric="speed"] span[data-on] { background: #2f86d6; }
 .tip-positioner { z-index: 50; }
 .tip { max-width: 220px; padding: 7px 10px; border-radius: 8px; background: var(--c-text); color: var(--c-bg); font-size: 12px; line-height: 1.4; box-shadow: 0 6px 20px -6px rgb(0 0 0 / .3); transition: opacity .12s; }
 .tip[data-starting-style], .tip[data-ending-style] { opacity: 0; }
