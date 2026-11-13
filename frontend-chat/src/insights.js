@@ -57,7 +57,7 @@ function findDips(curve) {
 }
 
 /** The read on one video, whatever it's compared with. */
-function readVideo(key, score, engagement, name, seconds) {
+function readVideo(key, score, engagement, name, seconds, compare) {
   const m = score?.measures ?? {};
   const curve = score?.curve ?? [];
   const peakAt = curve.length ? curve.indexOf(Math.max(...curve)) : 0;
@@ -72,7 +72,7 @@ function readVideo(key, score, engagement, name, seconds) {
     .sort((a, b) => b.value - a.value);
   const spread = cohorts.length > 1 ? (cohorts[0].value - cohorts.at(-1).value) / Math.abs(cohorts[0].value || 1) : 0;
   return {
-    key, name: stem(name) || (key === 'A' ? 'Your video' : `Video ${key}`), seconds: seconds || curve.length,
+    key, name: stem(name) || (compare ? `Video ${key}` : 'Your video'), seconds: seconds || curve.length,
     curve, peakAt, peakContent: contentTime(peakAt), hook, depth, hookTag,
     hold: m.hold?.value ?? null, dips: findDips(curve), drivers, cohorts, audienceClear: spread >= TIE_PCT / 100,
   };
@@ -104,7 +104,7 @@ function suggestions(v, other) {
 export function buildInsights({ status, score, engagement, ab }) {
   const run = status.run ?? {};
   const keys = status.variants;
-  const videos = keys.map(k => readVideo(k, score[k], engagement[k], run.names?.[k], run.durations?.[k]));
+  const videos = keys.map(k => readVideo(k, score[k], engagement[k], run.names?.[k], run.durations?.[k], keys.length > 1));
   const viewers = status.viewers ?? 200;
   const media = Object.fromEntries(keys.map(k => [k, status.media?.[k] ?? {}]));
 

@@ -23,6 +23,7 @@ launch configurations (replay uses saved predictions instead of the GPU, which i
   itself, or A against B), because scores have no benchmark yet.
 - `src/answers.jsx`: the verdict and one reply per follow-up topic.
 - `src/charts.jsx`: the minimal SVG charts.
-- `src/styles.css`: three design systems (Soft, Night, Bold) as token sets, switched in the sidebar. Add another
+- `src/styles.css`: phone-first (base styles are for a phone; 640px and 900px add the avatar column and the fixed
+  sidebar), with three design systems (Soft, Night, Bold) as token sets, switched in the sidebar. Add another
   by adding one `[data-theme="..."]` block and a button in `App.jsx`.
 - `src/Mascot.jsx`: a placeholder character for the assistant.

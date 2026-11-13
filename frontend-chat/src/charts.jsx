@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { clock } from './insights';
 
 /**
@@ -6,9 +6,23 @@ import { clock } from './insights';
  * sense to an analyst; the time along the bottom and words do the explaining.
  */
 
-const W = 560;
-const H = 150;
 const PAD = { l: 6, r: 6, t: 26, b: 22 };
+
+/** The element's width in CSS pixels, kept current, so a chart can draw at true size (text stays readable). */
+function useWidth(fallback = 340) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(Math.max(200, Math.round(el.getBoundingClientRect().width)));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width];
+}
 
 /**
  * Attention over the video, second by second: one line, or two for a comparison. `marks` adds labelled points
@@ -17,6 +31,8 @@ const PAD = { l: 6, r: 6, t: 26, b: 22 };
 export function AttentionChart({ series, marks = [], bands = [], upTo, label = 'Attention over time' }) {
   const id = useId();
   const [hover, setHover] = useState(null);
+  const [frame, W] = useWidth();
+  const H = W < 480 ? 140 : 160;
   const lengths = series.map(s => (upTo ? Math.min(upTo, s.curve.length) : s.curve.length));
   const n = Math.max(2, ...lengths);
   const all = series.flatMap((s, i) => s.curve.slice(0, lengths[i]));
@@ -33,7 +49,7 @@ export function AttentionChart({ series, marks = [], bands = [], upTo, label = '
   };
 
   return (
-    <figure className="chart">
+    <figure className="chart" ref={frame}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
         <defs>
           {series.map((s, i) => (
@@ -56,7 +72,7 @@ export function AttentionChart({ series, marks = [], bands = [], upTo, label = '
         {marks.map((m, i) => (
           <g key={i} className="chart-mark">
             <circle cx={x(m.at)} cy={y(m.value)} r="5" fill={`var(--series-${m.series ?? 'A'})`} />
-            <text x={Math.min(W - 40, Math.max(30, x(m.at)))} y={Math.max(12, y(m.value) - 11)} textAnchor="middle">{m.label}</text>
+            <text x={Math.min(W - 36, Math.max(30, x(m.at)))} y={Math.max(12, y(m.value) - 11)} textAnchor="middle">{m.label}</text>
           </g>
         ))}
         {hover != null && <line className="chart-hover" x1={x(hover)} x2={x(hover)} y1={PAD.t - 6} y2={H - PAD.b} />}

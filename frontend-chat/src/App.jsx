@@ -61,7 +61,18 @@ export default function App() {
   const polling = useRef(null);
   const asked = useRef(null);
 
-  useEffect(() => { document.documentElement.dataset.theme = theme; store.set('rewire-chat:theme', theme); }, [theme]);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    store.set('rewire-chat:theme', theme);
+    // The phone's status bar and browser chrome take the page's background.
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.body).backgroundColor);
+  }, [theme]);
+  useEffect(() => {
+    if (!menu) return;
+    const close = e => { if (e.key === 'Escape') setMenu(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [menu]);
   useEffect(() => { store.set('rewire-chat:viewers', viewers); }, [viewers]);
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
   useEffect(() => () => clearTimeout(polling.current), []);
@@ -208,7 +219,7 @@ export default function App() {
       <aside className="side" data-open={menu || undefined}>
         <div className="side-head">
           <span className="brand"><Mascot mood={mood} size={26} />rewire</span>
-          <button className="icon-btn only-mobile" onClick={() => setMenu(false)} aria-label="Close menu"><X size={18} /></button>
+          <button className="icon-btn drawer-only" onClick={() => setMenu(false)} aria-label="Close menu"><X size={18} /></button>
         </div>
         <button className="new-chat" onClick={newChat} disabled={busy}><Plus size={16} />New chat</button>
         <p className="side-label">Recent</p>
@@ -232,9 +243,9 @@ export default function App() {
 
       <main className="chat">
         <header className="chat-head">
-          <button className="icon-btn only-mobile" onClick={() => setMenu(true)} aria-label="Open menu"><Menu size={20} /></button>
+          <button className="icon-btn drawer-only" onClick={() => setMenu(true)} aria-label="Open menu"><Menu size={20} /></button>
           <span className="chat-title">{insights?.title || 'New chat'}</span>
-          <button className="icon-btn only-mobile" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>
+          <button className="icon-btn drawer-only" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>
         </header>
 
         <div className="thread" ref={scroller}>
@@ -326,7 +337,8 @@ function Message({ m, last, busy, mood, onAsk, onSample, onCancel }) {
       <span className="avatar"><Mascot mood={last ? mood : 'idle'} size={30} /></span>
       <div className="msg-body">
         {m.kind === 'hello' && (
-          <div className="answer">
+          <div className="answer hello">
+            <span className="hello-mascot"><Mascot mood={last ? mood : 'idle'} size={64} /></span>
             <h2 className="verdict-head">Hi! Show me a video.</h2>
             <p>I’ll tell you how people are likely to react to it, moment by moment: whether the opening grabs them, where they drift and what to change. Send two and I’ll tell you which one wins.</p>
             {last && !busy && (
