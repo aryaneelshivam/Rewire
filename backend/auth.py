@@ -7,7 +7,7 @@ instance), so no Clerk secret lives on this server.
 
   CLERK_PUBLISHABLE_KEY      pk_test_... or pk_live_...; without it, sign-in is off and everything belongs to one
                              local user, as before. VITE_CLERK_PUBLISHABLE_KEY is read too, so one .env can serve both.
-  CLERK_AUTHORIZED_PARTIES   comma-separated origins the app is served from (default: the local dev server)
+  CLERK_AUTHORIZED_PARTIES   comma-separated origins the app is served from (default: the local dashboard and chat)
   REWIRE_AUTH=off            turn sign-in off even when a key is set
   REWIRE_MEDIA_SECRET        key for signed media links; generated and kept in the data folder when not set
   REWIRE_DATA_DIR            where runs and other data live (default backend/data; a Modal volume when hosted)
@@ -65,7 +65,7 @@ class AuthError(Exception):
 PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY") or os.environ.get("VITE_CLERK_PUBLISHABLE_KEY") or ""
 ENABLED = bool(PUBLISHABLE_KEY) and os.environ.get("REWIRE_AUTH", "on").lower() != "off"
 AUTHORIZED_PARTIES = {o.strip().rstrip("/") for o in os.environ.get(
-    "CLERK_AUTHORIZED_PARTIES", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()}
+    "CLERK_AUTHORIZED_PARTIES", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174").split(",") if o.strip()}
 USER_ID = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 
 

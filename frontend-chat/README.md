@@ -14,8 +14,15 @@ cd frontend-chat && npm install && npm run dev
 ```
 
 It opens on http://localhost:5174 and calls the backend on http://127.0.0.1:8000 (set `VITE_API_URL` for another).
-Sign-in isn't wired up yet, so run the backend with sign-in off: the `backend-noauth` or `backend-noauth-replay`
-launch configurations (replay uses saved predictions instead of the GPU, which is free and quick for design work).
+Run `npm install` in `frontend/` too: the results view reuses the dashboard's player and timeline.
+
+Sign-in and credits are shared with the dashboard. The chat reads its env from `frontend/` (`.env.local`, and
+`.env.production` for builds), so with `VITE_CLERK_PUBLISHABLE_KEY` set it uses the same Clerk app, the same
+invite-only sign-in and the same credits; each request carries the person's session token. The backend accepts the
+chat's address (port 5174) by default; a deployed chat needs its address in `CLERK_AUTHORIZED_PARTIES`.
+
+To work without sign-in, use the `chat-noauth` and `backend-noauth` (or `backend-noauth-replay`, which replays saved
+predictions instead of using the GPU) launch configurations.
 
 ## Where things are
 
@@ -24,6 +31,6 @@ launch configurations (replay uses saved predictions instead of the GPU, which i
 - `src/answers.jsx`: the verdict and one reply per follow-up topic.
 - `src/charts.jsx`: the minimal SVG charts.
 - `src/styles.css`: phone-first (base styles are for a phone; 640px and 900px add the avatar column and the fixed
-  sidebar), with three design systems (Soft, Night, Bold) as token sets, switched in the sidebar. Add another
-  by adding one `[data-theme="..."]` block and a button in `App.jsx`.
-- `src/Mascot.jsx`: a placeholder character for the assistant.
+  sidebar), in the Aura look: a mint-to-peach gradient for arriving, a solid workspace once results load.
+- `src/AuthGate.jsx` and `src/AccountMenu.jsx`: sign-in (the dashboard's flow) and the account and credits menu.
+- `mascots/peek.ts` and `src/Peek.jsx`: Peek, the Wobnimo mascot; `src/Mascot.jsx` is its flat icon.

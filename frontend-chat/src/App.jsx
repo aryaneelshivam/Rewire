@@ -9,6 +9,7 @@ import Peek from './Peek';
 import { Compact } from './compact';
 import ResultsView from './ResultsView';
 import StartScreen from './StartScreen';
+import AccountMenu from './AccountMenu';
 
 const MAX_FILES = 2;
 const MAX_SECONDS = 180;
@@ -95,10 +96,14 @@ export default function App() {
   useEffect(() => () => clearTimeout(polling.current), []);
 
   const refreshRuns = useCallback(() => api.fetchRuns().then(r => { setRuns(r.runs ?? []); setOffline(false); }).catch(() => setOffline(true)), []);
+  // On load, and again whenever the history opens, so it catches up if the backend was down or another tab added runs.
   useEffect(() => { refreshRuns(); }, [refreshRuns]);
+  useEffect(() => { if (menu) refreshRuns(); }, [menu, refreshRuns]);
   // How credits are counted (per seconds of video, and the bigger-audience surcharge), for the audience picker.
   const [credits, setCredits] = useState(null);
   useEffect(() => { api.fetchStatus().then(s => setCredits(s.credits ?? null)).catch(() => {}); }, []);
+  // The balance changes when an analysis is charged (as it starts) and if it's refunded (when it fails).
+  const refreshCredits = () => api.fetchCredits().then(setCredits).catch(() => {});
 
   const add = (...msgs) => setMessages(m => [...m, ...msgs]);
   const patch = (id, change) => setMessages(m => m.map(x => (x.id === id ? { ...x, ...change } : x)));
@@ -144,6 +149,7 @@ export default function App() {
       patch(msgId, { job, fetchedAt: Date.now() });
       if (job.status === 'running') { polling.current = setTimeout(() => poll(msgId, jobId), 1500); return; }
       setBusy(false);
+      refreshCredits();
       if (job.status === 'done') {
         try {
           await showResults(jobId);
@@ -185,6 +191,7 @@ export default function App() {
     try {
       const { job_id } = await api.createJob(sent.map(f => f.file), viewers);
       patch(msgId, { jobId: job_id });
+      refreshCredits();
       poll(msgId, job_id);
     } catch (e) {
       setBusy(false);
@@ -341,7 +348,7 @@ export default function App() {
       <main className="chat" data-start={onStart || undefined}>
         {onStart ? (
           <StartScreen onVideo={() => setStarted(true)} onMenu={() => setMenu(o => !o)}
-            onHelp={() => { setStarted(true); ask('how'); }} />
+            onHelp={() => { setStarted(true); ask('how'); }} account={<AccountMenu credits={credits} className="acct-orb" />} />
         ) : (<>
         <header className="chat-head">
           <button className="icon-btn" onClick={() => setMenu(o => !o)} aria-label={menu ? 'Close sidebar' : 'Open sidebar'} aria-expanded={menu}><Menu size={20} /></button>
@@ -359,6 +366,7 @@ export default function App() {
             </>
           )}
           {!sideChat && <button className="icon-btn" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>}
+          <AccountMenu credits={credits} />
         </header>
 
         {results ? (

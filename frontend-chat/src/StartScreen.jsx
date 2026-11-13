@@ -12,7 +12,7 @@ const KINDS = [
   { id: 'text', icon: FileText, title: 'Text', sub: 'Scripts, captions, copy', locked: true },
 ];
 
-export default function StartScreen({ onVideo, onMenu, onHelp }) {
+export default function StartScreen({ onVideo, onMenu, onHelp, account }) {
   const [nudged, setNudged] = useState(null);   // a locked card that was just pressed, for its small shake
   const [eyeing, setEyeing] = useState(false);  // pointer over the video card: Peek leans in
   const press = kind => {
@@ -25,7 +25,10 @@ export default function StartScreen({ onVideo, onMenu, onHelp }) {
     <section className="start" aria-labelledby="start-title">
       <div className="start-top">
         <button type="button" className="orb" onClick={onMenu} aria-label="Your analyses"><Menu size={20} /></button>
-        <button type="button" className="orb" onClick={onHelp} aria-label="How does Rewire work?"><HelpCircle size={20} /></button>
+        <span className="start-top-end">
+          <button type="button" className="orb" onClick={onHelp} aria-label="How does Rewire work?"><HelpCircle size={20} /></button>
+          {account}
+        </span>
       </div>
 
       <h1 id="start-title" className="start-title">

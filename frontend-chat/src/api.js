@@ -4,8 +4,20 @@
  */
 export const API_ORIGIN = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
 
+// With sign-in on, every request carries the person's Clerk session token (the auth gate registers how to get one;
+// Clerk refreshes it, so each request asks afresh). Without sign-in nothing is added and the backend runs open.
+let getToken = null;
+let accountEmail = '';
+export const setTokenGetter = fn => { getToken = fn; };
+/** The signed-in email, so the team can tell testers apart (it grants nothing; the token decides who you are). */
+export const setAccountEmail = email => { accountEmail = email || ''; };
+
 async function call(path, options = {}) {
-  const res = await fetch(`${API_ORIGIN}/api${path}`, options);
+  const token = getToken ? await getToken() : null;
+  const headers = { ...(options.headers ?? {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token && accountEmail) headers['X-Rewire-Email'] = accountEmail;
+  const res = await fetch(`${API_ORIGIN}/api${path}`, { ...options, headers });
   if (!res.ok) {
     let detail = '';
     try { detail = (await res.json()).detail; } catch { /* not JSON */ }
@@ -21,6 +33,8 @@ const post = (path, body) => call(path, { method: 'POST', body });
 export const mediaUrl = path => (path ? `${API_ORIGIN}${path}` : null);
 
 export const fetchStatus = () => call('/status');
+/** The person's credits: { enforced, balance, seconds_per_credit, usage }. */
+export const fetchCredits = () => call('/credits');
 export const fetchRuns = () => call('/runs');
 export const openRun = id => post(`/runs/${id}/open`);
 export const loadSample = () => post('/load-sample-data');
