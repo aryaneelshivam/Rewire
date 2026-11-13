@@ -28,11 +28,11 @@ export default function StartScreen({ onVideo, onMenu, onHelp }) {
         <button type="button" className="orb" onClick={onHelp} aria-label="How does Rewire work?"><HelpCircle size={20} /></button>
       </div>
 
-      <Peek className="start-peek" size={112} floor={0.5}
-        state={nudged ? 'sad' : eyeing ? 'listening' : 'idle'} />
-
       <h1 id="start-title" className="start-title">
-        <span>Hi there,</span>
+        <span className="start-hi">
+          <Peek className="start-peek" size={null} floor={0.5} state={nudged ? 'sad' : eyeing ? 'listening' : 'idle'} />
+          Hi there,
+        </span>
         <span>what do you want</span>
         <span>to analyse today?</span>
       </h1>

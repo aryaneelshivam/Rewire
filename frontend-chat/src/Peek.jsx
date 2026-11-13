@@ -27,10 +27,10 @@ const ICON_MOOD = { working: 'thinking', thinking: 'thinking', celebrating: 'hap
 
 export default function Peek({ state = 'idle', size = 96, palette, label, className = '', ...options }) {
   const [ready, setReady] = useState(false);
-  const icon = <PeekIcon mood={ICON_MOOD[state] ?? 'idle'} size={Math.round(size * 0.72)} />;
+  const icon = <PeekIcon mood={ICON_MOOD[state] ?? 'idle'} size={size ? Math.round(size * 0.72) : '72%'} />;
   const a11y = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true };
   return (
-    <span className={`peek ${className}`} data-ready={ready || undefined} style={{ width: size, height: size }} {...a11y}>
+    <span className={`peek ${className}`} data-ready={ready || undefined} style={size ? { width: size, height: size } : undefined} {...a11y}>
       {canRender() ? (
         <Guard fallback={icon}>
           <Mascot character={peek} state={state} palette={palette} onReady={() => setReady(true)}
