@@ -8,12 +8,6 @@ import Mascot from './Mascot';
 import ResultsView from './ResultsView';
 import StartScreen from './StartScreen';
 
-const THEMES = [
-  { key: 'aura', label: 'Aura' },
-  { key: 'soft', label: 'Soft' },
-  { key: 'night', label: 'Night' },
-  { key: 'bold', label: 'Bold' },
-];
 const MAX_FILES = 2;
 const MAX_SECONDS = 180;
 const ACCEPT = 'video/mp4,video/quicktime,video/webm,video/x-m4v,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv';
@@ -47,7 +41,8 @@ function videoLength(file) {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState(() => store.get('rewire-chat:theme', 'aura'));
+  // One look: Aura. The shared dashboard components get Arc's light theme and a matching accent.
+  const theme = 'aura';
   const [messages, setMessages] = useState([GREETING]);
   const [insights, setInsights] = useState(null);
   const [runId, setRunId] = useState(null);
@@ -82,11 +77,10 @@ export default function App() {
     // The chat's own look, plus the matching Arc theme and accent for the shared player and timeline.
     const root = document.documentElement;
     root.dataset.look = theme;
-    root.dataset.theme = theme === 'night' ? 'dark' : 'light';
-    root.dataset.accent = { aura: 'orange', soft: 'coral', night: 'green', bold: 'rose' }[theme] ?? 'blue';
-    store.set('rewire-chat:theme', theme);
+    root.dataset.theme = 'light';
+    root.dataset.accent = 'orange';
     // The phone's status bar and browser chrome take the page's background.
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.body).backgroundColor);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#b4ddd2');   // the gradient's top
   }, [theme]);
   useEffect(() => {
     if (!menu) return;
@@ -335,11 +329,6 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <div className="theme-pick" role="radiogroup" aria-label="Design">
-            {THEMES.map(t => (
-              <button key={t.key} role="radio" aria-checked={theme === t.key} onClick={() => setTheme(t.key)}>{t.label}</button>
-            ))}
-          </div>
         </div>
       </aside>
       {menu && !wide && <div className="scrim" onClick={() => setMenu(false)} />}
