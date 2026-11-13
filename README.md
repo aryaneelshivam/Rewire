@@ -116,8 +116,8 @@ modal deploy modal_backend.py
 - **Data** lives on the `rewire-data` Modal volume (`REWIRE_DATA_DIR=/data`): each user's runs, and the key for signed media links, generated on first start. Analyses saved on your laptop are not uploaded.
 - **Settings** at the top of `modal_backend.py`: the Clerk publishable key, the API's own address, the dashboard's address, and `FRONTEND_ORIGINS`, the addresses allowed to sign in and call the API. All are public values; no secret is stored. Redeploy after changing them or the backend.
 
-**Dashboard on Vercel** (`https://rewireit.vercel.app`):
-1. In Vercel, **Add New → Project**, import this repository, and set **Root Directory** to `frontend`. Vercel reads `frontend/vercel.json` (Vite build, `dist`, and a rewrite so routes like `/sso-callback` load the app). `frontend/.env.production` holds the API address and the Clerk publishable key, both public, so no environment variables are needed.
+**The app on Vercel** (`https://rewireit.vercel.app`): the hosted site is the chat app, `frontend-chat/`. The dashboard in `frontend/` stays in the repo and runs locally.
+1. In Vercel, **Add New → Project**, import this repository, and set **Root Directory** to `frontend`. Vercel reads `frontend/vercel.json`: it installs `frontend/` (the chat reuses the dashboard's player and timeline), then builds `frontend-chat/` into `frontend/dist`, with a rewrite so routes like `/sso-callback` load the app. `frontend/.env.production` holds the API address and the Clerk publishable key, both public, and the chat reads it, so no environment variables are needed. To host the dashboard again instead, set `buildCommand` back to `npm run build`.
 2. Add the production address to `FRONTEND_ORIGINS` in `modal_backend.py` and redeploy the API.
 3. In Clerk, send invitations with the dashboard's address as the redirect URL.
 
