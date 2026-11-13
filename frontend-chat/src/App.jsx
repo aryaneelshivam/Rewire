@@ -6,8 +6,10 @@ import { buildInsights, routeQuestion, TOPICS } from './insights';
 import { ANSWERS, Verdict } from './answers';
 import Mascot from './Mascot';
 import ResultsView from './ResultsView';
+import StartScreen from './StartScreen';
 
 const THEMES = [
+  { key: 'aura', label: 'Aura' },
   { key: 'soft', label: 'Soft' },
   { key: 'night', label: 'Night' },
   { key: 'bold', label: 'Bold' },
@@ -45,7 +47,7 @@ function videoLength(file) {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState(() => store.get('rewire-chat:theme', 'soft'));
+  const [theme, setTheme] = useState(() => store.get('rewire-chat:theme', 'aura'));
   const [messages, setMessages] = useState([GREETING]);
   const [insights, setInsights] = useState(null);
   const [runId, setRunId] = useState(null);
@@ -72,6 +74,7 @@ export default function App() {
   const lastSent = useRef([]);           // the videos last sent, put back in the box if the analysis fails
   const [sentCount, setSentCount] = useState(1);
   const [uploadAgain, setUploadAgain] = useState(false);
+  const [started, setStarted] = useState(false);       // past the 'what do you want to analyse?' screen
   const [results, setResults] = useState(null);        // what the player and timeline show
   const [chatOpen, setChatOpen] = useState(false);     // the conversation popover, over the results   // in a chat, the person asked for the upload box back
 
@@ -80,7 +83,7 @@ export default function App() {
     const root = document.documentElement;
     root.dataset.look = theme;
     root.dataset.theme = theme === 'night' ? 'dark' : 'light';
-    root.dataset.accent = { soft: 'coral', night: 'green', bold: 'rose' }[theme] ?? 'blue';
+    root.dataset.accent = { aura: 'orange', soft: 'coral', night: 'green', bold: 'rose' }[theme] ?? 'blue';
     store.set('rewire-chat:theme', theme);
     // The phone's status bar and browser chrome take the page's background.
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.body).backgroundColor);
@@ -208,11 +211,12 @@ export default function App() {
   const newChat = () => {
     if (busy) return;
     clearTimeout(polling.current);
-    setMessages([GREETING]); setInsights(null); setRunId(null); if (!wide) setMenu(false); setNotice(null); setUploadAgain(false); setResults(null); setChatOpen(false);
+    setMessages([GREETING]); setInsights(null); setRunId(null); if (!wide) setMenu(false); setNotice(null); setUploadAgain(false); setResults(null); setChatOpen(false); setStarted(false);
   };
 
   const openPast = async run => {
     if (busy) return;
+    setStarted(true);
     if (!wide) setMenu(false);
     const msgId = uid();
     setMessages([{ id: msgId, role: 'user', text: run.title }]);
@@ -232,6 +236,7 @@ export default function App() {
 
   const sample = async () => {
     if (busy) return;
+    setStarted(true);
     add({ id: uid(), role: 'user', text: 'Show me the sample' }, { id: uid(), role: 'bot', kind: 'typing' });
     setBusy(true);
     try { await api.loadSample(); await showResults('sample'); } catch (e) { setMessages(m => m.filter(x => x.kind !== 'typing')); add({ id: uid(), role: 'bot', kind: 'text', text: `The sample isn’t available: ${e.message}` }); }
@@ -258,6 +263,11 @@ export default function App() {
       </div>
     </div>
   );
+
+  const onStart = !started && !results && !busy;
+  useEffect(() => {
+    document.title = onStart ? 'Rewire · What do you want to analyse?' : insights?.title ? `${insights.title} · Rewire` : 'Rewire';
+  }, [onStart, insights?.title]);
 
   // Desktop has room for the conversation beside the results; phones get it as a popover over them.
   const sideChat = wide && !!results;
@@ -334,7 +344,11 @@ export default function App() {
       </aside>
       {menu && !wide && <div className="scrim" onClick={() => setMenu(false)} />}
 
-      <main className="chat">
+      <main className="chat" data-start={onStart || undefined}>
+        {onStart ? (
+          <StartScreen onVideo={() => setStarted(true)} onMenu={() => setMenu(o => !o)}
+            onHelp={() => { setStarted(true); ask('how'); }} />
+        ) : (<>
         <header className="chat-head">
           <button className="icon-btn" onClick={() => setMenu(o => !o)} aria-label={menu ? 'Close sidebar' : 'Open sidebar'} aria-expanded={menu}><Menu size={20} /></button>
           <span className="chat-title">{insights?.title || 'New chat'}</span>
@@ -361,6 +375,7 @@ export default function App() {
         ) : thread}
 
         {!sideChat && composer}
+        </>)}
       </main>
 
       {sideChat && (
@@ -420,8 +435,8 @@ function Message({ m, last, busy, mood, onAsk, onSample, onCancel }) {
         {m.kind === 'hello' && (
           <div className="answer hello">
             <span className="hello-mascot"><Mascot mood={last ? mood : 'idle'} size={64} /></span>
-            <h2 className="verdict-head">Hi! Show me a video.</h2>
-            <p>I’ll tell you how people are likely to react to it, moment by moment: whether the opening grabs them, where they drift and what to change. Send two and I’ll tell you which one wins.</p>
+            <h2 className="verdict-head">Show me your video.</h2>
+            <p>Drop it in the box below. I’ll show it to a simulated audience and tell you, moment by moment, whether the opening grabs them, where they drift and what to change. Add a second cut and I’ll tell you which one wins.</p>
             {last && !busy && (
               <div className="chips">
                 <button className="chip chip-strong" onClick={onSample}>Try a sample comparison</button>
