@@ -768,3 +768,21 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 /* The gradient, painted once on a fixed layer of its own instead of a window-fixed body background. */
 :root[data-perf="lite"][data-look="aura"] body { background: none; }
 :root[data-perf="lite"][data-look="aura"] body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--aura); transform: translateZ(0); pointer-events: none; }
+
+/* ── Share and Report: in the header; icon-only on narrow screens ── */
+.head-tools { display: inline-flex; gap: 6px; }
+@media (max-width: 899px) { .head-tools .head-btn { width: 36px; padding: 0; justify-content: center; } .head-tools .head-btn span { display: none; } }
+.share-backdrop { position: fixed; inset: 0; z-index: 70; background: rgb(19 19 18 / .42); transition: opacity .2s; }
+.share-backdrop[data-starting-style], .share-backdrop[data-ending-style] { opacity: 0; }
+.share-dialog { position: fixed; z-index: 71; left: 50%; top: 50%; translate: -50% -50%; width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); display: flex; flex-direction: column; gap: 12px; padding: 14px 14px 16px; border-radius: 24px; background: #faf7f2; box-shadow: 0 30px 80px -20px rgb(0 0 0 / .45); outline: 0; transition: opacity .2s, transform .25s cubic-bezier(.3, 1.3, .5, 1); }
+.share-dialog[data-starting-style], .share-dialog[data-ending-style] { opacity: 0; transform: scale(.96); }
+.share-head { display: flex; align-items: center; justify-content: space-between; padding-left: 4px; }
+.share-title { margin: 0; font: 600 16px/1.2 var(--c-font); }
+.share-preview { display: flex; justify-content: center; align-items: center; min-height: 200px; border-radius: 16px; background: #ece7df; padding: 8px; }
+.share-preview img { display: block; width: auto; height: auto; max-width: 100%; max-height: min(60dvh, 520px); border-radius: 10px; box-shadow: 0 6px 20px -10px rgb(0 0 0 / .35); }
+.share-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--c-text-2); font-size: 14px; padding: 0 20px; text-align: center; }
+.share-error { margin: 0; font-size: 13px; color: #b4471c; }
+.share-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.share-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 120px; height: 42px; border: 1px solid rgb(19 19 18 / .12); border-radius: 99px; background: #fff; color: var(--c-text); font: 600 14px/1 var(--c-font); cursor: pointer; }
+.share-btn.primary { background: #151412; color: #fff; border-color: transparent; }
+.share-btn:disabled { opacity: .5; cursor: default; }

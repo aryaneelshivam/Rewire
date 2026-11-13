@@ -29,7 +29,7 @@ export const COHORT_LABELS = { kids: 'Kids', genz: 'Gen Z', adults: 'Adults', ol
 
 export const clock = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.round(Math.max(0, s)) % 60).padStart(2, '0')}`;
 const avg = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
-const contentTime = t => Math.max(0, t - LAG_S);
+export const contentTime = t => Math.max(0, t - LAG_S);
 const stem = name => name?.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
 
 function smooth(curve) {

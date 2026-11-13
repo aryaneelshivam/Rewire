@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle, Coins, HelpCircle, PlayCircle, LogOut } from 'lucide-react';
+import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle, Coins, HelpCircle, PlayCircle, LogOut, Share2, FileText } from 'lucide-react';
 import { AccountContext } from '@/lib/auth-config';
 import AudiencePicker from './AudiencePicker';
 import * as api from './api';
@@ -11,6 +11,8 @@ import { Compact } from './compact';
 import ResultsView from './ResultsView';
 import StartScreen from './StartScreen';
 import AccountMenu from './AccountMenu';
+import ShareDialog from './ShareDialog';
+import { openReport } from './report';
 
 const MAX_FILES = 2;
 const MAX_SECONDS = 180;
@@ -57,6 +59,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
   const [menu, setMenu] = useState(false);
+  const [sharing, setSharing] = useState(false);   // the share-card dialog
   const [offline, setOffline] = useState(false);
   const scroller = useRef(null);
   const picker = useRef(null);
@@ -356,6 +359,12 @@ export default function App() {
         <header className="chat-head">
           <button className="icon-btn" onClick={() => setMenu(o => !o)} aria-label={menu ? 'Close sidebar' : 'Open sidebar'} aria-expanded={menu}><Menu size={20} /></button>
           <span className="chat-title">{insights?.title || 'New chat'}</span>
+          {results && insights && (
+            <span className="head-tools">
+              <button className="head-btn" onClick={() => setSharing(true)} aria-label="Share the result"><Share2 size={16} aria-hidden="true" /><span>Share</span></button>
+              <button className="head-btn" onClick={() => openReport(insights)} aria-label="Open the report"><FileText size={16} aria-hidden="true" /><span>Report</span></button>
+            </span>
+          )}
           {sideChat && (
             <>
               {!chatOpen && (
@@ -371,6 +380,7 @@ export default function App() {
           {!sideChat && <button className="icon-btn" onClick={newChat} aria-label="New chat" disabled={busy}><Plus size={20} /></button>}
           <AccountMenu credits={credits} />
         </header>
+        <ShareDialog open={sharing} onOpenChange={setSharing} ins={insights} />
 
         {results ? (
           <div className="results-scroll">
