@@ -312,7 +312,7 @@ export default function App() {
   );
 
   return (
-    <div className="app" data-history={menu || undefined} data-ai={(sideChat && chatOpen) || undefined}
+    <div className="app" data-results={!!results || undefined} data-history={menu || undefined} data-ai={(sideChat && chatOpen) || undefined}
       onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) { attach(e.dataTransfer.files); setUploadAgain(true); if (sideChat) setChatOpen(true); } }}>
       <aside className="side" data-open={menu || undefined} inert={!menu} aria-label="Your analyses">
         <div className="side-inner">

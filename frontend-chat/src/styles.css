@@ -451,6 +451,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 [data-look="aura"] .ai-side .chip, [data-look="aura"] .sheet .chip { background: #ffffff; border-color: rgb(19 19 18 / .12); }
 [data-look="aura"] .ai-side .composer, [data-look="aura"] .sheet ~ .swap .composer { background: #ffffff; }
 [data-look="aura"] .chat-head { background: rgb(255 255 255 / .72); border-bottom-color: rgb(19 19 18 / .06); }
+/* Before there are results the header floats on the gradient: no bar, no line. */
+[data-look="aura"] .app:not([data-results]) .chat-head { background: transparent; border-bottom-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
 [data-look="aura"] .head-btn { background: #ffffff; border-color: rgb(19 19 18 / .1); color: var(--c-text); }
 [data-look="aura"] .head-btn[data-on] { background: var(--c-text); color: #fff; }
 
