@@ -80,6 +80,10 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
   const surcharge = credits?.viewer_surcharge ?? 0.5;
   const need = knownLengths ? creditCost(lengths, credits?.seconds_per_credit, viewers, surcharge) : null;
   const forViewers = knownLengths ? need - creditCost(lengths, credits?.seconds_per_credit) : 0;
+  // The extra a bigger audience adds, shown live beside the slider: in credits once the lengths are known, else as a share.
+  const extraPct = Math.round(surcharge * (viewers - VIEWERS.min) / (VIEWERS.max - VIEWERS.min) * 100);
+  const extraText = extraPct === 0 ? 'None at 200'
+    : knownLengths ? `+${forViewers} credit${forViewers === 1 ? '' : 's'}` : `+${extraPct}%`;
   const short = credits?.enforced && need != null && credits.balance < need;
   const lengthsText = knownLengths ? lengths.map(d => `${Math.round(d)}s`).join(' and ') : '';
   const chooseViewers = n => {
@@ -172,7 +176,18 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
               disabled={!!busy}
             />
           </div>
-          <p className="viewer-note">More viewers smooth the averages. They add time and a little to the cost.</p>
+          <div className="viewer-side">
+            {credits?.enforced && surcharge > 0 && (
+              <div className="viewer-surcharge" data-none={extraPct === 0 || undefined} aria-live="polite">
+                <span className="viewer-surcharge-label">Audience surcharge</span>
+                <span key={extraText} className="viewer-surcharge-value">{extraText}</span>
+                <span className="viewer-surcharge-meter" aria-hidden="true">
+                  <span style={{ width: `${(viewers - VIEWERS.min) / (VIEWERS.max - VIEWERS.min) * 100}%` }} />
+                </span>
+              </div>
+            )}
+            <p className="viewer-note">More viewers smooth the averages. They add time and a little to the cost.</p>
+          </div>
         </div>
 
         {credits?.enforced && (() => {
