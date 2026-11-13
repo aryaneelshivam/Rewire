@@ -543,7 +543,7 @@ const CROWD = [
 function PeekCrowd() {
   return (
     <span className="peek-crowd" aria-hidden="true">
-      {CROWD.map((c, i) => <Peek key={c.key} size={46} palette={c.palette} state="working" seed={i / 4} floor={0.35} interactive={false} />)}
+      {CROWD.map((c, i) => <Peek key={c.key} size={46} palette={c.palette} state="working" seed={i / 4} floor={0.35} interactive={false} intro={false} />)}
     </span>
   );
 }

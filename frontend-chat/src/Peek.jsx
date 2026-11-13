@@ -1,5 +1,6 @@
 import React, { Component, useState } from 'react';
 import { Mascot } from 'wobnimo/react';
+import { Tooltip } from '@base-ui/react/tooltip';
 import peek from '../mascots/peek';
 import PeekIcon from './Mascot';
 
@@ -25,11 +26,11 @@ class Guard extends Component {
 
 const ICON_MOOD = { working: 'thinking', thinking: 'thinking', celebrating: 'happy', surprised: 'happy' };
 
-export default function Peek({ state = 'idle', size = 96, palette, label, className = '', ...options }) {
+export default function Peek({ state = 'idle', size = 96, palette, label, className = '', intro = true, ...options }) {
   const [ready, setReady] = useState(false);
   const icon = <PeekIcon mood={ICON_MOOD[state] ?? 'idle'} size={size ? Math.round(size * 0.72) : '72%'} />;
   const a11y = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true };
-  return (
+  const body = (
     <span className={`peek ${className}`} data-ready={ready || undefined} style={size ? { width: size, height: size } : undefined} {...a11y}>
       {canRender() ? (
         <Guard fallback={icon}>
@@ -38,5 +39,23 @@ export default function Peek({ state = 'idle', size = 96, palette, label, classN
         </Guard>
       ) : icon}
     </span>
+  );
+  if (!intro) return body;
+  // Hover (or focus) and Peek says hello in a little speech bubble.
+  return (
+    <Tooltip.Provider>
+      <Tooltip.Root>
+        <Tooltip.Trigger delay={150} closeDelay={80} render={body} />
+        <Tooltip.Portal>
+          <Tooltip.Positioner side="top" sideOffset={-18} collisionPadding={2} className="tip-positioner">
+            <Tooltip.Popup className="peek-hello">
+              <strong>Hi, I’m Peek!</strong>
+              <span>I watch your videos with you.</span>
+              <Tooltip.Arrow className="peek-hello-tail" />
+            </Tooltip.Popup>
+          </Tooltip.Positioner>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
