@@ -518,10 +518,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 .fan { --card-w: clamp(118px, 31vw, 196px); --card-h: clamp(150px, 39vw, 220px); position: relative; width: min(100%, 600px); height: calc(var(--card-h) + 110px); margin-top: auto; flex: none; }
 .fan-card { position: absolute; left: 50%; bottom: 74px; width: var(--card-w); height: var(--card-h); margin-left: calc(var(--card-w) / -2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px 10px; border: var(--c-border); border-radius: 30px; background: var(--c-surface); box-shadow: var(--c-shadow); color: var(--c-text); text-align: center; -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
-  transform-origin: 50% 150%; transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .3s; animation: fan-in .8s cubic-bezier(.2, .8, .2, 1) both; }
-.fan-card[data-pos="0"] { --at: translateX(-66%) rotate(-17deg); animation-delay: .18s; }
+  transform-origin: 50% 190%; transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .3s; animation: fan-in .8s cubic-bezier(.2, .8, .2, 1) both; }
+.fan-card[data-pos="0"] { --at: rotate(-21deg); animation-delay: .18s; }
 .fan-card[data-pos="1"] { --at: translateY(-16px); z-index: 2; animation-delay: .1s; background: color-mix(in oklab, var(--c-surface) 70%, white); }
-.fan-card[data-pos="2"] { --at: translateX(66%) rotate(17deg); animation-delay: .24s; }
+.fan-card[data-pos="2"] { --at: rotate(21deg); animation-delay: .24s; }
 .fan-card { transform: var(--at); }
 .fan-card:not([data-locked]):hover, .fan-card:not([data-locked]):focus-visible { transform: translateY(-30px) scale(1.03); }
 .fan-card[data-locked] { cursor: not-allowed; }
