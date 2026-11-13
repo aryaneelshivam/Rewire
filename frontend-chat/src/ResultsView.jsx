@@ -39,17 +39,32 @@ function AttentionLane({ v, lo, hi, end, pct, tone }) {
 }
 
 /** One thin heat row per audience: darker where that audience responds more (on one scale for every row). */
+/** Each audience's response as a waffle: one cell per second per audience, shaded in five steps so strong and weak
+ * stretches read at a glance. Rows run Kids, Gen Z, Adults, 55+, labelled in the timeline's label column. */
+const AUD_STEPS = ['Very weak', 'Weak', 'Middling', 'Strong', 'Very strong'];
 function AudienceLane({ detail, lo, hi, pct, tone }) {
   return (
     <div className="lane-aud">
       {detail.cohorts.map(c => (
-        <div key={c} className="lane-aud-row" title={cohortLabel(c)}>
-          {detail.audiences[c].map((val, t) => (
-            <span key={t} style={{ left: pct(t), width: pct(1), background: `var(--chart-${tone})`, opacity: 0.08 + 0.92 * Math.max(0, (val - lo) / (hi - lo || 1)) }} />
-          ))}
+        <div key={c} className="lane-aud-row">
+          {detail.audiences[c].map((val, t) => {
+            const step = Math.min(4, Math.floor(5 * Math.max(0, (val - lo) / (hi - lo || 1))));
+            return (
+              <span key={t} data-step={step} data-tone={tone} style={{ left: pct(t), width: `max(1px, calc(${pct(1)} - 2px))` }}
+                title={`${cohortLabel(c)} · ${clock(t)} · ${AUD_STEPS[step]}`} />
+            );
+          })}
         </div>
       ))}
     </div>
+  );
+}
+
+function AudienceLabels({ cohorts }) {
+  return (
+    <span className="lane-aud-labels">
+      {cohorts.map(c => <span key={c}>{cohortLabel(c).replace(/\s*\(.*\)/, '')}</span>)}
+    </span>
   );
 }
 
@@ -194,7 +209,7 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
       { id: 'attention', label: 'Attention', hint: 'Predicted attention each second. The shaded start is the hook; grey bands are dips.', height: 46,
         render: ({ pct, end }) => <AttentionLane v={vid} lo={scales.lo} hi={scales.hi} end={end} pct={pct} tone={tone} /> },
       ...(vid.detail ? [
-        { id: 'audiences', label: 'Audiences', hint: 'Kids, Gen Z, Adults and 55+, top to bottom. Darker is a stronger response.', height: 34,
+        { id: 'audiences', label: <AudienceLabels cohorts={vid.detail.cohorts} />, hint: 'How each audience responds, second by second. Darker is a stronger response.', height: 58,
           render: ({ pct }) => <AudienceLane detail={vid.detail} lo={scales.alo} hi={scales.ahi} pct={pct} tone={tone} /> },
         { id: 'drivers', label: 'Rising', hint: 'The driver rising most each second, against its own usual level.', height: 22,
           render: ({ pct }) => <DriverLane detail={vid.detail} pct={pct} /> },
@@ -255,6 +270,11 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
       {seen.size > 0 && (
         <p className="drv-legend" aria-label="Driver colours">
           {MIX_KEYS.filter(d => seen.has(d)).map(d => <span key={d}><i data-drv={d} />{MIX[d]}</span>)}
+          <span className="aud-key" aria-label="Audiences: lighter is weaker, darker is stronger">
+            Audiences: weaker
+            <span className="aud-key-steps" data-tone={focus === 'B' ? 'b' : 'a'}>{[0, 1, 2, 3, 4].map(i => <b key={i} data-step={i} />)}</span>
+            stronger
+          </span>
         </p>
       )}
       {!roomy && now}
