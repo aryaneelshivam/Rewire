@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Menu, Paperclip, Plus, X, Square, Check, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle } from 'lucide-react';
 import AudiencePicker from './AudiencePicker';
 import * as api from './api';
 import { buildInsights, routeQuestion, TOPICS } from './insights';
@@ -58,8 +58,11 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const scroller = useRef(null);
   const picker = useRef(null);
+  const textRef = useRef(null);
   const polling = useRef(null);
-  const asked = useRef(null);
+  const lastSent = useRef([]);           // the videos last sent, put back in the box if the analysis fails
+  const [sentCount, setSentCount] = useState(1);
+  const [uploadAgain, setUploadAgain] = useState(false);   // in a chat, the person asked for the upload box back
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -91,6 +94,7 @@ export default function App() {
     const data = await api.fetchResults();
     const ins = buildInsights(data);
     setInsights(ins);
+    setUploadAgain(false);
     setRunId(id ?? data.status.run?.id ?? null);
     setMessages(m => m.filter(x => x.kind !== 'typing'));
     add({ id: uid(), role: 'bot', kind: 'verdict', ins });
@@ -124,38 +128,39 @@ export default function App() {
       setBusy(false);
       if (job.status === 'done') {
         try {
-          const ins = await showResults(jobId);
-          // A question sent with the videos ("which opening is better?") is answered right after the verdict.
-          if (asked.current) { add({ id: uid(), role: 'bot', kind: 'answer', topic: asked.current, ins }); asked.current = null; }
+          await showResults(jobId);
         } catch (e) { add({ id: uid(), role: 'bot', kind: 'text', text: `The analysis finished, but I couldn’t open it: ${e.message}` }); }
         refreshRuns();
       } else if (job.status === 'cancelled') {
+        setFiles(lastSent.current);
         add({ id: uid(), role: 'bot', kind: 'text', text: 'Stopped. Send it again whenever you like.' });
       } else {
         const why = job.error && !internal.test(job.error) ? job.error : 'Something went wrong on my side.';
+        setFiles(lastSent.current);
         add({ id: uid(), role: 'bot', kind: 'text', text: `I couldn’t finish that one. ${why} Try sending it again.` });
       }
     }).catch(() => { polling.current = setTimeout(() => poll(msgId, jobId), 3000); });
   };
 
-  const send = async () => {
+  /** A typed question about the open analysis. */
+  const send = () => {
     const text = draft.trim();
-    if (busy || (!text && !files.length)) return;
+    if (busy || !text) return;
+    setDraft('');
+    const topic = routeQuestion(text);
+    if (topic) { ask(topic, text); return; }
+    add({ id: uid(), role: 'user', text }, { id: uid(), role: 'bot', kind: 'menu', text: 'I can tell you about any of these:' });
+  };
+
+  /** Sends the videos in the upload box for analysis. */
+  const analyse = async () => {
+    if (busy || !files.length) return;
     setNotice(null);
-    if (!files.length) {
-      setDraft('');
-      const topic = routeQuestion(text);
-      if (topic) { ask(topic, text); return; }
-      add({ id: uid(), role: 'user', text }, insights
-        ? { id: uid(), role: 'bot', kind: 'menu', text: 'I can tell you about any of these:' }
-        : { id: uid(), role: 'bot', kind: 'text', text: 'Send me a video and I’ll tell you how people are likely to respond. Tap the paperclip to add one, or two to compare.' });
-      return;
-    }
     if (files.some(f => f.seconds > MAX_SECONDS)) { setNotice('Videos can be up to 3 minutes long.'); return; }
     const sent = files;
-    asked.current = text ? routeQuestion(text) : null;
-    setDraft(''); setFiles([]); setBusy(true);
-    add({ id: uid(), role: 'user', text, videos: sent.map(f => ({ name: f.file.name, url: f.url })) });
+    lastSent.current = sent;
+    setFiles([]); setBusy(true); setSentCount(sent.length);
+    add({ id: uid(), role: 'user', text: sent.length === 2 ? 'Which one works better?' : '', videos: sent.map(f => ({ name: f.file.name, url: f.url })) });
     const msgId = uid();
     add({ id: msgId, role: 'bot', kind: 'progress', viewers, count: sent.length });
     try {
@@ -164,6 +169,7 @@ export default function App() {
       poll(msgId, job_id);
     } catch (e) {
       setBusy(false);
+      setFiles(sent);
       patch(msgId, { kind: 'text', text: e.status === 402 ? e.message : `I couldn’t start that one. ${internal.test(e.message) ? '' : e.message}` });
     }
   };
@@ -182,7 +188,7 @@ export default function App() {
   const newChat = () => {
     if (busy) return;
     clearTimeout(polling.current);
-    setMessages([GREETING]); setInsights(null); setRunId(null); setMenu(false); setNotice(null);
+    setMessages([GREETING]); setInsights(null); setRunId(null); setMenu(false); setNotice(null); setUploadAgain(false);
   };
 
   const openPast = async run => {
@@ -214,11 +220,16 @@ export default function App() {
 
   const cancel = jobId => api.cancelJob(jobId).catch(() => {});
 
-  const ready = !busy && (draft.trim() || files.length);
+  // The box at the bottom: an upload box until there's a result to talk about, then a chat box.
+  const mode = !insights || uploadAgain ? 'upload' : 'chat';
+  // With a keyboard and mouse, the chat box takes focus as it appears; on touch that would pop the keyboard up.
+  useEffect(() => {
+    if (mode === 'chat' && window.matchMedia('(hover: hover) and (pointer: fine)').matches) setTimeout(() => textRef.current?.focus(), 380);
+  }, [mode]);
   const mood = busy ? 'thinking' : insights ? 'happy' : 'idle';
 
   return (
-    <div className="app" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) attach(e.dataTransfer.files); }}>
+    <div className="app" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) { attach(e.dataTransfer.files); setUploadAgain(true); } }}>
       <aside className="side" data-open={menu || undefined}>
         <div className="side-head">
           <span className="brand"><Mascot mood={mood} size={26} />rewire</span>
@@ -262,36 +273,32 @@ export default function App() {
 
         <div className="composer-wrap">
           {notice && <p className="notice" role="status">{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X size={14} /></button></p>}
-          <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
-            {files.length > 0 && (
-              <div className="attachments">
-                {files.map((f, i) => (
-                  <div key={f.url} className="attachment">
-                    <video src={`${f.url}#t=0.5`} muted preload="metadata" playsInline />
-                    <span className="attachment-tag">{files.length === 2 ? (i === 0 ? 'A' : 'B') : ''}</span>
-                    <span className="attachment-name">{f.file.name.replace(/\.[^.]+$/, '')}</span>
-                    {f.seconds > 0 && <span className="attachment-len" data-long={f.seconds > MAX_SECONDS || undefined}>{Math.floor(f.seconds / 60)}:{String(Math.round(f.seconds) % 60).padStart(2, '0')}</span>}
-                    <button type="button" onClick={() => unattach(i)} aria-label={`Remove ${f.file.name}`}><X size={14} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              rows={1}
-              value={draft}
-              placeholder={files.length === 2 ? 'Ask which one wins, or just send' : files.length ? 'Add a note, or just send' : 'Send a video, or ask about your last one'}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              aria-label="Message"
+          <Crossfade active={mode}>
+            <UploadBox
+              key="upload"
+              files={files} busy={busy} sentCount={sentCount} viewers={viewers} setViewers={setViewers} credits={credits}
+              onPick={() => picker.current?.click()} onDropFiles={list => attach(list)} onRemove={unattach}
+              onAnalyse={analyse} onBack={insights ? () => setUploadAgain(false) : null}
             />
-            <div className="composer-row">
-              <button type="button" className="icon-btn" onClick={() => picker.current?.click()} disabled={busy || files.length >= MAX_FILES} aria-label="Attach a video"><Paperclip size={18} /></button>
-              <AudiencePicker value={viewers} onChange={setViewers} disabled={busy} credits={credits}
-                lengths={files.length && files.every(f => f.seconds > 0) ? files.map(f => f.seconds) : []} />
-              <button type="submit" className="send" disabled={!ready} aria-label="Send"><ArrowUp size={18} /></button>
-            </div>
-            <input ref={picker} type="file" accept={ACCEPT} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />
-          </form>
+            <form key="chat" className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
+              <textarea
+                ref={textRef}
+                rows={1}
+                value={draft}
+                placeholder="Ask about this result"
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                aria-label="Ask about this result"
+              />
+              <div className="composer-row">
+                <button type="button" className="new-video" onClick={() => setUploadAgain(true)} disabled={busy}>
+                  <Clapperboard size={16} aria-hidden="true" />New video
+                </button>
+                <button type="submit" className="send" disabled={busy || !draft.trim()} aria-label="Send"><ArrowUp size={18} /></button>
+              </div>
+            </form>
+          </Crossfade>
+          <input ref={picker} type="file" accept={ACCEPT} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />
         </div>
       </main>
     </div>
@@ -406,6 +413,103 @@ function Progress({ m, onCancel }) {
         </ol>
       )}
       {job?.status === 'running' && <button className="chip" onClick={() => onCancel(job.id)}><Square size={11} />Stop</button>}
+    </div>
+  );
+}
+
+/**
+ * Two layers in one spot, crossfading: the active one fades and settles in while the other fades out, and the box
+ * eases its height from one to the other. The hidden layer is inert, so it can't be tabbed to or clicked.
+ */
+function Crossfade({ active, children }) {
+  const refs = useRef({});
+  const [height, setHeight] = useState(null);
+  useLayoutEffect(() => {
+    const el = refs.current[active];
+    if (!el) return;
+    const measure = () => setHeight(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [active]);
+  return (
+    <div className="stage" style={height == null ? undefined : { height }}>
+      {React.Children.map(children, child => {
+        const on = child.key?.replace(/^\.\$/, '') === active || child.key === active;
+        const key = child.key?.replace(/^\.\$/, '');
+        return (
+          <div className="stage-layer" data-active={on || undefined} inert={!on} ref={el => { refs.current[key] = el; }}>
+            {child}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const fmtLen = s => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
+
+/** Where every analysis starts: drop or choose one video (or two to compare), pick the audience, analyse. */
+function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPick, onDropFiles, onRemove, onAnalyse, onBack }) {
+  const [drag, setDrag] = useState(false);
+  const depth = useRef(0);
+  const lengths = files.length && files.every(f => f.seconds > 0) ? files.map(f => f.seconds) : [];
+  const dragProps = {
+    onDragEnter: e => { e.preventDefault(); depth.current += 1; setDrag(true); },
+    onDragOver: e => e.preventDefault(),
+    onDragLeave: () => { depth.current -= 1; if (depth.current <= 0) { depth.current = 0; setDrag(false); } },
+    onDrop: e => { e.preventDefault(); e.stopPropagation(); depth.current = 0; setDrag(false); if (!busy) onDropFiles(e.dataTransfer.files); },
+  };
+  return (
+    <div className="upload-box" data-drag={drag || undefined} data-busy={busy || undefined} {...dragProps}>
+      {busy ? (
+        <div className="upload-busy" role="status">
+          <span className="upload-icon"><Loader2 size={20} className="spin" aria-hidden="true" /></span>
+          <span className="upload-text">
+            <span className="upload-title">Analysing {sentCount === 2 ? 'your videos' : 'your video'}…</span>
+            <span className="upload-sub">When it’s done, this turns into a chat about the results.</span>
+          </span>
+        </div>
+      ) : files.length === 0 ? (
+        <button type="button" className="upload-zone" onClick={onPick}>
+          <span className="upload-icon"><UploadCloud size={22} aria-hidden="true" /></span>
+          <span className="upload-text">
+            <span className="upload-title">{drag ? 'Drop it here' : 'Drop a video, or choose one'}</span>
+            <span className="upload-sub">Add two to compare · MP4, MOV or WebM · up to 3 minutes</span>
+          </span>
+        </button>
+      ) : (
+        <div className="upload-files">
+          {files.map((f, i) => (
+            <div key={f.url} className="upload-file">
+              <video src={`${f.url}#t=0.5`} muted preload="metadata" playsInline />
+              {files.length === 2 && <span className="upload-tag" data-v={i === 0 ? 'A' : 'B'}>{i === 0 ? 'A' : 'B'}</span>}
+              <span className="upload-file-text">
+                <span className="upload-file-name">{f.file.name.replace(/\.[^.]+$/, '')}</span>
+                <span className="upload-file-meta" data-long={f.seconds > MAX_SECONDS || undefined}>
+                  {f.seconds > 0 ? fmtLen(f.seconds) : '…'}{f.seconds > MAX_SECONDS ? ' · over 3 minutes' : ''}
+                </span>
+              </span>
+              <button type="button" className="icon-btn" onClick={() => onRemove(i)} aria-label={`Remove ${f.file.name}`}><X size={16} /></button>
+            </div>
+          ))}
+          {files.length === 1 && (
+            <button type="button" className="upload-add" onClick={onPick}><Plus size={15} aria-hidden="true" />Add a second video to compare</button>
+          )}
+        </div>
+      )}
+      <div className="upload-row">
+        <AudiencePicker value={viewers} onChange={setViewers} disabled={busy} credits={credits} lengths={lengths} />
+        {onBack && !busy && (
+          <button type="button" className="upload-back" onClick={onBack} aria-label="Back to chat">
+            <MessageCircle size={18} aria-hidden="true" /><span className="upload-back-text">Back to chat</span>
+          </button>
+        )}
+        <button type="button" className="analyse" onClick={onAnalyse} disabled={busy || !files.length}>
+          {files.length === 2 ? 'Compare' : 'Analyse'}<ArrowUp size={16} aria-hidden="true" />
+        </button>
+      </div>
     </div>
   );
 }
