@@ -432,29 +432,32 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 [data-look="aura"] .hello p { max-width: 46ch; margin-inline: auto; color: var(--c-text-2); }
 [data-look="aura"] .msg-videos figure { border-color: rgb(255 255 255 / .9); box-shadow: var(--c-shadow); }
 
-/* ── Aura, after an analysis: the gradient calms behind the results, and everything sits on near-opaque cards so
-   text, charts and the timeline's colours read as they would on white. ── */
-[data-look="aura"] .results-scroll { background: linear-gradient(180deg, rgb(255 255 255 / .5), rgb(255 255 255 / .62)); }
+/* ── Aura, after an analysis: the gradient is for arriving; the results are a workspace. Once they load the
+   gradient fades to a solid warm off-white, and the panels are plain white cards with a hairline edge. ── */
+[data-look="aura"] .app { --ws-bg: #f4f0e9; --ws-side: #faf7f2; --ws-line: rgb(19 19 18 / .08); transition: background-color .7s ease; }
+[data-look="aura"] .app[data-results] { background-color: var(--ws-bg); }
 [data-look="aura"] .results { gap: 14px; }
 [data-look="aura"] .results .player-panel,
 [data-look="aura"] .results .now,
 [data-look="aura"] .results .timeline {
-  padding: 14px 16px; border: 1px solid rgb(255 255 255 / .95); border-radius: 22px;
-  background: rgb(255 255 255 / .9); box-shadow: 0 1px 2px rgb(60 40 20 / .06), 0 18px 40px -28px rgb(60 40 20 / .35);
-  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  padding: 14px 16px; border: 1px solid var(--ws-line); border-radius: 20px;
+  background: #ffffff; box-shadow: 0 1px 2px rgb(60 40 20 / .04);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 [data-look="aura"] .results .timeline { padding: 16px 18px 18px; }
 [data-look="aura"] .results .player-stage { border-radius: 14px; }
 [data-look="aura"] .results .now-bar { background: rgb(19 19 18 / .07); }
 [data-look="aura"] .results .lane-aud-row { background: rgb(19 19 18 / .05); }
-[data-look="aura"] .drv-legend { padding: 8px 14px; border-radius: 99px; background: rgb(255 255 255 / .8); justify-self: start; align-self: flex-start; margin: 0; }
-/* The chat beside the results, and the header above them: solid enough to read, still a hint of glass. */
-[data-look="aura"] .ai-side, [data-look="aura"] .sheet { background: rgb(250 247 242 / .93); border-left-color: rgb(19 19 18 / .08); }
+[data-look="aura"] .drv-legend { padding: 8px 14px; border-radius: 99px; background: #ffffff; border: 1px solid var(--ws-line); justify-self: start; align-self: flex-start; margin: 0; }
+/* The chat beside the results, and the header above them: solid, in the same family as the page. */
+[data-look="aura"] .ai-side, [data-look="aura"] .sheet { background: var(--ws-side); border-left-color: var(--ws-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 [data-look="aura"] .ai-side .answer, [data-look="aura"] .sheet .answer { background: #ffffff; border-color: rgb(19 19 18 / .07); box-shadow: 0 1px 2px rgb(60 40 20 / .05); }
-[data-look="aura"] .ai-head, [data-look="aura"] .sheet-head { border-bottom-color: rgb(19 19 18 / .08); }
+[data-look="aura"] .ai-head, [data-look="aura"] .sheet-head { border-bottom-color: var(--ws-line); }
 [data-look="aura"] .ai-side .chip, [data-look="aura"] .sheet .chip { background: #ffffff; border-color: rgb(19 19 18 / .12); }
 [data-look="aura"] .ai-side .composer, [data-look="aura"] .sheet ~ .swap .composer { background: #ffffff; }
-[data-look="aura"] .chat-head { background: rgb(255 255 255 / .72); border-bottom-color: rgb(19 19 18 / .06); }
+[data-look="aura"] .app[data-results] .side { background: var(--ws-side); border-right-color: var(--ws-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-look="aura"] .app[data-results] .chat-head { background: var(--ws-bg); border-bottom-color: var(--ws-line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+[data-look="aura"] .app[data-results] :is(.upload-box, .composer) { background: #ffffff; border-color: var(--ws-line); }
 /* Popovers float over busy content, so they stay solid: white, with a hairline edge. */
 [data-look="aura"] :is(.aud-popup, .aud-preview) { --c-surface: #ffffff; --c-surface-2: #f6f3ee; border-color: rgb(19 19 18 / .09); box-shadow: 0 2px 6px -2px rgb(19 19 18 / .08), 0 18px 44px -16px rgb(19 19 18 / .3); }
 /* Before there are results the header floats on the gradient: no bar, no line. */

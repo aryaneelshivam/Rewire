@@ -216,7 +216,7 @@ export default function App() {
     const msgId = uid();
     setMessages([{ id: msgId, role: 'user', text: run.title }]);
     setInsights(null); setResults(null);
-    setBusy(true);
+    setBusy(true); setSentCount(0);
     add({ id: uid(), role: 'bot', kind: 'typing' });
     try {
       await api.openRun(run.id);
@@ -233,7 +233,7 @@ export default function App() {
     if (busy) return;
     setStarted(true);
     add({ id: uid(), role: 'user', text: 'Show me the sample' }, { id: uid(), role: 'bot', kind: 'typing' });
-    setBusy(true);
+    setBusy(true); setSentCount(0);
     try { await api.loadSample(); await showResults('sample'); } catch (e) { setMessages(m => m.filter(x => x.kind !== 'typing')); add({ id: uid(), role: 'bot', kind: 'text', text: `The sample isn’t available: ${e.message}` }); }
     setBusy(false);
   };
@@ -562,9 +562,9 @@ function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPic
     <div className="upload-box" data-drag={drag || undefined} data-busy={busy || undefined} {...dragProps}>
       {busy ? (
         <div className="upload-busy" role="status">
-          <PeekCrowd />
+          {sentCount ? <PeekCrowd /> : <span className="upload-icon"><Loader2 size={20} className="spin" aria-hidden="true" /></span>}
           <span className="upload-text">
-            <span className="upload-title">Showing {sentCount === 2 ? 'your videos' : 'your video'} to {viewers.toLocaleString('en')} viewers…</span>
+            <span className="upload-title">{sentCount ? `Showing ${sentCount === 2 ? 'your videos' : 'your video'} to ${viewers.toLocaleString('en')} viewers…` : 'Opening the analysis…'}</span>
             <span className="upload-sub">When it’s done, this turns into a chat about the results.</span>
           </span>
         </div>
