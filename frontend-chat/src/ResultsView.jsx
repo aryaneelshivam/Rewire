@@ -6,6 +6,7 @@ import { EVENT_TYPES, sentencesOf } from '@/lib/timeline-events';
 import { mediaUrl } from './api';
 import { COHORTS, MIX, MIX_KEYS, cohortLabel, percentileAt, runs } from './detail';
 import Peek from './Peek';
+import { Crown } from 'lucide-react';
 import { clock } from './insights';
 
 // The dashboard's markers, worded for creators: attention, not brain response.
@@ -237,6 +238,23 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
   return (
     <div className="results" ref={box}>
       <div className="results-top">
+        <div className="player-wrap">
+        {!single && (
+          <div className="player-switch" role="tablist" aria-label="Which video plays">
+            {variants.map(v => {
+              const thumb = mediaUrl(media?.[v]?.thumb);
+              return (
+                <button key={v} type="button" role="tab" aria-selected={focus === v} data-v={v} onClick={() => changeFocus(v)}
+                  title={videoOf(v)?.name ?? `Video ${v}`}>
+                  {thumb ? <img src={thumb} alt="" /> : <span className="player-switch-dot" />}
+                  <span className="player-switch-key">{v}</span>
+                  <span className="player-switch-name">{videoOf(v)?.name ?? `Video ${v}`}</span>
+                  {winner === v && <Crown size={12} aria-label="Winner" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <WinnerPlayer
           winner={single ? 'SINGLE' : winner}
           focus={focus}
@@ -253,6 +271,7 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
           onPlayingChange={setIsPlaying}
           onAddVideo={onNewVideo}
         />
+        </div>
         {roomy && now}
       </div>
       <CreativeTimeline
