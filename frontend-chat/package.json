@@ -1,0 +1,21 @@
+{
+  "name": "rewire-chat",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "An experimental, conversational frontend for Rewire. Same API as frontend/; nothing here changes it.",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview --port 5174"
+  },
+  "dependencies": {
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.1"
+  }
+}

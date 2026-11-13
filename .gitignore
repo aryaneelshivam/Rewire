@@ -10,3 +10,5 @@ frontend/dist/
 .env
 .env.local
 .env.*.local
+frontend-chat/node_modules/
+frontend-chat/dist/
