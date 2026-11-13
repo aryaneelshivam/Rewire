@@ -7,6 +7,7 @@ import { Slider } from '@/components/arc/slider/slider';
 import { createJob, loadSampleData } from '../api';
 import { creditCost } from '@/lib/credits';
 import AssetList from './AssetList';
+import ViewerBars from './ViewerBars';
 import { releaseUrl } from '@/lib/object-urls';
 import { VIEWERS, viewerCount } from '@/lib/viewers';
 
@@ -155,19 +156,22 @@ const UploadDataScreen = ({ onJobStarted, onDataLoaded, onCancel, onOpenWorkspac
         </section>
 
         <div className="viewer-choice">
-          <Slider
-            className="viewer-slider"
-            label="Simulated viewers"
-            value={viewers}
-            onValueChange={chooseViewers}
-            min={VIEWERS.min}
-            max={VIEWERS.max}
-            step={VIEWERS.step}
-            largeStep={VIEWERS.step * 2}
-            marks={VIEWER_STEPS}
-            format={viewerCount}
-            disabled={!!busy}
-          />
+          <div className="viewer-control">
+            <ViewerBars steps={VIEWER_STEPS} value={viewers} onPick={chooseViewers} disabled={!!busy} />
+            <Slider
+              className="viewer-slider"
+              label="Simulated viewers"
+              value={viewers}
+              onValueChange={chooseViewers}
+              min={VIEWERS.min}
+              max={VIEWERS.max}
+              step={VIEWERS.step}
+              largeStep={VIEWERS.step * 2}
+              marks={VIEWER_STEPS}
+              format={viewerCount}
+              disabled={!!busy}
+            />
+          </div>
           <p className="viewer-note">More viewers smooth the averages. They add time and a little to the cost.</p>
         </div>
 

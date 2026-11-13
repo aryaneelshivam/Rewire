@@ -825,6 +825,24 @@ figure button[aria-pressed="false"] * { opacity: 1 !important; color: var(--text
 .credit-note strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
 /* Simulated audience size, on the upload screen */
 .viewer-choice { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); align-items: center; gap: var(--space-2) var(--space-6); }
+/* Bars above the viewer slider's track. They span the track (inset by half a thumb on each side, as Arc's track is),
+   so each bar's centre sits on that step's tick. The slider's box steps aside (display: contents) so its label row
+   and its track become rows of this grid, with the bars between them. */
+.viewer-control { display: grid; }
+.viewer-control .viewer-slider { display: contents; }
+.viewer-control .viewer-slider > :first-child { order: 0; }
+.viewer-control .viewer-bars { order: 1; }
+.viewer-control .viewer-slider > :not(:first-child) { order: 2; }
+.viewer-control .viewer-slider[data-disabled] > * { opacity: .5; }
+.viewer-bars { position: relative; height: 36px; margin: var(--space-2) 11px 2px; }
+.viewer-bar { position: absolute; bottom: 0; width: 18px; translate: -50% 0; border-radius: 4px 4px 2px 2px; background: var(--control-track); cursor: pointer; transform-origin: 50% 100%; animation: viewer-bar-grow var(--duration-considered) var(--ease-enter) both; transition: background-color var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard); }
+.viewer-bar[data-on] { background: color-mix(in oklab, var(--control-fill) 55%, transparent); }
+.viewer-bar[data-current] { background: var(--control-fill); }
+@media (hover: hover) and (pointer: fine) { .viewer-bar:not([data-on]):hover { background: var(--control-track-hover); } }
+.viewer-bars[data-disabled] { opacity: .5; }
+.viewer-bars[data-disabled] .viewer-bar { cursor: not-allowed; }
+@keyframes viewer-bar-grow { from { transform: scaleY(0); } }
+@media (prefers-reduced-motion: reduce) { .viewer-bar { animation: none; transition: none; } }
 .viewer-note { margin: 0; max-width: 32ch; color: var(--text-muted); font-size: var(--text-xs); line-height: var(--leading-body); }
 @media (max-width: 640px) { .viewer-choice { grid-template-columns: minmax(0, 1fr); } .viewer-note { max-width: none; } }
 .testers { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--rounded-lg, 16px); background: var(--surface); }
