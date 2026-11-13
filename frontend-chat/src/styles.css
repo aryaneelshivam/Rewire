@@ -17,8 +17,8 @@
   --c-series-B: #2f8f83;
   --c-user-bg: #221f1b;
   --c-user-text: #fffdfa;
-  --c-mascot: #ffb199;
-  --c-mascot-ink: #221f1b;
+  --c-mascot: #e9946b;
+  --c-mascot-ink: #2a2633;
   --c-radius: 20px;
   --c-radius-sm: 12px;
   --c-border: 1px solid var(--c-line);
@@ -45,8 +45,8 @@
   --c-series-B: #2f9584;
   --c-user-bg: #131312;
   --c-user-text: #ffffff;
-  --c-mascot: #f2b98b;
-  --c-mascot-ink: #131312;
+  --c-mascot: #e9946b;
+  --c-mascot-ink: #2a2633;
   --c-radius: 26px;
   --c-radius-sm: 16px;
   --c-border: 1px solid rgb(255 255 255 / .8);
@@ -247,7 +247,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 /* Narrow (the chat open beside it, or a phone): the readout becomes a short strip so the timeline stays in view. */
 @container (max-width: 759px) {
   .now { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px 16px; padding: 10px 12px; }
-  .now-kicker { grid-column: 1 / -1; }
+  .now-head { grid-column: 1 / -1; }
   .now-gauge { grid-row: span 3; zoom: .5; margin: 0; }
   .now-gauge p { display: none; }
   .now-aud-block { grid-column: 2 / -1; }
@@ -504,11 +504,26 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 /* ── Mascot ───────────────────────────────────────────── */
 .mascot { overflow: visible; }
 .mascot-body { fill: var(--c-mascot); }
-.mascot-eyes ellipse { fill: var(--c-mascot-ink); transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; }
-.mascot-eyes.happy path { fill: none; stroke: var(--c-mascot-ink); stroke-width: 3.2; stroke-linecap: round; }
-.mascot-cheek { fill: #ff7a8a; opacity: .45; }
+.mascot-screen { fill: #182326; }
+.mascot-leg { fill: var(--c-mascot-ink); }
+.mascot-antenna { stroke: var(--c-mascot-ink); stroke-width: 3.5; stroke-linecap: round; }
+.mascot-bulb { fill: #e8642c; }
+.mascot-eyes rect { fill: #bff3e0; transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; }
+.mascot-eyes.happy path { fill: none; stroke: #bff3e0; stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
 .mascot[data-mood="thinking"] { animation: bob 1.1s ease-in-out infinite; }
-.mascot[data-mood="thinking"] .mascot-eyes { transform: translate(3px, -4px); transition: transform .3s; }
+.mascot[data-mood="thinking"] .mascot-eyes { transform: translate(2px, -3px); transition: transform .3s; }
+
+/* Peek, live: fades in once its first frame is drawn. */
+.peek { flex: none; display: inline-grid; place-items: center; position: relative; }
+.peek > canvas, .peek > :not(svg) { opacity: 0; transition: opacity .5s ease; }
+.peek[data-ready] > canvas, .peek[data-ready] > :not(svg) { opacity: 1; }
+.start-peek { margin-top: auto; animation: rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+.start-peek + .start-title { margin-top: -6px; }
+.hello-peek { display: block; margin: -8px auto 0; }
+.peek-crowd { flex: none; display: flex; align-items: flex-end; }
+.peek-crowd .peek + .peek { margin-left: -12px; }
+.now-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.now-head .peek { margin: -14px -8px -14px 0; }
 
 /* ── Motion ───────────────────────────────────────────── */
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }

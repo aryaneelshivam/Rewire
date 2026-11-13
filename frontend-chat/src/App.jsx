@@ -5,6 +5,7 @@ import * as api from './api';
 import { buildInsights, routeQuestion, TOPICS } from './insights';
 import { ANSWERS, Verdict } from './answers';
 import Mascot from './Mascot';
+import Peek from './Peek';
 import ResultsView from './ResultsView';
 import StartScreen from './StartScreen';
 
@@ -246,12 +247,14 @@ export default function App() {
     if (mode === 'chat' && window.matchMedia('(hover: hover) and (pointer: fine)').matches) setTimeout(() => textRef.current?.focus(), 380);
   }, [mode]);
   const mood = busy ? 'thinking' : insights ? 'happy' : 'idle';
+  // Peek, in the greeting: leans in when a video is added, gets to work while it's analysed.
+  const peekState = busy ? 'working' : files.length ? 'listening' : 'idle';
 
   const thread = (
     <div className="thread" ref={scroller}>
       <div className="thread-inner">
         {messages.map((m, i) => (
-          <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood}
+          <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood} peekState={peekState}
             onAsk={ask} onSample={sample} onCancel={cancel} />
         ))}
       </div>
@@ -392,7 +395,7 @@ function Chips({ onAsk, mode }) {
   );
 }
 
-function Message({ m, last, busy, mood, onAsk, onSample, onCancel }) {
+function Message({ m, last, busy, mood, peekState, onAsk, onSample, onCancel }) {
   if (m.role === 'user') {
     return (
       <div className="msg msg-user">
@@ -423,7 +426,7 @@ function Message({ m, last, busy, mood, onAsk, onSample, onCancel }) {
       <div className="msg-body">
         {m.kind === 'hello' && (
           <div className="answer hello">
-            <span className="hello-mascot"><Mascot mood={last ? mood : 'idle'} size={64} /></span>
+            <Peek className="hello-mascot hello-peek" size={96} floor={0.4} state={last ? peekState : 'idle'} />
             <h2 className="verdict-head">Show me your video.</h2>
             <p>Drop it in the box below. I’ll show it to a simulated audience and tell you, moment by moment, whether the opening grabs them, where they drift and what to change. Add a second cut and I’ll tell you which one wins.</p>
             {last && !busy && (
@@ -530,6 +533,21 @@ function Crossfade({ active, children }) {
 const fmtLen = s => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
 
 /** Where every analysis starts: drop or choose one video (or two to compare), pick the audience, analyse. */
+// While it simulates, Peek splits into a small crowd, one per audience, each in its own tint.
+const CROWD = [
+  { key: 'kids', palette: { shell: '#e8b64a' } },
+  { key: 'genz', palette: { shell: '#a08fe8' } },
+  { key: 'adults', palette: { shell: '#e9946b' } },
+  { key: 'older', palette: { shell: '#5fb99a' } },
+];
+function PeekCrowd() {
+  return (
+    <span className="peek-crowd" aria-hidden="true">
+      {CROWD.map((c, i) => <Peek key={c.key} size={46} palette={c.palette} state="working" seed={i / 4} floor={0.35} interactive={false} />)}
+    </span>
+  );
+}
+
 function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPick, onDropFiles, onRemove, onAnalyse, onBack }) {
   const [drag, setDrag] = useState(false);
   const depth = useRef(0);
@@ -544,9 +562,9 @@ function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPic
     <div className="upload-box" data-drag={drag || undefined} data-busy={busy || undefined} {...dragProps}>
       {busy ? (
         <div className="upload-busy" role="status">
-          <span className="upload-icon"><Loader2 size={20} className="spin" aria-hidden="true" /></span>
+          <PeekCrowd />
           <span className="upload-text">
-            <span className="upload-title">Analysing {sentCount === 2 ? 'your videos' : 'your video'}…</span>
+            <span className="upload-title">Showing {sentCount === 2 ? 'your videos' : 'your video'} to {viewers.toLocaleString('en')} viewers…</span>
             <span className="upload-sub">When it’s done, this turns into a chat about the results.</span>
           </span>
         </div>

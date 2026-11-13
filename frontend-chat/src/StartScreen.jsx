@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Peek from './Peek';
 import { Clapperboard, AudioLines, FileText, Lock, ArrowRight, Menu, HelpCircle } from 'lucide-react';
 
 /**
@@ -13,10 +14,11 @@ const KINDS = [
 
 export default function StartScreen({ onVideo, onMenu, onHelp }) {
   const [nudged, setNudged] = useState(null);   // a locked card that was just pressed, for its small shake
+  const [eyeing, setEyeing] = useState(false);  // pointer over the video card: Peek leans in
   const press = kind => {
     if (!kind.locked) { onVideo(); return; }
     setNudged(kind.id);
-    setTimeout(() => setNudged(n => (n === kind.id ? null : n)), 600);
+    setTimeout(() => setNudged(n => (n === kind.id ? null : n)), 900);
   };
 
   return (
@@ -25,6 +27,9 @@ export default function StartScreen({ onVideo, onMenu, onHelp }) {
         <button type="button" className="orb" onClick={onMenu} aria-label="Your analyses"><Menu size={20} /></button>
         <button type="button" className="orb" onClick={onHelp} aria-label="How does Rewire work?"><HelpCircle size={20} /></button>
       </div>
+
+      <Peek className="start-peek" size={112} floor={0.5}
+        state={nudged ? 'sad' : eyeing ? 'listening' : 'idle'} />
 
       <h1 id="start-title" className="start-title">
         <span>Hi there,</span>
@@ -46,6 +51,8 @@ export default function StartScreen({ onVideo, onMenu, onHelp }) {
               aria-disabled={kind.locked || undefined}
               aria-label={kind.locked ? `${kind.title}: coming soon` : `Analyse a ${kind.title.toLowerCase()}`}
               onClick={() => press(kind)}
+              onPointerEnter={kind.locked ? undefined : () => setEyeing(true)}
+              onPointerLeave={kind.locked ? undefined : () => setEyeing(false)}
             >
               <span className="fan-icon" data-kind={kind.id}><Icon size={22} strokeWidth={1.75} aria-hidden="true" /></span>
               <span className="fan-title">{kind.title}</span>

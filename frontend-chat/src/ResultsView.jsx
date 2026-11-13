@@ -5,6 +5,7 @@ import { Gauge } from '@/components/arc/gauge/gauge';
 import { EVENT_TYPES, sentencesOf } from '@/lib/timeline-events';
 import { mediaUrl } from './api';
 import { COHORTS, MIX, MIX_KEYS, cohortLabel, percentileAt, runs } from './detail';
+import Peek from './Peek';
 import { clock } from './insights';
 
 // The dashboard's markers, worded for creators: attention, not brain response.
@@ -63,7 +64,16 @@ function DriverLane({ detail, pct }) {
 }
 
 /** What's happening at the playhead in the video in the player: attention, audiences, the rising driver, the line. */
-function NowPanel({ v, t, sentences, tone }) {
+/** How Peek watches along: hooked at the best moment and the strongest stretches, bored in the weakest, leaning in
+ * while it plays, and resting when paused. */
+function peekMood(v, at, pctile, playing) {
+  if (Math.abs(at - v.peakContent) <= 1) return 'celebrating';
+  if (pctile >= 85) return 'surprised';
+  if (pctile <= 20) return 'sad';
+  return playing ? 'listening' : 'idle';
+}
+
+function NowPanel({ v, t, sentences, tone, playing }) {
   if (!v) return null;
   const at = Math.max(0, Math.min(v.curve.length - 1, Math.round(t)));
   const pctile = percentileAt(v.curve, at);
@@ -75,7 +85,10 @@ function NowPanel({ v, t, sentences, tone }) {
   const top = aud.length ? aud.reduce((a, b) => (b.val > a.val ? b : a)) : null;
   return (
     <aside className="now" aria-label="At the playhead" data-tone={tone}>
-      <p className="now-kicker">At {clock(at)}</p>
+      <div className="now-head">
+        <p className="now-kicker">At {clock(at)}</p>
+        <Peek state={peekMood(v, at, pctile, playing)} size={64} floor={0.4} />
+      </div>
       <div className="now-gauge">
         <Gauge value={pctile} label="Attention here" detail={pctile >= 80 ? 'One of the strongest moments' : pctile <= 25 ? 'One of the weakest moments' : `Stronger than ${pctile}% of the video`}
           thresholds={[{ from: 0, tone: 'danger', label: 'Weak' }, { from: 34, tone: 'warning', label: 'Middling' }, { from: 67, tone: 'success', label: 'Strong' }]} />
@@ -203,7 +216,7 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const now = <NowPanel v={videoOf(focus)} t={currentTime} sentences={sentences} tone={focus === 'B' ? 'b' : 'a'} />;
+  const now = <NowPanel v={videoOf(focus)} t={currentTime} sentences={sentences} tone={focus === 'B' ? 'b' : 'a'} playing={isPlaying} />;
   const seen = new Set((ins?.videos ?? []).flatMap(v => v.detail?.rising ?? []));
 
   return (
