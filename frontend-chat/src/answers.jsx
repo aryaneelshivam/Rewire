@@ -1,24 +1,63 @@
 import React from 'react';
+import { LineChart } from '@/components/arc/line-chart/line-chart';
+import { Sparkline } from '@/components/arc/sparkline/sparkline';
+import { DonutChart } from '@/components/arc/donut-chart/donut-chart';
+import { Streamgraph } from '@/components/arc/streamgraph/streamgraph';
+import { Ridgeline } from '@/components/arc/ridgeline/ridgeline';
+import { SlopeChart } from '@/components/arc/slope-chart/slope-chart';
+import { MetricCard } from '@/components/arc/metric-card/metric-card';
 import { AttentionChart, BarList, VersusBars } from './charts';
 import { clock, COHORT_LABELS } from './insights';
+import { COHORTS, MIX, MIX_KEYS } from './detail';
 
-/** The bot's replies about a finished analysis: the verdict, then one answer per follow-up topic. */
+/**
+ * The bot's replies about a finished analysis: the verdict, then one answer per follow-up topic. Charts are Arc's
+ * (interactive line, sparkline, donut, streamgraph, ridgeline, slope chart, metric cards); the attention chart with
+ * shaded dips is the chat's own, since none of Arc's draws bands.
+ */
 
 const LAG = 2;
-const peakMark = v => ({ at: v.peakAt, value: v.curve[v.peakAt], label: `Best ${clock(v.peakContent)}`, series: v.key });
-const series = ins => ins.videos.map(v => ({ key: v.key, name: v.name, curve: v.curve }));
+const ORDER = ['kids', 'genz', 'adults', 'older'];
 const pct = (a, b) => Math.round((a / (b || 1e-9) - 1) * 100);
 /** "40% harder", or "2.6× harder" once it's more than double. */
 const harder = (a, b) => (a >= 2 * b && b > 0 ? `${(a / b).toFixed(1)}× harder` : `${pct(a, b)}% harder`);
-const ORDER = ['kids', 'genz', 'adults', 'older'];
 const span = d => `${clock(Math.max(0, d.from - LAG))}–${clock(Math.max(0, d.to - LAG))}`;
-
-function Stat({ label, value, tone }) {
-  return <div className="stat" data-tone={tone}><span className="stat-label">{label}</span><span className="stat-value">{value}</span></div>;
-}
-
 const OPENING = { strong: 'Strong', steady: 'Steady', slow: 'Slow' };
 const holdText = h => (h == null ? '—' : `${Math.round(h * 100)}% of it`);
+const TONE = { A: 'var(--chart-a)', B: 'var(--chart-b)' };
+
+/** Attention on a 0 to 100 index across the videos shown together, so they compare directly. */
+function indexer(videos) {
+  const all = videos.flatMap(v => v.curve);
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  return v => Math.round((v - lo) / (hi - lo || 1) * 100);
+}
+
+/** The attention curve(s) as Arc's interactive line chart: hover for each second, the legend toggles a video. */
+function AttentionLine({ ins, upTo, height = 180 }) {
+  const idx = indexer(ins.videos);
+  const n = Math.max(...ins.videos.map(v => v.curve.length));
+  const len = upTo ? Math.min(upTo, n) : n;
+  const data = Array.from({ length: len }, (_, t) => ({
+    key: String(t),
+    label: clock(Math.max(0, t - LAG)),
+    axisLabel: t % Math.max(1, Math.round(len / 5)) === 0 ? clock(Math.max(0, t - LAG)) : undefined,
+    values: Object.fromEntries(ins.videos.map(v => [v.key, t < v.curve.length ? idx(v.curve[t]) : undefined])),
+  }));
+  return (
+    <LineChart
+      data={data}
+      series={ins.videos.map(v => ({ key: v.key, label: v.name, color: TONE[v.key], area: ins.videos.length === 1 }))}
+      label="Attention, second by second (0 to 100)"
+      categoryLabel="Moment"
+      height={height}
+      formatValue={value => `${Math.round(value)}`}
+      formatTick={value => `${Math.round(value)}`}
+      legend={ins.videos.length > 1}
+    />
+  );
+}
 
 export function Verdict({ ins }) {
   const { verdict } = ins;
@@ -29,11 +68,11 @@ export function Verdict({ ins }) {
         <p className="verdict-kicker">Verdict · {ins.viewers.toLocaleString('en')} viewers</p>
         <h2 className="verdict-head">{verdict.headline}</h2>
         <p>{verdict.sub}</p>
-        <AttentionChart series={series(ins)} marks={[peakMark(v)]} bands={v.dips} />
-        <div className="stats">
-          <Stat label="Opening" value={OPENING[v.hookTag]} />
-          <Stat label="Best moment" value={clock(v.peakContent)} />
-          <Stat label="Lands strongly" value={holdText(v.hold)} />
+        <AttentionLine ins={ins} />
+        <div className="metrics">
+          <MetricCard label="Lands strongly" value={Math.round((v.hold ?? 0) * 100)} suffix="%" context="of the video" />
+          <MetricCard label="Best moment" value={Math.round(v.peakContent)} suffix="s" context="in" />
+          <MetricCard label="Opening" value={pct(v.hook, v.depth)} suffix="%" context="against the rest" change={OPENING[v.hookTag]} />
         </div>
       </div>
     );
@@ -43,14 +82,20 @@ export function Verdict({ ins }) {
     <div className="answer">
       <p className="verdict-kicker">Verdict · {ins.viewers.toLocaleString('en')} viewers each</p>
       <h2 className="verdict-head">
-        {winner && <span className="winner-dot" style={{ background: `var(--c-series-${winner.key})` }} aria-hidden="true" />}
+        {winner && <span className="winner-dot" style={{ background: TONE[winner.key] }} aria-hidden="true" />}
         {verdict.headline}
       </h2>
       {verdict.sub && <p>{verdict.sub}</p>}
-      <AttentionChart series={series(ins)} marks={ins.videos.map(peakMark)} />
+      {winner && (
+        <div className="metrics">
+          <MetricCard label="Lead" value={Math.round(verdict.lead)} suffix="%" context="stronger overall" />
+          <MetricCard label="Audiences won" value={winner.cohorts.filter(c => c.value > (ins.videos.find(x => x !== winner).cohorts.find(o => o.key === c.key)?.value ?? 0)).length} suffix="/4" context="age groups" />
+        </div>
+      )}
+      <AttentionLine ins={ins} />
       <table className="versus-table">
         <thead>
-          <tr><th scope="col"><span className="sr-only">Measure</span></th>{ins.videos.map(v => <th key={v.key} scope="col"><span className="stats-name"><i style={{ background: `var(--c-series-${v.key})` }} />{v.name}</span></th>)}</tr>
+          <tr><th scope="col"><span className="sr-only">Measure</span></th>{ins.videos.map(v => <th key={v.key} scope="col"><span className="stats-name"><i style={{ background: TONE[v.key] }} />{v.name}</span></th>)}</tr>
         </thead>
         <tbody>
           <tr><th scope="row">Opening</th>{ins.videos.map(v => <td key={v.key}>{OPENING[v.hookTag]}</td>)}</tr>
@@ -63,7 +108,19 @@ export function Verdict({ ins }) {
   );
 }
 
+/** The first eight seconds of each video as Arc sparklines, with how the opening compares. */
 function Opening({ ins }) {
+  const idx = indexer(ins.videos);
+  const sparks = (
+    <div className="sparks">
+      {ins.videos.map(v => (
+        <Sparkline key={v.key} data={v.curve.slice(0, 8).map(idx)} label={ins.mode === 'single' ? 'The first 8 seconds' : v.name}
+          value={OPENING[v.hookTag]} change={`${pct(v.hook, v.depth) >= 0 ? '+' : ''}${pct(v.hook, v.depth)}% vs the rest`}
+          tone={v.hookTag === 'strong' ? 'success' : v.hookTag === 'slow' ? 'warning' : 'accent'}
+          labels={v.curve.slice(0, 8).map((_, t) => clock(Math.max(0, t - LAG)))} formatValue={x => `${Math.round(x)}`} width={260} height={56} />
+      ))}
+    </div>
+  );
   if (ins.mode === 'single') {
     const v = ins.videos[0];
     const diff = pct(v.hook, v.depth);
@@ -72,7 +129,7 @@ function Opening({ ins }) {
       steady: 'Your first seconds land about as well as the rest. It won’t lose people at the start, but it isn’t a scroll-stopper either.',
       slow: `Your first seconds land ${Math.abs(diff)}% softer than the rest. People decide fast, so it’s worth leading with something stronger${v.peakContent > 3 ? `, like what’s at ${clock(v.peakContent)}` : ''}.`,
     }[v.hookTag];
-    return <div className="answer"><p>{text}</p><AttentionChart series={series(ins)} upTo={8} label="The first seconds" /></div>;
+    return <div className="answer"><p>{text}</p>{sparks}</div>;
   }
   const [a, b] = ins.videos;
   const better = a.hook >= b.hook ? a : b;
@@ -81,7 +138,8 @@ function Opening({ ins }) {
   return (
     <div className="answer">
       <p>{diff < 5 ? 'Both openings land about the same.' : `${better.name} has the stronger opening, landing ${harder(better.hook, worse.hook)} in the first seconds.`} {worse.hookTag === 'slow' ? `${worse.name} starts softer than its own average, so its start is the place to work on.` : ''}</p>
-      <AttentionChart series={series(ins)} upTo={8} label="The first seconds" />
+      {sparks}
+      <AttentionLine ins={ins} upTo={10} height={150} />
     </div>
   );
 }
@@ -91,25 +149,41 @@ function Drift({ ins }) {
     <div className="answer">
       {ins.videos.map(v => (
         <div key={v.key} className="answer-block">
-          {ins.mode === 'compare' && <p className="answer-name"><i style={{ background: `var(--c-series-${v.key})` }} />{v.name}</p>}
+          {ins.mode === 'compare' && <p className="answer-name"><i style={{ background: TONE[v.key] }} />{v.name}</p>}
           {v.dips.length
             ? <p>Attention sags at {v.dips.map(span).join(' and ')}. Those are the stretches to tighten, cut or liven up.</p>
             : <p>No real dips. It holds steady all the way through.</p>}
-          <AttentionChart series={[{ key: v.key, name: v.name, curve: v.curve }]} bands={v.dips} label={`Where attention sags in ${v.name}`} />
+          <AttentionChart series={[{ key: v.key, name: v.name, curve: v.curve }]} bands={v.dips}
+            marks={[{ at: v.peakAt, value: v.curve[v.peakAt], label: `Best ${clock(v.peakContent)}`, series: v.key }]} label={`Where attention sags in ${v.name}`} />
+          {v.dips[0] && v.detail && (() => {
+            // What fell away in the longest dip: the drivers most below their level just before it.
+            const d = [...v.dips].sort((x, y) => (y.to - y.from) - (x.to - x.from))[0];
+            const before = Math.max(0, d.from - 3);
+            const drop = MIX_KEYS.map(k => ({ k, change: avg(v.detail.z[k].slice(d.from, d.to + 1)) - avg(v.detail.z[k].slice(before, d.from)) }))
+              .sort((x, y) => x.change - y.change).slice(0, 2);
+            return <p className="aside">In {span(d)}, {drop.map(x => MIX[x.k].toLowerCase()).join(' and ')} fall away most.</p>;
+          })()}
         </div>
       ))}
     </div>
   );
 }
+const avg = xs => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
+/** What carries it: the share of each driver (donut), and for a comparison, A against B per driver. */
 function Working({ ins }) {
   if (ins.mode === 'single') {
     const v = ins.videos[0];
     const [first, second] = v.drivers;
+    const positive = v.drivers.filter(d => d.value > 0);
     return (
       <div className="answer">
         <p>Most of the pull comes from <strong>{first.label.toLowerCase()}</strong> ({first.means}) and <strong>{second.label.toLowerCase()}</strong> ({second.means}).</p>
-        <BarList rows={v.drivers.slice(0, 6).map(d => ({ key: d.key, label: d.label, value: d.value }))} />
+        <div className="donut-wrap">
+          <DonutChart data={positive.map(d => ({ key: d.key, label: d.label, value: Math.round(d.value * 1000) / 10 }))}
+            label="What drives it" formatValue={x => x.toFixed(0)} totalLabel="Total pull" size={168} thickness={20} maxSegments={6} otherLabel="Other" />
+        </div>
+        <MixStream v={v} />
       </div>
     );
   }
@@ -118,47 +192,73 @@ function Working({ ins }) {
   const aWins = rows.filter(r => r.gap > 0).map(r => r.label.toLowerCase());
   const bWins = rows.filter(r => r.gap < 0).map(r => r.label.toLowerCase());
   const list = xs => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0]);
+  const winner = ins.videos.find(v => v.key === ins.verdict.winner) ?? a;
   return (
     <div className="answer">
       <p>{aWins.length ? `${a.name} is ahead on ${list(aWins)}.` : ''} {bWins.length ? `${b.name} is ahead on ${list(bWins)}.` : ''}</p>
       <VersusBars rows={rows} names={ins.names} />
+      <MixStream v={winner} title={`How ${winner.name}’s pull shifts`} />
     </div>
   );
 }
 
+/** The drivers over time as Arc's streamgraph: which ones swell and fade through the video. */
+function MixStream({ v, title = 'How the pull shifts through the video' }) {
+  if (!v?.detail) return null;
+  const { mix, n } = v.detail;
+  const floor = Math.min(...MIX_KEYS.flatMap(k => mix[k]));
+  const data = Array.from({ length: n }, (_, t) => ({
+    key: String(t), label: clock(Math.max(0, t - LAG)),
+    axisLabel: t % Math.max(1, Math.round(n / 5)) === 0 ? clock(Math.max(0, t - LAG)) : undefined,
+    values: Object.fromEntries(MIX_KEYS.map(k => [k, Math.round((mix[k][t] - floor) * 1000) / 10])),
+  }));
+  return (
+    <div className="answer-block">
+      <p className="answer-sub">{title}</p>
+      <Streamgraph data={data} series={MIX_KEYS.map(k => ({ key: k, label: MIX[k], color: `var(--drv-${k})` }))}
+        label={title} height={200} offset="wiggle" categoryLabel="Moment" formatValue={x => x.toFixed(1)} legend directLabels={false} />
+    </div>
+  );
+}
+
+/** Who it lands with: each audience's spread over the video (ridgeline), or A against B per audience (slope). */
 function Audience({ ins }) {
   if (ins.mode === 'single') {
     const v = ins.videos[0];
+    const d = v.detail;
+    const all = d ? COHORTS.flatMap(c => d.audiences[c] ?? []) : [];
+    const lo = Math.min(...all);
+    const hi = Math.max(...all);
     return (
       <div className="answer">
         <p>{v.audienceClear ? `${v.cohorts[0].label} respond best, and ${v.cohorts.at(-1).label} least.` : 'It lands about equally with every age group; no one audience stands out.'}</p>
         <BarList rows={v.cohorts.map(c => ({ key: c.key, label: c.label, value: c.value }))} />
+        {d && (
+          <div className="answer-block">
+            <p className="answer-sub">How steady each audience is, second to second</p>
+            <Ridgeline series={COHORTS.filter(c => d.audiences[c]).map(c => ({ id: c, label: COHORT_LABELS[c], values: d.audiences[c].map(x => Math.round((x - lo) / (hi - lo || 1) * 100)) }))}
+              label="Each audience's response across the video" domain={[0, 100]} formatValue={x => `${Math.round(x)}`} rowHeight={30} />
+          </div>
+        )}
       </div>
     );
   }
   const [a, b] = ins.videos;
-  const rows = ORDER.filter(k => a.cohorts.some(c => c.key === k)).map(k => {
-    const va = a.cohorts.find(c => c.key === k)?.value ?? 0;
-    const vb = b.cohorts.find(c => c.key === k)?.value ?? 0;
-    return { key: k, va, vb };
-  });
-  const top = Math.max(...rows.flatMap(r => [r.va, r.vb]), 1e-9);
-  const aLeads = rows.filter(r => r.va > r.vb).length;
+  const rows = ORDER.filter(k => a.cohorts.some(c => c.key === k)).map(k => ({
+    key: k, label: COHORT_LABELS[k],
+    start: a.cohorts.find(c => c.key === k)?.value ?? 0,
+    end: b.cohorts.find(c => c.key === k)?.value ?? 0,
+  }));
+  const all = rows.flatMap(r => [r.start, r.end]);
+  const lo = Math.min(...all) * 0.9;
+  const hi = Math.max(...all);
+  const scaled = rows.map(r => ({ ...r, start: Math.round((r.start - lo) / (hi - lo || 1) * 100), end: Math.round((r.end - lo) / (hi - lo || 1) * 100) }));
+  const aLeads = rows.filter(r => r.start > r.end).length;
   return (
     <div className="answer">
       <p>{aLeads === rows.length ? `${a.name} wins with every age group.` : aLeads === 0 ? `${b.name} wins with every age group.` : `It splits: ${a.name} wins with ${aLeads} of ${rows.length} age groups.`}</p>
-      <ul className="pairs">
-        {rows.map(r => (
-          <li key={r.key}>
-            <span className="bars-label">{COHORT_LABELS[r.key]}</span>
-            <span className="pairs-bars">
-              <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, r.va / top * 100)}%`, background: 'var(--c-series-A)' }} /></span>
-              <span className="bars-track"><span className="bars-fill" style={{ width: `${Math.max(3, r.vb / top * 100)}%`, background: 'var(--c-series-B)' }} /></span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="chart-legend"><span><i style={{ background: 'var(--c-series-A)' }} />{a.name}</span><span><i style={{ background: 'var(--c-series-B)' }} />{b.name}</span></p>
+      <SlopeChart data={scaled} label="Each audience, from one version to the other" startLabel={a.name} endLabel={b.name}
+        formatValue={x => `${Math.round(x)}`} formatChange={c => `${c > 0 ? '+' : ''}${Math.round(c)}`} height={220} />
     </div>
   );
 }
@@ -183,4 +283,14 @@ function How({ ins }) {
   );
 }
 
-export const ANSWERS = { opening: Opening, drift: Drift, working: Working, audience: Audience, fix: Fix, how: How };
+/** How the pull shifts over time, on its own: the streamgraph for each video. */
+function Shift({ ins }) {
+  return (
+    <div className="answer">
+      <p>Here’s which drivers swell and fade as the video plays. Hover a band to see it at each moment.</p>
+      {ins.videos.map(v => <MixStream key={v.key} v={v} title={ins.mode === 'compare' ? v.name : 'Through the video'} />)}
+    </div>
+  );
+}
+
+export const ANSWERS = { opening: Opening, drift: Drift, working: Working, audience: Audience, shift: Shift, fix: Fix, how: How };

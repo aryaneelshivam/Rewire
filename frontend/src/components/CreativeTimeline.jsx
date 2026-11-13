@@ -51,7 +51,8 @@ function stack(events, duration, gap = 2.4, rows = 2) {
  */
 /**
  * eventTypes overrides how markers are named and sourced (EVENT_TYPES by default); without onOpenTab the
- * "Open in" menus are left out, for hosts that have no analysis tabs to open.
+ * "Open in" menus are left out, for hosts that have no analysis tabs to open. A track can carry `lanes`: extra rows
+ * ({ id, label, hint, height, render({ pct, end, duration, currentTime }) }) on the same time axis.
  */
 export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, focus, onFocusChange, onOpenTab, onPlayRange, loopRange, storageKey, eventTypes = EVENT_TYPES }) {
   const videoOf = useVideoAnalyses(tracks.map(t => t.videoUrl), fullDuration);
@@ -264,6 +265,17 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
                 <span className="tl-label tl-label-sub">Markers</span>
                 <div className="tl-lane tl-markers">{events.map(e => marker(track, e))}</div>
               </div>
+
+              {/* Extra rows a host can add per track ({ id, label, hint, height, render }), drawn on the same time axis. */}
+              {track.lanes?.map(l => (
+                <div key={l.id} className="tl-row">
+                  <span className="tl-label tl-label-sub" title={l.hint}>{l.label}</span>
+                  <div className="tl-lane tl-extra" style={{ height: l.height ?? 28 }}>
+                    {l.render({ pct, end: track.end, duration, currentTime })}
+                    {track.end < duration - 0.5 && <span className="tl-ended" aria-hidden="true" style={{ left: pct(track.end), width: pct(duration - track.end) }} />}
+                  </div>
+                </div>
+              ))}
 
               {span && <div className="tl-range-band" style={{ '--from': span.start / duration, '--to': span.end / duration }} aria-hidden="true" />}
             </div>

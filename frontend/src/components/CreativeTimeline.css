@@ -106,3 +106,4 @@
 .num-key { color: var(--foreground); font-weight: 500; font-variant-numeric: tabular-nums; }
 .num-a { color: var(--num-a); font-weight: 500; font-variant-numeric: tabular-nums; }
 .num-b { color: var(--num-b); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tl-extra { position: relative; }

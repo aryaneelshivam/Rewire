@@ -30,13 +30,14 @@ export const cancelJob = id => post(`/jobs/${id}/cancel`);
 /** Everything a verdict needs, for whichever analysis the API has open. */
 export async function fetchResults() {
   const status = await fetchStatus();
-  const [score, engagement, ab, overview] = await Promise.all([
+  const [score, engagement, ab, overview, timeseries] = await Promise.all([
     call('/score'),
     call('/engagement'),
     status.variants.length > 1 ? call('/ab-summary') : Promise.resolve(null),
-    call('/overview'),   // per-second response and transcript, for the timeline
+    call('/overview'),     // per-second response and transcript, for the timeline
+    call('/timeseries'),   // each audience's response per driver, per second, for the detail lanes and charts
   ]);
-  return { status, score, engagement, ab, overview };
+  return { status, score, engagement, ab, overview, timeseries };
 }
 
 /** Starts an analysis of one video, or two to compare. Resolves to { job_id }. */

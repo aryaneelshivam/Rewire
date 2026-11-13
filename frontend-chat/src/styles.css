@@ -185,6 +185,13 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .typing span:nth-child(2) { animation-delay: .15s; }
 .typing span:nth-child(3) { animation-delay: .3s; }
 
+/* Arc charts inside answers. */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
+.sparks { display: grid; gap: 10px; }
+.donut-wrap { display: block; }
+.answer-sub { margin: 4px 0 0 !important; font-size: 13px; font-weight: 600; color: var(--c-text) !important; }
+.answer .aside { margin-top: -2px; }
+
 /* ── Progress ─────────────────────────────────────────── */
 .progress-head { display: flex; justify-content: space-between; font-weight: 600; color: var(--c-text) !important; }
 .progress-time { font-weight: 500; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
@@ -257,8 +264,76 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 /* ── Results: the dashboard's player and timeline take the page ── */
 .results-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.results { max-width: 1080px; margin: 0 auto; padding: 16px 14px 24px; display: flex; flex-direction: column; gap: 20px; color: var(--foreground); font-family: var(--font-sans, var(--c-font)); }
-.results .timeline { padding-top: 16px; }
+.results { container-type: inline-size; max-width: 1180px; margin: 0 auto; padding: 14px 14px 24px; display: flex; flex-direction: column; gap: 16px; color: var(--foreground); font-family: var(--font-sans, var(--c-font)); }
+.results .timeline { padding-top: 12px; gap: 10px; }
+/* In the chat the timeline's how-to line goes; its controls explain themselves. */
+.results .tl-sub { display: none; }
+
+/* A compact player, so the timeline is in view with it. */
+.results .player-panel { gap: 10px; }
+.results .player-stage { flex: none; min-height: 0; height: clamp(150px, 25vh, 300px); }
+.results .player-stage video { max-height: 100%; }
+.results-top { display: grid; gap: 14px; }
+@container (min-width: 760px) {
+  .results-top { grid-template-columns: minmax(0, 1.55fr) minmax(230px, 1fr); align-items: start; }
+}
+/* Narrow (the chat open beside it, or a phone): the readout becomes a short strip so the timeline stays in view. */
+@container (max-width: 759px) {
+  .now { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px 16px; padding: 10px 12px; }
+  .now-kicker { grid-column: 1 / -1; }
+  .now-gauge { grid-row: span 3; zoom: .5; margin: 0; }
+  .now-gauge p { display: none; }
+  .now-aud-block { grid-column: 2 / -1; }
+  .now-pair { grid-column: 2; }
+  .now-line-block { grid-column: 3; }
+  .now-aud { grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .now-line { min-height: 0; -webkit-line-clamp: 2; }
+}
+
+/* At the playhead: a live readout beside the player. */
+.now { display: grid; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-panel, 16px); background: var(--surface); }
+.now-kicker { margin: 0; font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.now-gauge { display: grid; justify-items: center; zoom: .6; margin: -6px 0 -10px; }
+.now-block { display: grid; gap: 6px; }
+.now-label { margin: 0; font-size: var(--text-xs); color: var(--text-muted); }
+.now-label span { color: var(--text-secondary); }
+.now-aud { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; }
+.now-aud li { grid-template-columns: 44px minmax(0, 1fr) !important; }
+.now-aud li { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--text-secondary); }
+.now-bar { height: 8px; border-radius: 99px; background: var(--surface-muted); overflow: hidden; }
+.now-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--chart-a); transition: width .35s cubic-bezier(.2, .8, .2, 1); }
+.now[data-tone="b"] .now-bar > span { background: var(--chart-b); }
+.now-drv { margin: 0; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.now-drv i, .drv-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; background: var(--drv); }
+.now-line { margin: 0; font-size: var(--text-sm); line-height: 1.4; color: var(--foreground); min-height: 2.8em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.now-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.now-quiet { color: var(--text-muted); }
+
+/* Driver colours: seven hues apart in lightness and hue, readable in both themes. */
+:root { --drv-reward: oklch(70% .16 75); --drv-auditory: oklch(64% .15 230); --drv-prefrontal: oklch(58% .18 290); --drv-memory: oklch(66% .14 160); --drv-narrative: oklch(62% .19 25); --drv-personal: oklch(72% .15 340); --drv-action: oklch(55% .12 120); }
+[data-drv="reward"] { --drv: var(--drv-reward); }
+[data-drv="auditory"] { --drv: var(--drv-auditory); }
+[data-drv="prefrontal"] { --drv: var(--drv-prefrontal); }
+[data-drv="memory"] { --drv: var(--drv-memory); }
+[data-drv="narrative"] { --drv: var(--drv-narrative); }
+[data-drv="personal"] { --drv: var(--drv-personal); }
+[data-drv="action"] { --drv: var(--drv-action); }
+
+/* The extra timeline lanes. */
+.lane-svg { position: absolute; left: 0; top: 0; height: 100%; overflow: visible; }
+.lane-area { opacity: .18; }
+.lane-line { fill: none; stroke-width: 1.75; }
+.lane-peak { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; border: 2px solid var(--background); box-sizing: content-box; }
+.lane-hook { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: color-mix(in oklab, var(--foreground) 6%, transparent); }
+.lane-hook > span { position: absolute; left: 4px; top: 1px; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.lane-dip { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in oklab, var(--text-muted) 22%, transparent) 4px 5px); border-radius: 4px; }
+.lane-aud { position: absolute; inset: 0; display: grid; gap: 2px; }
+.lane-aud-row { position: relative; border-radius: 3px; overflow: hidden; background: var(--surface-muted); }
+.lane-aud-row > span { position: absolute; top: 0; bottom: 0; }
+.lane-drv { position: absolute; top: 2px; bottom: 2px; border-radius: 4px; background: var(--drv); overflow: hidden; display: flex; align-items: center; }
+.lane-drv > span { padding: 0 5px; font-size: 10px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 1px rgb(0 0 0 / .25); }
+.drv-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: -6px 0 0; font-size: var(--text-xs); color: var(--text-secondary); }
+.drv-legend span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── The conversation, in a popover over the results ── */
 .composer-wrap { position: relative; }
@@ -271,6 +346,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .sheet-title { flex: 1; font-weight: 600; }
 .sheet .thread { flex: 1; }
 .composer-wrap > .swap, .composer-wrap > .notice { position: relative; z-index: 7; }
+
+/* The dashboard's A and B colours follow the chat's own pair in every look, so the two always read apart. */
+:root[data-look] {
+  --chart-a: var(--c-series-A); --chart-b: var(--c-series-B);
+  --num-a: color-mix(in oklab, var(--c-series-A) 78%, var(--c-text)); --num-b: color-mix(in oklab, var(--c-series-B) 78%, var(--c-text));
+}
 
 /* ── Upload box and chat box, crossfading in one spot ── */
 .swap { position: relative; max-width: 720px; margin: 0 auto; transition: height .42s cubic-bezier(.2, .8, .2, 1); }
@@ -406,7 +487,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 /* ── Larger phones and small tablets ──────────────────── */
 @media (min-width: 640px) {
-  .results { padding: 24px 24px 32px; gap: 24px; }
+  .results { padding: 18px 22px 28px; gap: 18px; }
   .sheet { left: 20px; right: 20px; }
   .thread-inner { padding: 24px 20px 12px; gap: 20px; }
   .avatar { display: grid; place-items: center; flex: none; width: 34px; height: 34px; }

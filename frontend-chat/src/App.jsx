@@ -356,7 +356,7 @@ export default function App() {
         {results ? (
           <div className="results-scroll">
             <ResultsView key={results.key} overview={results.overview} media={results.media} winner={results.winner}
-              runKey={results.key} onNewVideo={() => { setUploadAgain(true); setChatOpen(true); }} />
+              runKey={results.key} ins={insights} onNewVideo={() => { setUploadAgain(true); setChatOpen(true); }} />
           </div>
         ) : thread}
 

@@ -1,3 +1,4 @@
+import { detailFor } from './detail';
 /**
  * Turns an analysis into plain language: a verdict, what's working, where attention drifts and what to change.
  * Everything here reads the API's numbers (score, engagement, A/B summary) and says what they mean for a creator,
@@ -101,10 +102,10 @@ function suggestions(v, other) {
  * The whole conversation's material for one analysis: { mode, videos, verdict, viewers }.
  * verdict: { winner, headline, sub, lead, close } for a comparison, { headline, sub } for one video.
  */
-export function buildInsights({ status, score, engagement, ab }) {
+export function buildInsights({ status, score, engagement, ab, timeseries }) {
   const run = status.run ?? {};
   const keys = status.variants;
-  const videos = keys.map(k => readVideo(k, score[k], engagement[k], run.names?.[k], run.durations?.[k], keys.length > 1));
+  const videos = keys.map(k => ({ ...readVideo(k, score[k], engagement[k], run.names?.[k], run.durations?.[k], keys.length > 1), detail: detailFor(timeseries?.[k]) }));
   const viewers = status.viewers ?? 200;
   const media = Object.fromEntries(keys.map(k => [k, status.media?.[k] ?? {}]));
 
@@ -157,6 +158,7 @@ export const TOPICS = [
   { key: 'drift', label: 'Where do people drift?', words: ['drop', 'dip', 'drift', 'lose', 'bored', 'boring', 'sag', 'skip', 'middle'] },
   { key: 'working', label: 'What’s working?', words: ['work', 'why', 'good', 'strength', 'driv', 'carr', 'win'] },
   { key: 'audience', label: 'Who likes it most?', words: ['who', 'audience', 'age', 'kid', 'gen z', 'genz', 'adult', 'older', 'demo'] },
+  { key: 'shift', label: 'How does it shift over time?', words: ['over time', 'shift', 'swell', 'flow', 'mix', 'through the video', 'evolve'] },
   { key: 'fix', label: 'What should I change?', words: ['fix', 'change', 'improve', 'better', 'edit', 'should', 'tip', 'advice'] },
   { key: 'how', label: 'How does this work?', words: ['how does', 'how do you', 'accurate', 'trust', 'simulat', 'method'] },
 ];
