@@ -758,3 +758,13 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .acct-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--c-text-2); }
 .acct-signout { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; border: 1px solid rgb(19 19 18 / .12); border-radius: 99px; background: #fff; color: var(--c-text); font: 500 14px/1 var(--c-font); cursor: pointer; }
 .acct-signout:hover { background: #f6f3ee; }
+
+/* ── Lite (Chrome on Windows, see perf.js): no frosted glass, and the gradient on its own layer ──
+   Over a smooth gradient the blur adds little you can see, so panels just get a touch more solid instead. */
+:root[data-perf="lite"] * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+:root[data-perf="lite"][data-look="aura"] { --c-surface: rgb(255 255 255 / .8); --c-surface-2: rgb(255 255 255 / .6); }
+:root[data-perf="lite"][data-look="aura"] .app:not([data-results]) .side { background: rgb(255 255 255 / .72); }
+:root[data-perf="lite"][data-look="aura"] .upload-zone, :root[data-perf="lite"][data-look="aura"] .upload-file { background: rgb(255 255 255 / .7); }
+/* The gradient, painted once on a fixed layer of its own instead of a window-fixed body background. */
+:root[data-perf="lite"][data-look="aura"] body { background: none; }
+:root[data-perf="lite"][data-look="aura"] body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--aura); transform: translateZ(0); pointer-events: none; }
