@@ -218,13 +218,14 @@ async def authenticate(request, call_next):
 
 class _Compress:
     """Gzip for API responses (JSON shrinks 60 to 90%). Media links are left alone: videos are already compressed,
-    and players need byte ranges, which compression would break."""
+    and players need byte ranges, which compression would break. The chat stream is left alone too: gzip holds small
+    chunks back until it has enough to compress, which would stall the answer (and the keep-alive) mid-stream."""
     def __init__(self, app):
         from starlette.middleware.gzip import GZipMiddleware
         self.app, self.gzip = app, GZipMiddleware(app, minimum_size=1024, compresslevel=6)
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and not scope["path"].startswith("/api/media/"):
+        if scope["type"] == "http" and not scope["path"].startswith(("/api/media/", "/api/chat")):
             return await self.gzip(scope, receive, send)
         return await self.app(scope, receive, send)
 
@@ -366,7 +367,7 @@ def chat(req: ChatRequest):
 
     def body():
         try:
-            yield from assistant.stream_answer(context, req.messages)
+            yield from assistant.with_heartbeat(assistant.stream_answer(context, req.messages))
         except ValueError as e:
             yield str(e)
         except Exception as e:   # the stream has started, so the status is sent: say it in the text instead

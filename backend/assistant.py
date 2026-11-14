@@ -221,13 +221,20 @@ def _claude_stream(context: dict, turns: list):
 
 def _gemini_stream(context: dict, turns: list):
     from google import genai
+    from google.genai import types
 
-    client = genai.Client(api_key=_gemini_key())
+    # A firm time limit, so a stuck call ends with an error instead of holding the chat open.
+    client = genai.Client(api_key=_gemini_key(), http_options={"timeout": 120_000})
     contents = [{"role": "user" if t["role"] == "user" else "model", "parts": [{"text": t["content"]}]} for t in turns]
     for chunk in client.models.generate_content_stream(
         model=GEMINI_MODEL,
         contents=contents,
-        config={"system_instruction": f"{SYSTEM}\n\n{_data_text(context)}", "max_output_tokens": 8192},
+        config=types.GenerateContentConfig(
+            system_instruction=f"{SYSTEM}\n\n{_data_text(context)}",
+            max_output_tokens=8192,
+            # Low thinking: these answers read numbers off the data, and the default level keeps people waiting.
+            thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),
+        ),
     ):
         if chunk.text:
             yield chunk.text
@@ -253,3 +260,39 @@ def stream_answer(context: dict, messages: list):
                 raise
             print(f"chat: Claude failed ({type(e).__name__}: {str(e)[:200]}); answering with Gemini", file=sys.stderr)
     yield from _gemini_stream(context, turns)
+
+
+HEARTBEAT = "\u200b"          # zero-width space: keeps the connection busy while a model thinks; the chat strips it
+
+
+def with_heartbeat(chunks, every: float = 5.0):
+    """Passes `chunks` through, sending HEARTBEAT whenever nothing has come for `every` seconds. A model can think for
+    a while before its first word; some browsers and proxies drop a response that sends nothing, so the stream keeps
+    talking until the answer starts."""
+    import queue
+    import threading
+
+    q: "queue.Queue" = queue.Queue()
+    done = object()
+
+    def pump():
+        try:
+            for c in chunks:
+                q.put(c)
+        except BaseException as e:   # handed to the reader, which re-raises it in its own thread
+            q.put(e)
+        q.put(done)
+
+    threading.Thread(target=pump, daemon=True).start()
+    yield HEARTBEAT   # straight away, so the response starts before anything slow happens
+    while True:
+        try:
+            item = q.get(timeout=every)
+        except queue.Empty:
+            yield HEARTBEAT
+            continue
+        if item is done:
+            return
+        if isinstance(item, BaseException):
+            raise item
+        yield item

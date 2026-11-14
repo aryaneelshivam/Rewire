@@ -38,24 +38,40 @@ export const chatStatus = () => call('/chat');
  * the question); `onText` gets the answer so far as it streams in. Resolves with the whole answer.
  */
 export async function askAssistant(messages, onText, signal) {
-  const res = await request('/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
-    signal,
-  });
+  let res;
+  try {
+    res = await request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+      signal,
+    });
+  } catch (e) {
+    // fetch() itself failed (offline, a dropped connection, the server waking up): say it plainly, not "Load failed".
+    if (e.name === 'AbortError' || e.status) throw e;
+    throw Object.assign(new Error('I couldn’t reach Rewire just now. Try asking again in a moment.'), { status: 0 });
+  }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let text = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    text += decoder.decode(value, { stream: true });
-    onText(text);
+  // The server sends zero-width spaces to keep the connection open while the model thinks; they aren't the answer.
+  const clean = t => t.replace(/\u200b/g, '');
+  let raw = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      raw += decoder.decode(value, { stream: true });
+      onText(clean(raw));
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    // The connection dropped mid-answer: keep what arrived, and say so.
+    const partial = clean(raw).trim();
+    throw Object.assign(new Error(partial ? `${partial}\n\nThe connection dropped before I finished. Ask again to get the rest.` : 'I lost the connection while thinking. Try asking again.'), { status: 0 });
   }
-  text += decoder.decode();
-  onText(text);
-  return text;
+  raw += decoder.decode();
+  onText(clean(raw));
+  return clean(raw);
 }
 
 const post = (path, body) => call(path, { method: 'POST', body });
