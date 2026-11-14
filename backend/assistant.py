@@ -12,6 +12,7 @@ Needs GROQ_API_KEY in the environment or backend/.env. The model is GROQ_MODEL (
 """
 import json
 import os
+import re
 import sys
 
 LAG_S = 2                       # the response trails the picture by about this much; matches the chat frontend
@@ -20,10 +21,14 @@ MAX_HISTORY = 6                 # messages kept from the conversation (three exc
 MAX_QUESTION = 2000             # characters in one question
 MAX_PAST_ANSWER = 1500          # characters kept from each earlier answer
 MAX_ANSWER_TOKENS = 1200        # room reserved for the answer
-# The analysis data is shrunk until it fits this many tokens. Groq's free tier allows 8,000 tokens a minute per
-# request and model, which has to cover the instructions, the data, the conversation and the answer.
-DATA_TOKENS = int(os.environ.get("GROQ_DATA_TOKENS", "4200"))
-CHARS_PER_TOKEN = 3.8           # a conservative estimate for this JSON
+# Groq's free tier allows 8,000 tokens a minute per model, and one request may not ask for more than that: the
+# instructions, the data, the conversation and the room reserved for the answer together. The data gets what's left.
+TOKEN_LIMIT = int(os.environ.get("GROQ_TOKEN_LIMIT", "8000"))
+SAFETY_TOKENS = 400             # slack for message framing and estimation error
+# Tokens counted the way tokenizers split text: a short word, up to three digits, or one symbol each. On this data it
+# comes out 8-36% above the real tokenizer's count; Groq counts a little above that, so a tenth is added on top.
+TOKEN_PIECES = re.compile(r"[A-Za-z]{1,8}|\d{1,3}|[^\sA-Za-z\d]")
+TOKEN_MARGIN = 1.1
 
 DRIVERS = {   # the backend's dimension names, in the words the app uses
     "visual": "Visuals", "auditory": "Sound", "reward": "Payoff", "memory": "Memorability", "attention": "Focus",
@@ -66,9 +71,10 @@ giving each audience's overall response).
 - seconds_per_value: when present, per-second series are averaged into buckets of that many seconds (value i covers \
 seconds i*n to i*n+n). Name moments by their bucket's start.
 - audiences: each age group's overall response, the second they peak, and which group responds best.
-- transcript: the words spoken, with start times in seconds. scene_changes: seconds where the picture cuts.
+- transcript_sentences: "start-end s text", times in seconds. transcript_words: [start second, word]. scene_changes: seconds where the picture cuts.
 - comparison (two videos only): the overall winner, how much stronger in percent, how many audiences each wins, and \
-per audience and driver which video leads."""
+per audience and driver which video (A or B, by the videos' "video" field) leads. Read the scores themselves from \
+each video's drivers_by_audience."""
 
 
 def _r(x, n=3):
@@ -119,7 +125,7 @@ def _video(key, c, name, rewire_score):
         if t.get("type") == "Word":
             words.append([_r(t.get("start"), 1), text])
         elif t.get("type") == "Sentence":
-            sentences.append({"start": _r(t.get("start"), 1), "end": _r(t.get("stop"), 1), "text": text})
+            sentences.append(f"{_r(t.get('start'), 1)}-{_r(t.get('stop'), 1)}s {text}")
     profile = c.get("content_profile") or {}
     cuts = sorted({_clock(e["timestep"]) for e in profile.get("temporal_events", []) if e.get("type") == "scene_cut"})
     return {
@@ -157,10 +163,10 @@ def build_context(results: dict, info: dict, rewire_score, overall_verdict, cont
             "audiences_won": {videos[0]["name"]: overall.get("cohorts_led", {}).get("A"),
                               videos[1]["name"]: overall.get("cohorts_led", {}).get("B"),
                               "tied": overall.get("cohorts_led", {}).get("TIE")},
-            "by_audience_and_driver": {
+            # Only who leads: the scores themselves are in each video's drivers_by_audience and audiences.
+            "leader_by_audience_and_driver": {
                 AUDIENCES.get(aud, aud): {
-                    DRIVERS.get(d, "Overall"): {"A": _r(a[aud].get(d)), "B": _r(b[aud].get(d)),
-                                                "leader": {"A": "A", "B": "B"}.get(contest_winner(a[aud].get(d, 0), b[aud].get(d, 0)), "tie")}
+                    DRIVERS.get(d, "Overall"): {"A": "A", "B": "B"}.get(contest_winner(a[aud].get(d, 0), b[aud].get(d, 0)), "tie")
                     for d in [*DRIVERS, "overall"]
                 } for aud in a if aud in b
             },
@@ -195,8 +201,18 @@ def _json(context: dict) -> str:
     return json.dumps(context, separators=(",", ":"), ensure_ascii=False)
 
 
+def _estimate(text: str) -> int:
+    return int(len(TOKEN_PIECES.findall(text)) * TOKEN_MARGIN) + 1
+
+
 def _tokens(context: dict) -> int:
-    return int(len(_json(context)) / CHARS_PER_TOKEN)
+    return _estimate(_json(context))
+
+
+def data_budget(turns: list) -> int:
+    """Tokens left for the analysis data once the instructions, the conversation and the answer are counted."""
+    used = _estimate(SYSTEM) + sum(_estimate(t["content"]) + 8 for t in turns)
+    return max(600, TOKEN_LIMIT - MAX_ANSWER_TOKENS - SAFETY_TOKENS - used)
 
 
 def _round_series(v, n):
@@ -218,7 +234,7 @@ def fit(context: dict, budget: int = None) -> dict:
     all of that fails."""
     import copy
 
-    budget = budget or DATA_TOKENS
+    budget = budget or data_budget([])
     if _tokens(context) <= budget:
         return context
     c = copy.deepcopy(context)
@@ -260,8 +276,8 @@ def fit(context: dict, budget: int = None) -> dict:
     return b
 
 
-def _data_text(context: dict) -> str:
-    return "ANALYSIS DATA (JSON):\n" + _json(fit(context))
+def _data_text(context: dict, budget: int) -> str:
+    return "ANALYSIS DATA (JSON):\n" + _json(fit(context, budget))
 
 
 def _reasoning_options() -> dict:
@@ -279,14 +295,24 @@ def stream_answer(context: dict, messages: list):
     if not turns or turns[-1]["role"] != "user":
         raise ValueError("Ask a question first.")
     client = Groq(api_key=_key(), timeout=120.0, max_retries=1)   # a firm limit, so a stuck call ends instead of holding the chat open
-    stream = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "system", "content": f"{SYSTEM}\n\n{_data_text(context)}"}, *turns],
-        stream=True,
-        max_completion_tokens=MAX_ANSWER_TOKENS,
-        temperature=0.3,                    # numbers read off the data, not invention
-        **_reasoning_options(),
-    )
+    budget = data_budget(turns)
+
+    def ask(budget):
+        return client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "system", "content": f"{SYSTEM}\n\n{_data_text(context, budget)}"}, *turns],
+            stream=True,
+            max_completion_tokens=MAX_ANSWER_TOKENS,
+            temperature=0.3,                    # numbers read off the data, not invention
+            **_reasoning_options(),
+        )
+
+    try:
+        stream = ask(budget)
+    except Exception as e:   # still too large by Groq's count: once more with half the data
+        if getattr(e, "status_code", None) != 413:
+            raise
+        stream = ask(max(600, budget // 2))
     finish = None
     for chunk in stream:
         if not chunk.choices:
