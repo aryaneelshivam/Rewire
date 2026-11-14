@@ -123,6 +123,14 @@ modal deploy modal_backend.py
 
 Every push to `main` redeploys the dashboard. Preview deployments get their own addresses, which the API does not accept unless added. Vercel's free Hobby plan is for non-commercial use; a commercial beta belongs on Pro.
 
+### The chat assistant
+Beside an analysis, the chat answers its set follow-up questions with charts as before, and anything typed in the box goes to Claude (`backend/assistant.py`, model `claude-opus-5-5`), which sees every number the backend produced for the open analysis: the attention curve, measures, drivers per audience and per second, audiences, transcript, scene changes and, for two videos, the comparison. The data is passed in the product's words only (a simulated audience, attention, drivers); internal names never reach the model, and it is told not to describe how Rewire works inside. Answers stream into the chat. The data sits in a cached part of the prompt, so follow-up questions about the same analysis cost much less.
+
+- **Turn it on locally:** put `ANTHROPIC_API_KEY=sk-ant-...` in `backend/.env` (git-ignored) and restart the backend. Without a key the chat works as before, from its set questions.
+- **On Modal:** `modal secret create rewire-anthropic ANTHROPIC_API_KEY=sk-ant-...`, set `CHAT_SECRET = "rewire-anthropic"` in `modal_backend.py`, and `modal deploy modal_backend.py`.
+- **Limits:** each person can ask `REWIRE_CHAT_LIMIT` questions (default 40) per 15 minutes. Questions don't use credits.
+- If Claude declines a question on policy grounds, the API retries it on a fallback model in the same request (`fallbacks: "default"`).
+
 ### Test credits (beta)
 With sign-in on, every invited person gets test credits the first time they sign in (`TEST_CREDITS` in `modal_backend.py`, default 60; raising it tops everyone up by the difference). Analyses cost by length, because GPU time grows with it: one credit per 10 seconds of each video (`SECONDS_PER_CREDIT`), rounded up with half a second of grace, at least one. A 30-second ad costs 3 credits, a 3-minute film 18, and comparing two 30-second ads 6. Credits are taken when an analysis starts, once the API has measured the videos, and returned if it fails or is cancelled. The balance shows in the header and on the upload screen, and an analysis is refused when there aren't enough.
 

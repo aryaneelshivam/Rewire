@@ -20,13 +20,14 @@ import joblib
 import numpy as np
 from fastapi import Body, FastAPI, Form, HTTPException, Query, Request, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from pydantic import BaseModel
 
 import auth
 import credits
+import assistant
 from pipeline import JobManager
 from score import rewire_score
 import runs
@@ -318,6 +319,69 @@ def admin_list_credits():
     if not credits.is_admin():
         raise HTTPException(status_code=403, detail="Only Rewire admins can see this.")
     return {"testers": credits.everyone(), "grant": credits.GRANT, "seconds_per_credit": credits.SECONDS_PER_CREDIT}
+
+
+# ---------------------------------------------------------------------------
+# Chat: open-ended questions about the open analysis, answered by Claude (assistant.py) with all of its data.
+# ---------------------------------------------------------------------------
+class ChatRequest(BaseModel):
+    messages: list[dict]
+
+
+CHAT_LIMIT = int(os.environ.get("REWIRE_CHAT_LIMIT", "40"))      # questions per person per window
+CHAT_WINDOW_S = 15 * 60
+_chat_log: dict[str, list[float]] = {}
+_chat_lock = threading.Lock()
+
+
+def _chat_allowed(user: str) -> bool:
+    now = time.time()
+    with _chat_lock:
+        recent = [t for t in _chat_log.get(user, []) if now - t < CHAT_WINDOW_S]
+        if len(recent) >= CHAT_LIMIT:
+            _chat_log[user] = recent
+            return False
+        recent.append(now)
+        _chat_log[user] = recent
+        return True
+
+
+@app.get("/api/chat")
+def chat_status():
+    """Whether the assistant is set up on this server."""
+    return {"enabled": assistant.configured()}
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest):
+    """Streams the assistant's answer as plain text. The analysis data is gathered here, while the request still knows
+    whose session it is, then handed to the stream."""
+    if not assistant.configured():
+        raise HTTPException(status_code=503, detail="The assistant isn't set up on this server yet.")
+    if not _results:
+        raise HTTPException(status_code=400, detail="Open an analysis first.")
+    if not _chat_allowed(auth.current_user()):
+        raise HTTPException(status_code=429, detail="That's a lot of questions in a short time. Try again in a few minutes.")
+    context = assistant.build_context(dict(_results), dict(_run_info), rewire_score, overall_verdict, contest_winner)
+
+    def body():
+        try:
+            yield from assistant.stream_answer(context, req.messages)
+        except ValueError as e:
+            yield str(e)
+        except Exception as e:   # the stream has started, so the status is sent: say it in the text instead
+            import anthropic
+            if isinstance(e, anthropic.RateLimitError):
+                yield "\n\nThe assistant is busy right now. Try again in a minute."
+            elif isinstance(e, anthropic.APIConnectionError):
+                yield "\n\nI couldn't reach the assistant. Try again in a moment."
+            elif isinstance(e, anthropic.AuthenticationError):
+                yield "\n\nThe assistant isn't set up correctly on this server."
+            else:
+                print(f"chat error: {type(e).__name__}: {e}", file=sys.stderr)
+                yield "\n\nSomething went wrong on my side. Try asking again."
+
+    return StreamingResponse(body(), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 class GrantRequest(BaseModel):

@@ -13,6 +13,7 @@ import StartScreen from './StartScreen';
 import AccountMenu from './AccountMenu';
 import ShareDialog from './ShareDialog';
 import { openReport } from './report';
+import Markdown from './Markdown';
 
 const MAX_FILES = 2;
 const MAX_SECONDS = 180;
@@ -60,6 +61,9 @@ export default function App() {
   const [notice, setNotice] = useState(null);
   const [menu, setMenu] = useState(false);
   const [sharing, setSharing] = useState(false);   // the share-card dialog
+  const [assistantOn, setAssistantOn] = useState(false);   // open-ended questions answered from the data (backend)
+  const [asking, setAsking] = useState(false);             // an answer is streaming in
+  const askAbort = useRef(null);
   const [offline, setOffline] = useState(false);
   const scroller = useRef(null);
   const picker = useRef(null);
@@ -170,12 +174,46 @@ export default function App() {
     }).catch(() => { polling.current = setTimeout(() => poll(msgId, jobId), 3000); });
   };
 
+  useEffect(() => { api.chatStatus().then(s => setAssistantOn(!!s.enabled)).catch(() => {}); }, []);
+  // A new analysis (or a new chat) stops an answer that's still coming in for the old one.
+  useEffect(() => () => askAbort.current?.abort(), [insights]);
+
+  /** An open-ended question, answered by the assistant from all of the analysis data, streamed in as it's written.
+   * The conversation it sees is the questions typed here and its own answers; the chip answers stay as they are. */
+  const askAssistant = async text => {
+    const userId = uid();
+    const botId = uid();
+    const history = [
+      ...messages.filter(m => m.forAssistant || (m.kind === 'assistant' && m.text)).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
+      { role: 'user', content: text },
+    ];
+    add({ id: userId, role: 'user', text, forAssistant: true }, { id: botId, role: 'bot', kind: 'assistant', text: '', streaming: true });
+    const controller = new AbortController();
+    askAbort.current = controller;
+    setAsking(true);
+    try {
+      await api.askAssistant(history, so => patch(botId, { text: so }), controller.signal);
+      patch(botId, { streaming: false });
+    } catch (e) {
+      if (e.name === 'AbortError') patch(botId, { streaming: false });
+      else if (e.status === 503) {
+        // Not set up on this server after all: fall back to the topics.
+        setAssistantOn(false);
+        patch(botId, { streaming: false, kind: 'menu', text: 'I can tell you about any of these:' });
+      } else patch(botId, { streaming: false, failed: true, text: e.message });
+    } finally {
+      setAsking(false);
+      if (askAbort.current === controller) askAbort.current = null;
+    }
+  };
+
   /** A typed question about the open analysis. */
   const send = () => {
     const text = draft.trim();
-    if (busy || !text) return;
+    if (busy || asking || !text) return;
     setDraft('');
     setChatOpen(true);
+    if (assistantOn && insights) { askAssistant(text); return; }
     const topic = routeQuestion(text);
     if (topic) { ask(topic, text); return; }
     add({ id: uid(), role: 'user', text }, { id: uid(), role: 'bot', kind: 'menu', text: 'I can tell you about any of these:' });
@@ -258,7 +296,7 @@ export default function App() {
   useEffect(() => {
     if (mode === 'chat' && window.matchMedia('(hover: hover) and (pointer: fine)').matches) setTimeout(() => textRef.current?.focus(), 380);
   }, [mode]);
-  const mood = busy ? 'thinking' : insights ? 'happy' : 'idle';
+  const mood = busy || asking ? 'thinking' : insights ? 'happy' : 'idle';
   // Peek, in the greeting: leans in when a video is added, gets to work while it's analysed.
   const peekState = busy ? 'working' : files.length ? 'listening' : 'idle';
 
@@ -301,10 +339,10 @@ export default function App() {
             ref={textRef}
             rows={1}
             value={draft}
-            placeholder="Ask about this result"
+            placeholder={assistantOn && insights ? 'Ask anything about this result' : 'Ask about this result'}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            aria-label="Ask about this result"
+            aria-label={assistantOn && insights ? 'Ask anything about this result' : 'Ask about this result'}
             onFocus={() => setChatOpen(true)}
           />
           <div className="composer-row">
@@ -316,7 +354,7 @@ export default function App() {
                 <MessageCircle size={16} aria-hidden="true" />{chatOpen ? 'Hide chat' : 'Chat'}
               </button>
             )}
-            <button type="submit" className="send" disabled={busy || !draft.trim()} aria-label="Send"><ArrowUp size={18} /></button>
+            <button type="submit" className="send" disabled={busy || asking || !draft.trim()} aria-label="Send"><ArrowUp size={18} /></button>
           </div>
         </form>
       </Crossfade>
@@ -512,6 +550,19 @@ function Message({ m, last, busy, mood, peekState, asked, onAsk, onSample, onCan
         )}
         {m.kind === 'typing' && <div className="typing" aria-label="Thinking"><span /><span /><span /></div>}
         {m.kind === 'text' && <div className="answer"><p>{m.text}</p></div>}
+        {m.kind === 'assistant' && (
+          m.streaming && !m.text
+            ? <div className="typing" aria-label="Thinking"><span /><span /><span /></div>
+            : (
+              <>
+                <div className="answer assistant-answer" data-failed={m.failed || undefined} aria-live={m.streaming ? 'polite' : undefined}>
+                  <Markdown text={m.text} />
+                  {m.streaming && <span className="assistant-caret" aria-hidden="true" />}
+                </div>
+                {last && !m.streaming && <Chips onAsk={onAsk} asked={asked} />}
+              </>
+            )
+        )}
         {m.kind === 'menu' && <div className="answer"><p>{m.text}</p><Chips onAsk={onAsk} mode="any" asked={asked} /></div>}
         {m.kind === 'progress' && <Progress m={m} onCancel={onCancel} />}
         {m.kind === 'verdict' && (

@@ -12,7 +12,7 @@ export const setTokenGetter = fn => { getToken = fn; };
 /** The signed-in email, so the team can tell testers apart (it grants nothing; the token decides who you are). */
 export const setAccountEmail = email => { accountEmail = email || ''; };
 
-async function call(path, options = {}) {
+async function request(path, options = {}) {
   const token = getToken ? await getToken() : null;
   const headers = { ...(options.headers ?? {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -25,7 +25,37 @@ async function call(path, options = {}) {
     error.status = res.status;
     throw error;
   }
-  return res.json();
+  return res;
+}
+
+const call = async (path, options) => (await request(path, options)).json();
+
+/** Whether the assistant (open-ended questions, answered from the analysis data) is set up on the server. */
+export const chatStatus = () => call('/chat');
+
+/**
+ * Asks the assistant about the open analysis. `messages` is the conversation so far ({ role, content }, ending with
+ * the question); `onText` gets the answer so far as it streams in. Resolves with the whole answer.
+ */
+export async function askAssistant(messages, onText, signal) {
+  const res = await request('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+    signal,
+  });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    onText(text);
+  }
+  text += decoder.decode();
+  onText(text);
+  return text;
 }
 
 const post = (path, body) => call(path, { method: 'POST', body });

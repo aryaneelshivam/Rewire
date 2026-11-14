@@ -36,6 +36,11 @@ TEST_CREDITS = 60
 SECONDS_PER_CREDIT = 10
 VIEWER_SURCHARGE = 0.5      # extra share of the cost at 1,000 simulated viewers (in proportion above 200)
 ADMINS = "user_3LzYeTNK3jepPAap9BnXpkcc8FD"
+# The chat assistant (open-ended questions answered by Claude from the analysis data) needs an Anthropic API key,
+# kept in a Modal secret, never in code. Create it once, then name it here and redeploy:
+#   modal secret create rewire-anthropic ANTHROPIC_API_KEY=sk-ant-...
+# Left empty, the API runs without the assistant and the chat answers from its set questions only.
+CHAT_SECRET = ""
 
 app = modal.App("rewire-api")
 
@@ -50,7 +55,8 @@ image = (
         "pip uninstall -y numpy scipy",
         "pip install 'numpy<2.0.0' 'scipy<1.13.0' --force-reinstall",
     )
-    .pip_install("fastapi[standard]", "joblib", "pandas", "nilearn", "pyjwt[crypto]>=2.10", "python-multipart", "modal")
+    .pip_install("fastapi[standard]", "joblib", "pandas", "nilearn", "pyjwt[crypto]>=2.10", "python-multipart", "modal",
+                 "anthropic>=2.8")
     # The cortical atlas and surface mesh download once, into the image, not on every container start.
     .run_commands(
         "python -c \"from tribev2.utils import get_hcp_labels; [get_hcp_labels(mesh='fsaverage5', combine=False, hemi=h) for h in ('both', 'left', 'right')]\"",
@@ -72,6 +78,7 @@ data = modal.Volume.from_name("rewire-data", create_if_missing=True, version=2)
 @app.function(
     image=image,
     volumes={"/data": data},
+    secrets=[modal.Secret.from_name(CHAT_SECRET)] if CHAT_SECRET else [],
     cpu=2.0,
     memory=4096,
     max_containers=1,          # sessions and jobs are in memory: never split them across containers

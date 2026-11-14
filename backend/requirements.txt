@@ -7,3 +7,4 @@ pandas
 nilearn
 tribev2
 pyjwt[crypto]>=2.10
+anthropic>=2.8
