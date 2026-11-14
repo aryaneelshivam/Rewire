@@ -159,9 +159,14 @@ def build_context(results: dict, info: dict, rewire_score, overall_verdict, cont
     return data
 
 
+def _key() -> str:
+    """The Groq key, trimmed: a key saved from an editor often ends in a newline, which no HTTP header may carry."""
+    return (os.environ.get("GROQ_API_KEY") or "").strip()
+
+
 def configured() -> bool:
     """Whether the assistant has a key to answer with."""
-    return bool(os.environ.get("GROQ_API_KEY"))
+    return bool(_key())
 
 
 def _history(messages):
@@ -194,7 +199,7 @@ def stream_answer(context: dict, messages: list):
     turns = _history(messages)
     if not turns or turns[-1]["role"] != "user":
         raise ValueError("Ask a question first.")
-    client = Groq(timeout=120.0, max_retries=1)   # a firm limit, so a stuck call ends instead of holding the chat open
+    client = Groq(api_key=_key(), timeout=120.0, max_retries=1)   # a firm limit, so a stuck call ends instead of holding the chat open
     stream = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "system", "content": f"{SYSTEM}\n\n{_data_text(context)}"}, *turns],
