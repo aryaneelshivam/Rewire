@@ -32,6 +32,7 @@ export function analysisFacts(ins) {
     : null;
   return {
     mode: ins.mode,
+    noun: ins.medium === 'audio' ? 'audio' : 'video',   // how the creative is spoken of: "the video", "the audio"
     title: ins.title || (ins.mode === 'compare' ? ins.videos.map(v => v.name).join(' vs ') : ins.videos[0].name),
     viewers: ins.viewers,
     headline: ins.verdict.headline,

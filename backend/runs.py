@@ -4,8 +4,8 @@ backend/data/users/<user id>/runs/<id>/ (each signed-in user's own workspace), h
 
   run.json            title, mode, variants, file names, durations, creative details, result summary
   <variant>.pkl       the predictions ({"preds", "transcript"}), from the GPU or an import
-  <variant>.<ext>     the original video, when one was analysed (kept for playback)
-  <variant>.jpg       a thumbnail frame from that video
+  <variant>.<ext>     the original video or audio file, when one was analysed (kept for playback)
+  <variant>.jpg       a thumbnail frame from that video, or the audio's waveform
 
 Nothing here holds analysed results in memory; opening a run re-runs the (fast, seeded) synthesis.
 """
@@ -31,6 +31,8 @@ def runs_dir() -> Path:
     user = current_user()
     return RUNS_DIR if user == LOCAL_USER else DATA_DIR / "users" / user / "runs"
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}
+MEDIA_SUFFIXES = VIDEO_SUFFIXES | AUDIO_SUFFIXES
 DIMENSIONS = ["visual", "auditory", "reward", "memory", "attention", "narrative", "personal", "action"]
 
 
@@ -72,17 +74,23 @@ def delete(run_id: str):
 
 def video_file(run_id: str, variant: str) -> Path | None:
     path = folder(run_id)
-    return next((p for p in path.glob(f"{variant}.*") if p.suffix.lower() in VIDEO_SUFFIXES), None)
+    return next((p for p in path.glob(f"{variant}.*") if p.suffix.lower() in MEDIA_SUFFIXES), None)
 
 
 def thumbnail(video: Path, out: Path, at: float = 1.0):
-    """A small frame from the video, for the workspace list. Missing thumbnails are not an error."""
+    """A small frame from the video, for the workspace list; for audio, a picture of its waveform. Missing
+    thumbnails are not an error."""
+    if video.suffix.lower() in AUDIO_SUFFIXES:
+        # The waveform is drawn on transparency, which a JPEG would turn black: lay it on the app's warm white.
+        command = ["ffmpeg", "-loglevel", "error", "-y", "-i", str(video), "-filter_complex",
+                   "[0:a]aformat=channel_layouts=mono,showwavespic=s=640x360:colors=#e0743f:scale=sqrt[w];"
+                   "color=c=#fbf6ef:s=640x360[bg];[bg][w]overlay=format=auto,format=yuv420p",
+                   "-frames:v", "1", "-q:v", "3", str(out)]
+    else:
+        command = ["ffmpeg", "-loglevel", "error", "-y", "-ss", str(at), "-i", str(video), "-frames:v", "1",
+                   "-vf", "scale=320:-2", "-q:v", "4", str(out)]
     try:
-        subprocess.run(
-            ["ffmpeg", "-loglevel", "error", "-y", "-ss", str(at), "-i", str(video), "-frames:v", "1",
-             "-vf", "scale=320:-2", "-q:v", "4", str(out)],
-            capture_output=True, timeout=30,
-        )
+        subprocess.run(command, capture_output=True, timeout=30)
     except Exception:
         pass
 
@@ -153,7 +161,8 @@ def list_runs() -> list[dict]:
             "variants": variants,
             "names": info.get("names", {}),
             "durations": info.get("durations", {}),
-            "videos": {v: any(p.suffix.lower() in VIDEO_SUFFIXES for p in path.glob(f"{v}.*")) for v in variants},
+            "medium": info.get("medium", "video"),
+            "videos": {v: any(p.suffix.lower() in MEDIA_SUFFIXES for p in path.glob(f"{v}.*")) for v in variants},
             "thumbs": {v: (path / f"{v}.jpg").exists() for v in variants},
             # A comparison summarised before the overall verdict existed named its winner by contest count; leave it
             # out until the run is opened again and re-summarised, rather than show a winner that may have changed.

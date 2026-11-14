@@ -75,7 +75,7 @@ export function buildReport(ins) {
         <dt>Length</dt><dd>${clock(v.seconds)}</dd>
         <dt>Opening</dt><dd>${esc(v.opening)}, ${v.openingVs >= 0 ? '+' : ''}${v.openingVs}% against the rest</dd>
         <dt>Best moment</dt><dd>${v.best}</dd>
-        ${v.hold != null ? `<dt>Lands strongly</dt><dd>${v.hold}% of the video</dd>` : ''}
+        ${v.hold != null ? `<dt>Lands strongly</dt><dd>${v.hold}% of the ${f.noun}</dd>` : ''}
         <dt>Biggest strengths</dt><dd>${esc(v.strengths.join(' and '))}</dd>
         <dt>Responds best</dt><dd>${esc(v.topAudience ?? 'About equal across ages')}</dd>
         <dt>Where attention sags</dt><dd>${v.dips.length ? esc(v.dips.join(', ')) : 'No real dips'}</dd>
@@ -150,10 +150,10 @@ export function buildReport(ins) {
   <h2>Attention, second by second</h2>
   ${legend}
   ${attentionSvg(ins)}
-  <p class="note">0 is the weakest second${compare ? ' of either video' : ''} and 100 the strongest; the dot marks the best moment${compare ? '' : ', grey bands are dips'}.</p>
+  <p class="note">0 is the weakest second${compare ? ` of either ${f.noun === 'audio' ? 'audio file' : 'video'}` : ''} and 100 the strongest; the dot marks the best moment${compare ? '' : ', grey bands are dips'}.</p>
   ${ins.lengthNote ? `<p class="note">${esc(ins.lengthNote)}</p>` : ''}
 
-  <h2>${compare ? 'Each video' : 'The video'}</h2>
+  <h2>${compare ? `Each ${f.noun === 'audio' ? 'audio file' : 'video'}` : `The ${f.noun}`}</h2>
   <div class="videos">${perVideo}</div>
 
   <div class="cols">
@@ -164,8 +164,8 @@ export function buildReport(ins) {
   ${f.fixes.length ? `<h2>What to change${f.fixesFor ? ` in ${esc(f.fixesFor)}` : ''}</h2><ol class="fixes">${f.fixes.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
 
   <footer>
-    Rewire showed ${compare ? 'each video' : 'this video'} to ${f.viewers.toLocaleString('en')} simulated viewers across four age groups (Kids, Gen Z, Adults and 55+) and measured their response second by second.
-    The numbers are relative: ${compare ? 'one video against the other' : 'each moment against the rest of the video'}. Use them to compare cuts and find what to change, not as a forecast of views.
+    Rewire ${f.noun === 'audio' ? 'played' : 'showed'} ${compare ? `each ${f.noun === 'audio' ? 'audio file' : 'video'}` : `this ${f.noun}`} to ${f.viewers.toLocaleString('en')} simulated viewers across four age groups (Kids, Gen Z, Adults and 55+) and measured their response second by second.
+    The numbers are relative: ${compare ? 'one against the other' : `each moment against the rest of the ${f.noun}`}. Use them to compare cuts and find what to change, not as a forecast of views.
   </footer>
 </main>
 <script>document.getElementById('dl').href = location.href;</script>

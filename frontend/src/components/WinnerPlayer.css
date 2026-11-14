@@ -22,3 +22,12 @@
   .player-controls { grid-template-columns: auto auto auto; }
   .player-scrub { grid-column: 1 / -1; padding-left: 0; }
 }
+
+/* Audio: the waveform fills the stage, faded, with the part already played drawn over it at full strength. */
+.player-stage > .player-audio {
+  position: absolute; inset: 0; max-width: none; display: grid; place-items: center; cursor: pointer;
+  background: var(--surface-muted); color: var(--text-muted);
+}
+.player-audio img { grid-area: 1 / 1; width: 100%; height: 100%; object-fit: fill; }
+.player-audio .wave-dim { opacity: .3; }
+.player-audio .wave-on { clip-path: inset(0 calc(100% - var(--played)) 0 0); transition: clip-path .25s linear; }

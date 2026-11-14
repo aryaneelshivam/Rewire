@@ -135,8 +135,8 @@ export async function renderShareCard(ins) {
     stat(ctx, inner + (tileW + 18) * 2, ty, tileW, 'Audiences won', f.winner ? `${f.audiencesWon}/4` : '—', f.winner ? 'age groups' : null);
   } else {
     const v = f.videos[0];
-    stat(ctx, inner, ty, tileW, 'Lands strongly', v.hold != null ? `${v.hold}%` : '—', 'of the video');
-    stat(ctx, inner + tileW + 18, ty, tileW, 'Best moment', v.best, 'into the video');
+    stat(ctx, inner, ty, tileW, 'Lands strongly', v.hold != null ? `${v.hold}%` : '—', `of the ${f.noun}`);
+    stat(ctx, inner + tileW + 18, ty, tileW, 'Best moment', v.best, `into the ${f.noun}`);
     stat(ctx, inner + (tileW + 18) * 2, ty, tileW, 'Opening', v.opening, `${v.openingVs >= 0 ? '+' : ''}${v.openingVs}% vs the rest`);
   }
 

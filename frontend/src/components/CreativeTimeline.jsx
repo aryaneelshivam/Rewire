@@ -52,12 +52,15 @@ function stack(events, duration, gap = 2.4, rows = 2) {
 /**
  * eventTypes overrides how markers are named and sourced (EVENT_TYPES by default); without onOpenTab the
  * "Open in" menus are left out, for hosts that have no analysis tabs to open. A track can carry `lanes`: extra rows
- * ({ id, label, hint, height, render({ pct, end, duration, currentTime }) }) on the same time axis.
+ * ({ id, label, hint, height, render({ pct, end, duration, currentTime }) }) on the same time axis. A track with
+ * `audio` is sound only: its filmstrip row shows `poster` (the waveform) instead of frames and scene cuts.
  */
 export default function CreativeTimeline({ duration: fullDuration, currentTime, onSeek, tracks, focus, onFocusChange, onOpenTab, onPlayRange, loopRange, storageKey, eventTypes = EVENT_TYPES }) {
   const videoOf = useVideoAnalyses(tracks.map(t => t.videoUrl), fullDuration);
   const all = useMemo(() => tracks.map(track => {
-    const video = videoOf(track.videoUrl);
+    const read = videoOf(track.videoUrl);
+    // Sound only: keep the sound changes the reader finds, but there are no frames or scene cuts to show.
+    const video = track.audio ? { ...read, frames: [], cuts: [] } : read;
     // Tracks share one time axis, as long as the longest video. Each is built to its own length, so a shorter
     // video's scenes and sections stop where it ends instead of stretching to the end of the axis.
     const end = Math.min(fullDuration, track.overview?.n_timesteps || fullDuration);
@@ -238,12 +241,14 @@ export default function CreativeTimeline({ duration: fullDuration, currentTime, 
               </div>
 
               <div className="tl-row">
-                <span className="tl-label tl-label-sub">{track.video.status === 'working' ? 'Reading video' : `${track.scenes.length} scene${track.scenes.length === 1 ? '' : 's'}`}</span>
+                <span className="tl-label tl-label-sub">{track.audio ? 'Audio' : track.video.status === 'working' ? 'Reading video' : `${track.scenes.length} scene${track.scenes.length === 1 ? '' : 's'}`}</span>
                 <div className="tl-lane tl-film" aria-hidden="true">
-                  {track.video.frames.length
+                  {track.audio
+                    ? track.poster && <span className="tl-frame tl-wave" style={{ left: 0, width: pct(track.end), backgroundImage: `url(${track.poster})` }} />
+                    : track.video.frames.length
                     ? track.video.frames.map((f, i) => <span key={f.t} className="tl-frame" style={{ left: pct(f.t), width: pct(Math.max(0, (track.video.frames[i + 1]?.t ?? track.end) - f.t)), backgroundImage: `url(${f.src})` }} />)
                     : <span className="tl-film-empty">{track.videoUrl ? '' : 'Add this variant’s video to see its frames and scene cuts'}</span>}
-                  {track.scenes.slice(1).map(s => <span key={s.start} className="tl-cut" style={{ left: pct(s.start) }} />)}
+                  {!track.audio && track.scenes.slice(1).map(s => <span key={s.start} className="tl-cut" style={{ left: pct(s.start) }} />)}
                   {track.end < duration - 0.5 && <span className="tl-ended" style={{ left: pct(track.end), width: pct(duration - track.end) }}>Ends at {fmtClock(track.end)}</span>}
                 </div>
               </div>

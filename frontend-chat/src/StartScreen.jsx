@@ -3,20 +3,20 @@ import Peek from './Peek';
 import { Clapperboard, AudioLines, FileText, Lock, ArrowRight, Menu, HelpCircle } from 'lucide-react';
 
 /**
- * The first screen: what do you want to analyse? Three cards fanned on an arc, video in the middle. Audio and text
- * are shown locked ("Coming soon") so people know they're on the way; only video goes on, to the upload screen.
+ * The first screen: what do you want to analyse? Three cards fanned on an arc, video in the middle. Video and audio
+ * go on to the upload screen; text is shown locked ("Coming soon") so people know it's on the way.
  */
 const KINDS = [
-  { id: 'audio', icon: AudioLines, title: 'Audio', sub: 'Music, podcasts, voiceovers', locked: true },
+  { id: 'audio', icon: AudioLines, title: 'Audio', sub: 'Music, podcasts, voiceovers' },
   { id: 'video', icon: Clapperboard, title: 'Video', sub: 'Ads, reels, shorts, films' },
   { id: 'text', icon: FileText, title: 'Text', sub: 'Scripts, captions, copy', locked: true },
 ];
 
-export default function StartScreen({ onVideo, onMenu, onHelp, account }) {
+export default function StartScreen({ onStart, onMenu, onHelp, account }) {
   const [nudged, setNudged] = useState(null);   // a locked card that was just pressed, for its small shake
-  const [eyeing, setEyeing] = useState(false);  // pointer over the video card: Peek leans in
+  const [eyeing, setEyeing] = useState(false);  // pointer over an open card: Peek leans in
   const press = kind => {
-    if (!kind.locked) { onVideo(); return; }
+    if (!kind.locked) { onStart(kind.id); return; }
     setNudged(kind.id);
     setTimeout(() => setNudged(n => (n === kind.id ? null : n)), 900);
   };
@@ -66,7 +66,7 @@ export default function StartScreen({ onVideo, onMenu, onHelp, account }) {
             </button>
           );
         })}
-        <button type="button" className="fan-orb" onClick={onVideo} aria-label="Start with a video">
+        <button type="button" className="fan-orb" onClick={() => onStart('video')} aria-label="Start with a video">
           <ArrowRight size={26} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>

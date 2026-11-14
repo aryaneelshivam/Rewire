@@ -3,7 +3,7 @@
 A second, conversational frontend for Rewire, for trying a simpler, consumer-style presentation. It talks to the
 same API as `frontend/` and changes nothing there or in the backend.
 
-Send one video (or two to compare) and Rewire answers with a plain-language verdict, a small attention chart and
+Send one video or audio file (or two of the same kind to compare) and Rewire answers with a plain-language verdict, a small attention chart and
 follow-up questions: the opening, where people drift, what's working, who likes it most and what to change. It
 shows no brain maps or analysis jargon.
 
@@ -34,3 +34,11 @@ predictions instead of using the GPU) launch configurations.
   sidebar), in the Aura look: a mint-to-peach gradient for arriving, a solid workspace once results load.
 - `src/AuthGate.jsx` and `src/AccountMenu.jsx`: sign-in (the dashboard's flow) and the account and credits menu.
 - `mascots/peek.ts` and `src/Peek.jsx`: Peek, the Wobnimo mascot; `src/Mascot.jsx` is its flat icon.
+
+## Audio
+
+The start screen's **Audio** card takes MP3, WAV, M4A, AAC, FLAC or OGG, up to 3 minutes; M4A and AAC are converted
+to WAV for the model, and the original is kept for playback. An audio run is scored exactly like a video, with the
+same formula. Only the wording changes: the player and timeline show the file's waveform (drawn by the backend as its
+thumbnail), "Visuals" reads as **Imagery** (what the sound makes people picture), there are no scene cuts, and the
+chat, share card, report and assistant say "audio". A comparison is two videos or two audio files, never one of each.

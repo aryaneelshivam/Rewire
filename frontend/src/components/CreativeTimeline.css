@@ -107,3 +107,5 @@
 .num-a { color: var(--num-a); font-weight: 500; font-variant-numeric: tabular-nums; }
 .num-b { color: var(--num-b); font-weight: 500; font-variant-numeric: tabular-nums; }
 .tl-extra { position: relative; }
+/* An audio track's waveform, stretched over its length. */
+.tl-frame.tl-wave { background-size: 100% 100%; background-repeat: no-repeat; }

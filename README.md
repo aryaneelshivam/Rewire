@@ -11,6 +11,7 @@ All results are predictions for simulated viewers, not measurements of real peop
 ## What it does
 
 - **One video or two**: drop in a single creative to analyse it, or two to compare them; a progress screen follows every stage of the pipeline.
+- **Audio too**: the chat app also takes audio files (MP3, WAV, M4A, AAC, FLAC or OGG), analysed and scored the same way; see `frontend-chat/README.md`.
 - **Head-to-head verdict**: names the stronger creative across eight cognitive dimensions and four age cohorts (32 contests), with mean activation, peak activation and contests won.
 - **Cortex monitor**: a 3D brain showing the predicted response at the playhead, with the active share of the surface, mean and peak response, and the left-right balance. Filter by variant and cohort.
 - **Winning-creative player**: the winning video plays beside the brain and drives the playhead for the whole dashboard.

@@ -21,6 +21,7 @@ import joblib
 import modal
 
 APP_NAME = "rewire-inference"
+AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg"}   # the audio files the model reads; anything else is a video
 # The volume mounts on a path nothing else touches. Cache locations are pointed at it at container start
 # (see _use_volume_caches), not in the image, because the container runtime writes to them before mounts.
 CACHE_DIR = "/vol"
@@ -291,7 +292,8 @@ class Predictor:
 
     @modal.method()
     def predict(self, video_bytes: bytes, suffix: str = ".mp4", run_id: str = "", fan_out: bool = True):
-        """Predicts one video. Stage updates go to progress[run_id]; returns {"preds", "transcript", "timing"}."""
+        """Predicts one video or audio file. Stage updates go to progress[run_id]; returns {"preds", "transcript",
+        "timing"}. Audio has no frames to encode, so it skips the video fan-out."""
         def stage(key, detail=""):
             if run_id:
                 progress[run_id] = {"stage": key, "detail": detail, "at": time.time()}
@@ -304,8 +306,9 @@ class Predictor:
         with open(path, "wb") as f:
             f.write(video_bytes)
         try:
+            is_audio = suffix.lower() in AUDIO_SUFFIXES
             calls, n_clips = [], 0
-            if fan_out:
+            if fan_out and not is_audio:
                 try:
                     calls, n_clips = self._spawn_encoders(path, video_bytes, suffix)
                 except Exception as exc:          # never let the speed-up break a run
@@ -315,7 +318,7 @@ class Predictor:
 
             # Transcription runs while the encoders work.
             stage("transcribing", f"{len(video_bytes) / 1e6:.1f} MB received")
-            events = self.model.get_events_dataframe(video_path=path)
+            events = self.model.get_events_dataframe(**{"audio_path" if is_audio else "video_path": path})
             timing["transcribe_s"] = round(time.time() - t0, 1)
 
             stage("predicting", f"{len(events)} events extracted")

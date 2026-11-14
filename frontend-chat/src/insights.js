@@ -23,6 +23,17 @@ export const DRIVERS = {
   personal: { label: 'Relatability', means: 'it feels like it’s about the viewer', tip: 'Speak to the viewer directly: “you”, their problem, their moment.' },
   action: { label: 'Urge to act', means: 'it nudges people to do something', tip: 'Make the ask concrete and show the action happening on screen.' },
 };
+// For audio the same measures, said for listeners. "Visuals" becomes Imagery: with nothing on screen, it's what the
+// sound makes people picture. The numbers behind each driver are the same as for video.
+const AUDIO_DRIVERS = {
+  visual: { label: 'Imagery', means: 'it makes people picture it', tip: 'Paint a picture early: concrete, vivid words and sound effects people can see in their mind.' },
+  reward: { ...DRIVERS.reward, means: 'it feels satisfying to listen to' },
+  memory: { ...DRIVERS.memory, tip: 'Repeat the one line you want remembered, and end on it.' },
+  attention: { ...DRIVERS.attention, tip: 'Cut what competes for attention: one idea at a time, and keep the music under the voice.' },
+  action: { ...DRIVERS.action, tip: 'Make the ask concrete: say exactly what to do, and say it twice.' },
+};
+/** The drivers as worded for a video or an audio file. */
+export const driversFor = medium => (medium === 'audio' ? { ...DRIVERS, ...AUDIO_DRIVERS } : DRIVERS);
 const DRIVER_KEYS = Object.keys(DRIVERS);
 const COHORTS = ['kids', 'genz', 'adults', 'older'];
 export const COHORT_LABELS = { kids: 'Kids', genz: 'Gen Z', adults: 'Adults', older: '55+' };
@@ -58,7 +69,8 @@ function findDips(curve) {
 }
 
 /** The read on one video, whatever it's compared with. */
-function readVideo(key, score, engagement, name, seconds, compare) {
+function readVideo(key, score, engagement, name, seconds, compare, medium = 'video') {
+  const words = driversFor(medium);
   const m = score?.measures ?? {};
   const curve = score?.curve ?? [];
   const peakAt = curve.length ? curve.indexOf(Math.max(...curve)) : 0;
@@ -67,13 +79,14 @@ function readVideo(key, score, engagement, name, seconds, compare) {
   const ratio = depth > 0 ? hook / depth : 1;
   const hookTag = ratio >= 1.1 ? 'strong' : ratio >= 0.8 ? 'steady' : 'slow';
   const scores = engagement?.scores ?? {};
-  const drivers = DRIVER_KEYS.map(d => ({ key: d, ...DRIVERS[d], value: avg(COHORTS.map(c => scores[c]?.[d]).filter(v => v != null)) }))
+  const drivers = DRIVER_KEYS.map(d => ({ key: d, ...words[d], value: avg(COHORTS.map(c => scores[c]?.[d]).filter(v => v != null)) }))
     .sort((a, b) => b.value - a.value);
   const cohorts = COHORTS.filter(c => scores[c]).map(c => ({ key: c, label: COHORT_LABELS[c], value: scores[c].overall }))
     .sort((a, b) => b.value - a.value);
   const spread = cohorts.length > 1 ? (cohorts[0].value - cohorts.at(-1).value) / Math.abs(cohorts[0].value || 1) : 0;
   return {
-    key, name: stem(name) || (compare ? `Video ${key}` : 'Your video'), seconds: seconds || curve.length,
+    key, name: stem(name) || (medium === 'audio' ? (compare ? `Audio ${key}` : 'Your audio') : (compare ? `Video ${key}` : 'Your video')),
+    seconds: seconds || curve.length,
     curve, peakAt, peakContent: contentTime(peakAt), hook, depth, hookTag,
     hold: m.hold?.value ?? null, dips: findDips(curve), drivers, cohorts, audienceClear: spread >= TIE_PCT / 100,
   };
@@ -89,7 +102,8 @@ function suggestions(v, other) {
   if (other) {
     const borrow = DRIVER_KEYS.map(d => ({ d, gap: (other.drivers.find(x => x.key === d)?.value ?? 0) - (v.drivers.find(x => x.key === d)?.value ?? 0) }))
       .sort((a, b) => b.gap - a.gap)[0];
-    if (borrow?.gap > 0) out.push(`Borrow from ${other.name}: it does better on ${DRIVERS[borrow.d].label.toLowerCase()}. ${DRIVERS[borrow.d].tip}`);
+    const d = v.drivers.find(x => x.key === borrow?.d);
+    if (borrow?.gap > 0 && d) out.push(`Borrow from ${other.name}: it does better on ${d.label.toLowerCase()}. ${d.tip}`);
   } else {
     // The weakest of the levers a creator can actually pull, said softly: there's no benchmark to call it weak.
     const lever = v.drivers.filter(d => ['narrative', 'personal', 'action', 'auditory'].includes(d.key)).at(-1);
@@ -104,8 +118,9 @@ function suggestions(v, other) {
  */
 export function buildInsights({ status, score, engagement, ab, timeseries }) {
   const run = status.run ?? {};
+  const medium = run.medium === 'audio' ? 'audio' : 'video';
   const keys = status.variants;
-  const videos = keys.map(k => ({ ...readVideo(k, score[k], engagement[k], run.names?.[k], run.durations?.[k], keys.length > 1), detail: detailFor(timeseries?.[k]) }));
+  const videos = keys.map(k => ({ ...readVideo(k, score[k], engagement[k], run.names?.[k], run.durations?.[k], keys.length > 1, medium), detail: detailFor(timeseries?.[k]) }));
   const viewers = status.viewers ?? 200;
   const media = Object.fromEntries(keys.map(k => [k, status.media?.[k] ?? {}]));
 
@@ -117,7 +132,7 @@ export function buildInsights({ status, score, engagement, ab, timeseries }) {
       : `${opening}, and it peaks at ${clock(v.peakContent)}.`;
     const lead = v.drivers[0];
     const sub = `Its biggest strength is ${lead.label.toLowerCase()}: ${lead.means}.${v.audienceClear ? ` ${v.cohorts[0].label} respond best.` : ' It lands about equally across ages.'}`;
-    return { mode: 'single', videos, viewers, media, title: run.title, verdict: { headline, sub }, fixes: suggestions(v), names: { A: v.name } };
+    return { mode: 'single', medium, videos, viewers, media, title: run.title, verdict: { headline, sub }, fixes: suggestions(v), names: { A: v.name } };
   }
 
   const overall = ab?.overall ?? {};
@@ -127,7 +142,7 @@ export function buildInsights({ status, score, engagement, ab, timeseries }) {
   // Why it won: the drivers where the winner leads most, averaged over the four audiences.
   const gaps = DRIVER_KEYS.map(d => {
     const per = COHORTS.map(c => ab?.dimension_winners?.[c]?.[d]).filter(Boolean);
-    return { key: d, ...DRIVERS[d], gap: avg(per.map(x => (x.A ?? 0) - (x.B ?? 0))) };   // positive: A leads
+    return { key: d, ...driversFor(medium)[d], gap: avg(per.map(x => (x.A ?? 0) - (x.B ?? 0))) };   // positive: A leads
   });
   const led = overall.cohorts_led ?? {};
   let headline; let sub;
@@ -145,7 +160,7 @@ export function buildInsights({ status, score, engagement, ab, timeseries }) {
   const lengthNote = Math.max(...lengths) > Math.min(...lengths) * 1.5
     ? 'They’re quite different lengths, so read this as “which holds up better”, not a like-for-like cut.' : null;
   return {
-    mode: 'compare', videos, viewers, media, title: run.title, gaps, lengthNote,
+    mode: 'compare', medium, videos, viewers, media, title: run.title, gaps, lengthNote,
     verdict: { winner: winner?.key ?? null, headline, sub, lead: overall.lead_pct ?? 0, close },
     fixes: suggestions(loser ?? videos[1], winner ?? videos[0]),
     names: Object.fromEntries(videos.map(v => [v.key, v.name])),

@@ -38,6 +38,8 @@ SERIES = {    # the per-second groups, likewise
     "reward": "Payoff", "auditory": "Sound", "prefrontal": "Focus", "memory": "Memorability",
     "narrative": "Story", "personal": "Relatability", "action": "Urge to act",
 }
+# An audio analysis has no picture: the visual driver is what the sound makes people picture.
+AUDIO_DRIVERS = {**DRIVERS, "visual": "Imagery"}
 AUDIENCES = {"kids": "Kids (6-12)", "genz": "Gen Z (13-24)", "adults": "Adults (25-54)", "older": "55+"}
 
 SYSTEM = """You are Rewire's assistant, inside the chat beside a finished analysis. Rewire shows a video (or two, to \
@@ -76,6 +78,12 @@ seconds i*n to i*n+n). Name moments by their bucket's start.
 per audience and driver which video (A or B, by the videos' "video" field) leads. Read the scores themselves from \
 each video's drivers_by_audience."""
 
+# Added to SYSTEM when the analysis is of audio files.
+AUDIO_NOTE = """This analysis is of AUDIO, not video: there is no picture. Say "the audio" or "the ad" and "listeners", not \
+"the video" or "viewers watching", even though some data fields say video. The driver Imagery (in place of Visuals) is \
+how vividly the sound makes people picture things. There are no scenes or cuts. Suggest audio edits: wording, voice \
+and delivery, pacing, pauses, music and sound effects."""
+
 
 def _r(x, n=3):
     try:
@@ -95,15 +103,15 @@ def _clock(s):
     return f"{s // 60}:{s % 60:02d}"
 
 
-def _video(key, c, name, rewire_score):
+def _video(key, c, name, rewire_score, labels=DRIVERS):
     score = c.setdefault("rewire_score", rewire_score(c["preds"]))
     measures = {k: _r(score["measures"][k]["value"]) for k in ("hook", "depth", "peak", "hold") if k in score.get("measures", {})}
     attention = _to_video_time(score.get("curve", []))
     peak_at = max(range(len(attention)), key=lambda i: attention[i] or 0) if attention else 0
     eng = c.get("engagement_scores", {})
-    drivers_by_audience = {AUDIENCES.get(a, a): {DRIVERS[d]: _r(v) for d, v in s.items() if d in DRIVERS} for a, s in eng.items()}
+    drivers_by_audience = {AUDIENCES.get(a, a): {labels[d]: _r(v) for d, v in s.items() if d in labels} for a, s in eng.items()}
     drivers_avg = {}
-    for d, label in DRIVERS.items():
+    for d, label in labels.items():
         vals = [s[d] for s in eng.values() if d in s]
         if vals:
             drivers_avg[label] = _r(sum(vals) / len(vals))
@@ -152,8 +160,14 @@ def build_context(results: dict, info: dict, rewire_score, overall_verdict, cont
     """Everything about the open analysis, in creator words, as one JSON-ready dict."""
     names = (info or {}).get("names") or {}
     stem = lambda n: os.path.splitext(n)[0] if n else None
-    videos = [_video(k, c, stem(names.get(k)), rewire_score) for k, c in results.items()]
-    data = {"title": (info or {}).get("title"), "mode": "compare" if len(results) > 1 else "single", "videos": videos}
+    audio = (info or {}).get("medium") == "audio"
+    labels = AUDIO_DRIVERS if audio else DRIVERS
+    videos = [_video(k, c, stem(names.get(k)), rewire_score, labels) for k, c in results.items()]
+    if audio:
+        for v in videos:
+            v.pop("scene_changes", None)   # found from jumps in the response, which for sound alone aren't cuts
+    data = {"title": (info or {}).get("title"), "medium": "audio" if audio else "video",
+            "mode": "compare" if len(results) > 1 else "single", "videos": videos}
     if len(results) > 1 and "A" in results and "B" in results:
         a, b = results["A"]["engagement_scores"], results["B"]["engagement_scores"]
         overall = overall_verdict(a, b)
@@ -166,8 +180,8 @@ def build_context(results: dict, info: dict, rewire_score, overall_verdict, cont
             # Only who leads: the scores themselves are in each video's drivers_by_audience and audiences.
             "leader_by_audience_and_driver": {
                 AUDIENCES.get(aud, aud): {
-                    DRIVERS.get(d, "Overall"): {"A": "A", "B": "B"}.get(contest_winner(a[aud].get(d, 0), b[aud].get(d, 0)), "tie")
-                    for d in [*DRIVERS, "overall"]
+                    labels.get(d, "Overall"): {"A": "A", "B": "B"}.get(contest_winner(a[aud].get(d, 0), b[aud].get(d, 0)), "tie")
+                    for d in [*labels, "overall"]
                 } for aud in a if aud in b
             },
         }
@@ -209,9 +223,13 @@ def _tokens(context: dict) -> int:
     return _estimate(_json(context))
 
 
-def data_budget(turns: list) -> int:
+def _system(context: dict) -> str:
+    return f"{SYSTEM}\n\n{AUDIO_NOTE}" if context.get("medium") == "audio" else SYSTEM
+
+
+def data_budget(turns: list, system: str = SYSTEM) -> int:
     """Tokens left for the analysis data once the instructions, the conversation and the answer are counted."""
-    used = _estimate(SYSTEM) + sum(_estimate(t["content"]) + 8 for t in turns)
+    used = _estimate(system) + sum(_estimate(t["content"]) + 8 for t in turns)
     return max(600, TOKEN_LIMIT - MAX_ANSWER_TOKENS - SAFETY_TOKENS - used)
 
 
@@ -295,12 +313,13 @@ def stream_answer(context: dict, messages: list):
     if not turns or turns[-1]["role"] != "user":
         raise ValueError("Ask a question first.")
     client = Groq(api_key=_key(), timeout=120.0, max_retries=1)   # a firm limit, so a stuck call ends instead of holding the chat open
-    budget = data_budget(turns)
+    system = _system(context)
+    budget = data_budget(turns, system)
 
     def ask(budget):
         return client.chat.completions.create(
             model=MODEL,
-            messages=[{"role": "system", "content": f"{SYSTEM}\n\n{_data_text(context, budget)}"}, *turns],
+            messages=[{"role": "system", "content": f"{system}\n\n{_data_text(context, budget)}"}, *turns],
             stream=True,
             max_completion_tokens=MAX_ANSWER_TOKENS,
             temperature=0.3,                    # numbers read off the data, not invention

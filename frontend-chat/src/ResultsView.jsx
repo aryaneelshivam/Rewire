@@ -156,6 +156,8 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
   const resumeRef = useRef(null);
 
   const videoUrl = v => mediaUrl(media?.[v]?.video);
+  const audio = ins?.medium === 'audio';
+  const thumbUrl = v => mediaUrl(media?.[v]?.thumb);
   const focusVideo = videoUrl(focus);
   const maxTimesteps = Math.max(...variants.map(v => overview[v].n_timesteps));
 
@@ -216,7 +218,7 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
           render: ({ pct }) => <DriverLane detail={vid.detail} pct={pct} /> },
       ] : []),
     ] : [];
-    return { variant: v, overview: overview[v], videoUrl: videoUrl(v), isWinner: v === (winner === 'B' ? 'B' : 'A'), lanes };
+    return { variant: v, overview: overview[v], videoUrl: videoUrl(v), audio, poster: audio ? thumbUrl(v) : undefined, isWinner: v === (winner === 'B' ? 'B' : 'A'), lanes };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [overview, media, winner, ins, scales]);
 
@@ -240,7 +242,7 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
       <div className="results-top">
         <div className="player-wrap">
         {!single && (
-          <div className="player-switch" role="tablist" aria-label="Which video plays">
+          <div className="player-switch" role="tablist" aria-label={`Which ${audio ? 'audio' : 'video'} plays`}>
             {variants.map(v => {
               const thumb = mediaUrl(media?.[v]?.thumb);
               return (
@@ -259,6 +261,8 @@ export default function ResultsView({ overview, media, winner, runKey, onNewVide
           winner={single ? 'SINGLE' : winner}
           focus={focus}
           videoUrl={focusVideo}
+          audio={audio}
+          poster={audio ? thumbUrl(focus) : undefined}
           videoRef={playerRef}
           resumeRef={resumeRef}
           currentTime={currentTime}

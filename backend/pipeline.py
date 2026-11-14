@@ -24,10 +24,11 @@ import joblib
 from engines import Cancelled, get_engine
 import credits
 from auth import current_user
-from runs import default_title, new_run_id, runs_dir, thumbnail, write
+from runs import AUDIO_SUFFIXES, VIDEO_SUFFIXES, default_title, new_run_id, runs_dir, thumbnail, write
 MAX_SECONDS = 180
 MAX_BYTES = 500 * 1024 * 1024
-VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+# The audio formats the model reads directly; the others (M4A and AAC, common voiceover exports) are converted to WAV.
+MODEL_AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg"}
 
 # Whole-job stages, in order. "predicting" covers the per-video GPU work below.
 STAGES = [
@@ -78,6 +79,7 @@ class VideoTask:
     path: str
     size: int
     duration: float | None = None
+    model_path: str = ""            # the file the model reads, when it isn't `path` (audio converted to WAV)
     stage: str = "queued"
     state: str = "pending"          # pending, running, done, failed
     detail: str = ""
@@ -103,6 +105,7 @@ class Job:
     folder: str = ""                # where its run is saved, in the owner's workspace
     charged: int = 0                # credits taken when it started; given back if it doesn't finish
     viewers: int = 200              # simulated audience size
+    medium: str = "video"           # video or audio: every file in one analysis is the same kind
 
     def log(self, title: str, actor: str | None = None, meta: str | None = None, tone: str = "neutral", detail: str | None = None):
         """Appends to the job's event log, which the progress screen shows newest first."""
@@ -110,7 +113,7 @@ class Job:
                             "meta": meta, "tone": tone, "detail": detail})
 
     def who(self, v: "VideoTask") -> str:
-        return "Your video" if self.mode == "single" else f"Variant {v.variant}"
+        return f"Your {self.medium}" if self.mode == "single" else f"Variant {v.variant}"
 
     def stage(self, key: str) -> Stage:
         return next(s for s in self.stages if s.key == key)
@@ -123,6 +126,7 @@ class Job:
         data.pop("folder")
         for v in data["videos"]:
             v.pop("path")
+            v.pop("model_path")
         data["video_stages"] = [{"key": k, "label": label} for k, label in VIDEO_STAGES]
         data["now"] = time.time()
         return data
@@ -142,14 +146,24 @@ def short_error(exc: Exception) -> str:
 
 
 def probe_duration(path: Path) -> float:
-    """Seconds of video, read with ffprobe."""
+    """Seconds of video or audio, read with ffprobe."""
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
         capture_output=True, text=True, timeout=30,
     )
     if out.returncode != 0 or not out.stdout.strip():
-        raise ValueError("This file could not be read as a video.")
+        raise ValueError("This file could not be read as a video or audio file.")
     return float(out.stdout.strip())
+
+
+def to_wav(path: Path) -> Path:
+    """A 16 kHz mono WAV copy of an audio file, beside it, for the model."""
+    out = path.with_name(f"{path.stem}.model.wav")
+    done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(path), "-vn", "-ac", "1", "-ar", "16000", str(out)],
+                          capture_output=True, text=True, timeout=120)
+    if done.returncode != 0 or not out.exists():
+        raise ValueError(f"{path.name} could not be read as audio.")
+    return out
 
 
 class JobManager:
@@ -191,9 +205,10 @@ class JobManager:
         except credits.InsufficientCredits:
             shutil.rmtree(folder, ignore_errors=True)
             raise
-        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder), charged=charged, viewers=viewers)
+        medium = "audio" if all(Path(v.name).suffix.lower() in AUDIO_SUFFIXES for v in videos) else "video"
+        job = Job(id=job_id, mode=mode, engine=get_engine().name, videos=videos, metadata=metadata, owner=owner, folder=str(folder), charged=charged, viewers=viewers, medium=medium)
         job.stage("synthesis").label = f"{viewers:,} viewers simulated"
-        self._begin(job, "received", f"{len(videos)} video{'s' if len(videos) > 1 else ''}")
+        self._begin(job, "received", f"{len(videos)} {'audio file' if medium == 'audio' else 'video'}{'s' if len(videos) > 1 else ''}")
         mb = sum(v.size for v in videos) / (1024 * 1024)
         job.log("Upload received", meta=f"{', '.join(v.name for v in videos)}, {mb:.1f} MB")
         self._finish(job, "received", quiet=True)
@@ -259,15 +274,22 @@ class JobManager:
         current = "checked"
         try:
             self._begin(job, "checked")
+            kinds = {"audio" if Path(v.name).suffix.lower() in AUDIO_SUFFIXES else "video" for v in job.videos}
+            if len(kinds) > 1:
+                raise ValueError("Compare two videos or two audio files, not one of each: they aren't measured alike.")
             for v in job.videos:
                 self._check_stop(job)
-                if Path(v.name).suffix.lower() not in VIDEO_SUFFIXES:
-                    raise ValueError(f"{v.name} is not a supported video. Use MP4, MOV, M4V, WebM or MKV.")
+                suffix = Path(v.name).suffix.lower()
+                if suffix not in VIDEO_SUFFIXES | AUDIO_SUFFIXES:
+                    raise ValueError(f"{v.name} isn't a supported file. Use a video (MP4, MOV, M4V, WebM or MKV) "
+                                     "or audio (MP3, WAV, M4A, AAC, FLAC or OGG).")
                 if v.size > MAX_BYTES:
                     raise ValueError(f"{v.name} is larger than {MAX_BYTES // (1024 * 1024)} MB.")
                 v.duration = round(probe_duration(Path(v.path)), 1)
                 if v.duration > MAX_SECONDS:
                     raise ValueError(f"{v.name} runs {v.duration:.0f} seconds; the limit is {MAX_SECONDS // 60} minutes.")
+                if suffix in AUDIO_SUFFIXES and suffix not in MODEL_AUDIO_SUFFIXES:
+                    v.model_path = str(to_wav(Path(v.path)))
             lengths = [f"{v.duration:.0f}s" if job.mode == "single" else f"{v.variant}: {v.duration:.0f}s" for v in job.videos]
             self._finish(job, "checked", ", ".join(lengths))
 
@@ -302,12 +324,15 @@ class JobManager:
             self._finish(job, "scoring", "Compared" if len(results) > 1 else "Scored")
 
             self._check_stop(job)
-            # The videos stay with the run, so it can be played back from the workspace later.
+            # The videos stay with the run, so it can be played back from the workspace later. A WAV made for the
+            # model goes: the original plays back.
             for v in job.videos:
+                if v.model_path:
+                    Path(v.model_path).unlink(missing_ok=True)
                 thumbnail(Path(v.path), folder / f"{v.variant}.jpg", at=min(1.0, (v.duration or 2) / 2))
             names = {v.variant: v.name for v in job.videos}
             write(folder, {
-                "id": job.id, "title": default_title(names), "mode": job.mode, "source": "video", "engine": job.engine,
+                "id": job.id, "title": default_title(names), "mode": job.mode, "source": job.medium, "medium": job.medium, "engine": job.engine,
                 "created": job.created, "variants": [v.variant for v in job.videos], "names": names,
                 "durations": {v.variant: v.duration for v in job.videos}, "metadata": job.metadata,
                 "viewers": job.viewers,
@@ -372,7 +397,7 @@ class JobManager:
                 job.log("started processing", actor=who, tone="success")
 
         try:
-            preds, transcript = engine.run(Path(v.path), progress, lambda: job.cancel_requested)
+            preds, transcript = engine.run(Path(v.model_path or v.path), progress, lambda: job.cancel_requested)
         except Exception:
             v.state, v.ended = "failed", time.time()
             raise

@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, Clapperboard, UploadCloud, MessageCircle, Coins, HelpCircle, PlayCircle, LogOut, Share2, FileText } from 'lucide-react';
+import { ArrowUp, Menu, Plus, X, Square, Check, Loader2, UploadCloud, MessageCircle, Coins, HelpCircle, PlayCircle, LogOut, Share2, FileText } from 'lucide-react';
 import { AccountContext } from '@/lib/auth-config';
 import AudiencePicker from './AudiencePicker';
 import * as api from './api';
@@ -14,20 +14,20 @@ import AccountMenu from './AccountMenu';
 import ShareDialog from './ShareDialog';
 import { openReport } from './report';
 import Markdown from './Markdown';
+import { MEDIA, mediumOf, mediaLength } from './medium';
 
 const MAX_FILES = 2;
 const MAX_SECONDS = 180;
-const ACCEPT = 'video/mp4,video/quicktime,video/webm,video/x-m4v,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv';
 
 // How each step of an analysis reads in the chat, in the backend's order (pipeline.STAGES).
 const STEPS = {
   received: 'Got it',
   checked: 'Checking the {videos}',
-  predicting: 'Watching it, frame by frame',
-  synthesis: 'Showing it to {viewers} viewers',
+  predicting: '{watching}',
+  synthesis: '{showing} it to {viewers} viewers',
   scoring: 'Comparing their reactions',
 };
-// Backend errors can name infrastructure; only plainly worded ones about the video are shown as they are.
+// Backend errors can name infrastructure; only plainly worded ones about the upload are shown as they are.
 const internal = /brain|tribe|fmri|cortex|modal|gpu|cuda|traceback|exception|predict/i;
 
 const store = {
@@ -37,15 +37,6 @@ const store = {
 const uid = () => Math.random().toString(36).slice(2, 10);
 const GREETING = { id: 'hello', role: 'bot', kind: 'hello' };
 
-function videoLength(file) {
-  return new Promise(resolve => {
-    const el = document.createElement('video');
-    el.preload = 'metadata';
-    el.onloadedmetadata = () => { resolve(el.duration); URL.revokeObjectURL(el.src); };
-    el.onerror = () => resolve(null);
-    el.src = URL.createObjectURL(file);
-  });
-}
 
 export default function App() {
   // One look: Aura. The shared dashboard components get Arc's light theme and a matching accent.
@@ -56,6 +47,7 @@ export default function App() {
   const [runs, setRuns] = useState([]);
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState([]);           // [{ file, url, seconds }]
+  const [picked, setPicked] = useState('video');    // the kind chosen on the start screen, until files decide it
   const [viewers, setViewers] = useState(() => store.get('rewire-chat:viewers', 200));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -113,6 +105,10 @@ export default function App() {
   // The balance changes when an analysis is charged (as it starts) and if it's refunded (when it fails).
   const refreshCredits = () => api.fetchCredits().then(setCredits).catch(() => {});
 
+  // What's being analysed: the files in the box decide, then the open result, then the start screen's choice.
+  const medium = files.length ? mediumOf(files[0].file) : insights?.medium ?? picked;
+  const kind = MEDIA[medium];
+
   const add = (...msgs) => setMessages(m => [...m, ...msgs]);
   const patch = (id, change) => setMessages(m => m.map(x => (x.id === id ? { ...x, ...change } : x)));
 
@@ -145,7 +141,7 @@ export default function App() {
     setChatOpen(true);
     add({ id: uid(), role: 'user', text: label ?? TOPICS.find(t => t.key === topic)?.label });
     if (topic !== 'how' && !insights) {
-      add({ id: uid(), role: 'bot', kind: 'text', text: 'Send me a video first, and I’ll tell you that and more.' });
+      add({ id: uid(), role: 'bot', kind: 'text', text: `Send me a ${kind.noun} first, and I’ll tell you that and more.` });
       return;
     }
     add({ id: uid(), role: 'bot', kind: 'answer', topic, ins: insights });
@@ -219,17 +215,17 @@ export default function App() {
     add({ id: uid(), role: 'user', text }, { id: uid(), role: 'bot', kind: 'menu', text: 'I can tell you about any of these:' });
   };
 
-  /** Sends the videos in the upload box for analysis. */
+  /** Sends the files in the upload box for analysis. */
   const analyse = async () => {
     if (busy || !files.length) return;
     setNotice(null);
-    if (files.some(f => f.seconds > MAX_SECONDS)) { setNotice('Videos can be up to 3 minutes long.'); return; }
+    if (files.some(f => f.seconds > MAX_SECONDS)) { setNotice(`${kind.nouns[0].toUpperCase()}${kind.nouns.slice(1)} can be up to 3 minutes long.`); return; }
     const sent = files;
     lastSent.current = sent;
     setFiles([]); setBusy(true); setSentCount(sent.length); setChatOpen(true);
-    add({ id: uid(), role: 'user', text: sent.length === 2 ? 'Which one works better?' : '', videos: sent.map(f => ({ name: f.file.name, url: f.url })) });
+    add({ id: uid(), role: 'user', text: sent.length === 2 ? 'Which one works better?' : '', videos: sent.map(f => ({ name: f.file.name, url: f.url, medium })) });
     const msgId = uid();
-    add({ id: msgId, role: 'bot', kind: 'progress', viewers, count: sent.length });
+    add({ id: msgId, role: 'bot', kind: 'progress', viewers, count: sent.length, medium });
     try {
       const { job_id } = await api.createJob(sent.map(f => f.file), viewers);
       patch(msgId, { jobId: job_id });
@@ -243,11 +239,16 @@ export default function App() {
   };
 
   const attach = async list => {
-    const picked = [...list].filter(f => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name));
-    if (!picked.length) return;
+    const usable = [...list].filter(f => mediumOf(f));
+    if (!usable.length) return;
+    // One kind per analysis: whatever is already in the box, or else the first file added.
+    const want = files.length ? mediumOf(files[0].file) : mediumOf(usable[0]);
+    const same = usable.filter(f => mediumOf(f) === want);
     const room = MAX_FILES - files.length;
-    if (picked.length > room) setNotice('Up to two videos: one to analyse, two to compare.');
-    const added = await Promise.all(picked.slice(0, Math.max(0, room)).map(async file => ({ file, url: URL.createObjectURL(file), seconds: await videoLength(file) })));
+    if (same.length < usable.length) setNotice('Compare two videos or two audio files, not one of each.');
+    else if (same.length > room) setNotice(`Up to two ${MEDIA[want].nouns}: one to analyse, two to compare.`);
+    const added = await Promise.all(same.slice(0, Math.max(0, room)).map(async file => ({ file, url: URL.createObjectURL(file), seconds: await mediaLength(file, want) })));
+    if (added.length) setPicked(want);
     setFiles(f => [...f, ...added]);
   };
 
@@ -305,7 +306,7 @@ export default function App() {
     <div className="thread" ref={scroller}>
       <div className="thread-inner">
         {messages.map((m, i) => (
-          <Message key={m.id} m={m} last={i === messages.length - 1} busy={busy} mood={mood} peekState={peekState} asked={asked}
+          <Message key={m.id} m={m} kind={kind} last={i === messages.length - 1} busy={busy} mood={mood} peekState={peekState} asked={asked}
             onAsk={ask} onSample={sample} onCancel={cancel} />
         ))}
       </div>
@@ -330,7 +331,7 @@ export default function App() {
       <Crossfade active={mode}>
         <UploadBox
           key="upload"
-          files={files} busy={busy} sentCount={sentCount} viewers={viewers} setViewers={setViewers} credits={credits}
+          files={files} kind={kind} busy={busy} sentCount={sentCount} viewers={viewers} setViewers={setViewers} credits={credits}
           onPick={() => picker.current?.click()} onDropFiles={list => attach(list)} onRemove={unattach}
           onAnalyse={analyse} onBack={insights ? () => setUploadAgain(false) : null}
         />
@@ -347,7 +348,7 @@ export default function App() {
           />
           <div className="composer-row">
             <button type="button" className="new-video" onClick={() => setUploadAgain(true)} disabled={busy}>
-              <Clapperboard size={16} aria-hidden="true" />New video
+              <kind.Icon size={16} aria-hidden="true" />New {medium === 'audio' ? 'audio' : 'video'}
             </button>
             {results && !wide && (
               <button type="button" className="new-video" onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen}>
@@ -358,7 +359,7 @@ export default function App() {
           </div>
         </form>
       </Crossfade>
-      <input ref={picker} type="file" accept={ACCEPT} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />
+      <input ref={picker} type="file" accept={kind.accept} multiple hidden onChange={e => { attach(e.target.files); e.target.value = ''; }} />
     </div>
   );
 
@@ -379,7 +380,7 @@ export default function App() {
             {runs.map(r => (
               <button key={r.id} className="side-item" data-current={r.id === runId || undefined} onClick={() => openPast(r)} disabled={busy}>
                 <span className="side-title">{r.title}</span>
-                <span className="side-meta">{r.mode === 'compare' ? 'Comparison' : 'One video'} · {new Date(r.created * 1000).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
+                <span className="side-meta">{r.mode === 'compare' ? 'Comparison' : r.medium === 'audio' ? 'One audio file' : 'One video'} · {new Date(r.created * 1000).toLocaleDateString('en', { day: 'numeric', month: 'short' })}</span>
               </button>
             ))}
           </nav>
@@ -391,7 +392,7 @@ export default function App() {
 
       <main className="chat" data-start={onStart || undefined}>
         {onStart ? (
-          <StartScreen onVideo={() => setStarted(true)} onMenu={() => setMenu(o => !o)}
+          <StartScreen onStart={k => { setPicked(k); setStarted(true); }} onMenu={() => setMenu(o => !o)}
             onHelp={() => { setStarted(true); ask('how'); }} account={<AccountMenu credits={credits} className="acct-orb" />} />
         ) : (<>
         <header className="chat-head">
@@ -407,7 +408,7 @@ export default function App() {
             <>
               {!chatOpen && (
                 <button className="head-btn" onClick={() => { setUploadAgain(true); setChatOpen(true); }} disabled={busy}>
-                  <Clapperboard size={16} aria-hidden="true" />New video
+                  <kind.Icon size={16} aria-hidden="true" />New {medium === 'audio' ? 'audio' : 'video'}
                 </button>
               )}
               <button className="head-btn" data-on={chatOpen || undefined} onClick={() => setChatOpen(o => !o)} aria-expanded={chatOpen} aria-controls="ai-side">
@@ -471,7 +472,7 @@ function SideFooter({ credits, runs, onHow, onSample, busy }) {
           <div className="acct-meter" role="meter" aria-label="Credits left" aria-valuemin={0} aria-valuemax={granted} aria-valuenow={balance}>
             <span style={{ width: `${Math.min(100, (balance / granted) * 100)}%` }} />
           </div>
-          <p className="side-fine">1 credit per {credits.seconds_per_credit ?? 10} seconds of video; bigger audiences cost a little more.{low ? ' Running low? Ask the Rewire team for more.' : ''}</p>
+          <p className="side-fine">1 credit per {credits.seconds_per_credit ?? 10} seconds of video or audio; bigger audiences cost a little more.{low ? ' Running low? Ask the Rewire team for more.' : ''}</p>
         </div>
       )}
       <div className="side-links">
@@ -490,7 +491,7 @@ function SideFooter({ credits, runs, onHow, onSample, busy }) {
           <button type="button" className="icon-btn" onClick={account.signOut} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>
         </div>
       ) : null}
-      <p className="side-fine side-legal">{account ? 'Private beta. Your videos and results are private to your account.' : 'Local workspace: sign-in is off, so everything here stays on this computer.'}</p>
+      <p className="side-fine side-legal">{account ? 'Private beta. Your uploads and results are private to your account.' : 'Local workspace: sign-in is off, so everything here stays on this computer.'}</p>
     </footer>
   );
 }
@@ -506,15 +507,17 @@ function Chips({ onAsk, mode, asked }) {
   );
 }
 
-function Message({ m, last, busy, mood, peekState, asked, onAsk, onSample, onCancel }) {
+function Message({ m, kind, last, busy, mood, peekState, asked, onAsk, onSample, onCancel }) {
   if (m.role === 'user') {
     return (
       <div className="msg msg-user">
         {m.videos?.length > 0 && (
           <div className="msg-videos">
             {m.videos.map((v, i) => (
-              <figure key={v.url}>
-                <video src={`${v.url}#t=0.5`} muted preload="metadata" playsInline controls={false} onClick={e => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} />
+              <figure key={v.url} data-medium={v.medium}>
+                {v.medium === 'audio'
+                  ? <AudioTile name={v.name} url={v.url} />
+                  : <video src={`${v.url}#t=0.5`} muted preload="metadata" playsInline controls={false} onClick={e => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} />}
                 {m.videos.length === 2 && <span className="attachment-tag">{i === 0 ? 'A' : 'B'}</span>}
               </figure>
             ))}
@@ -538,8 +541,8 @@ function Message({ m, last, busy, mood, peekState, asked, onAsk, onSample, onCan
         {m.kind === 'hello' && (
           <div className="answer hello">
             <Peek className="hello-mascot hello-peek" size={96} floor={0.4} state={last ? peekState : 'idle'} />
-            <h2 className="verdict-head">Show me your video.</h2>
-            <p>Drop it in the box below. I’ll show it to a simulated audience and tell you, moment by moment, whether the opening grabs them, where they drift and what to change. Add a second cut and I’ll tell you which one wins.</p>
+            <h2 className="verdict-head">{kind.hello}</h2>
+            <p>Drop it in the box below. I’ll {kind.noun === 'video' ? 'show' : 'play'} it to a simulated audience and tell you, moment by moment, whether the opening grabs them, where they drift and what to change. Add a second {kind.noun === 'video' ? 'cut' : 'version'} and I’ll tell you which one wins.</p>
             {last && !busy && (
               <div className="chips">
                 <button className="chip chip-strong" onClick={onSample}>Try a sample comparison</button>
@@ -598,11 +601,14 @@ function Progress({ m, onCancel }) {
   const done = stages.filter(s => s.state === 'done').length;
   // Server clock for the start, plus the time since the last poll while it runs.
   const elapsed = job ? Math.max(0, Math.round((job.finished ?? job.now) - job.created + (running && m.fetchedAt ? (now - m.fetchedAt) / 1000 : 0))) : 0;
-  const label = key => STEPS[key].replace('{viewers}', (job?.viewers ?? m.viewers).toLocaleString('en')).replace('{videos}', m.count === 2 ? 'videos' : 'video');
+  const kind = MEDIA[m.medium ?? 'video'];
+  const label = key => STEPS[key].replace('{viewers}', (job?.viewers ?? m.viewers).toLocaleString('en'))
+    .replace('{videos}', m.count === 2 ? kind.nouns : kind.noun).replace('{watching}', kind.step)
+    .replace('{showing}', m.medium === 'audio' ? 'Playing' : 'Showing');
   return (
     <div className="answer progress">
       <p className="progress-head">
-        {!job ? `Uploading ${m.count === 2 ? 'your videos' : 'your video'}…` : job.status === 'done' ? 'Done.' : job.status === 'running' ? 'On it.' : job.status === 'cancelled' ? 'Stopped.' : 'That didn’t work.'}
+        {!job ? `Uploading your ${m.count === 2 ? kind.nouns : kind.noun}…` : job.status === 'done' ? 'Done.' : job.status === 'running' ? 'On it.' : job.status === 'cancelled' ? 'Stopped.' : 'That didn’t work.'}
         {job && <span className="progress-time">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>}
       </p>
       <div className="progress-bar"><span style={{ width: `${stages.length ? (done / stages.length) * 100 : 4}%` }} /></div>
@@ -656,7 +662,6 @@ function Crossfade({ active, children }) {
 
 const fmtLen = s => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
 
-/** Where every analysis starts: drop or choose one video (or two to compare), pick the audience, analyse. */
 // While it simulates, Peek splits into a small crowd, one per audience, each in its own tint.
 const CROWD = [
   { key: 'kids', palette: { shell: '#e8b64a' } },
@@ -672,7 +677,22 @@ function PeekCrowd() {
   );
 }
 
-function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPick, onDropFiles, onRemove, onAnalyse, onBack }) {
+/** An audio file in a message or the upload box: its icon and name; tapping plays it. */
+function AudioTile({ name, url, small }) {
+  const ref = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  return (
+    <button type="button" className="audio-tile" data-small={small || undefined} onClick={() => { const a = ref.current; if (a.paused) a.play(); else a.pause(); }}
+      aria-label={`${playing ? 'Pause' : 'Play'} ${name}`}>
+      <MEDIA.audio.Icon size={small ? 18 : 22} aria-hidden="true" />
+      {!small && <span className="audio-tile-name">{name.replace(/\.[^.]+$/, '')}</span>}
+      <audio ref={ref} src={url} preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+    </button>
+  );
+}
+
+/** Where every analysis starts: drop or choose one video or audio file (or two to compare), pick the audience, analyse. */
+function UploadBox({ files, kind, busy, sentCount, viewers, setViewers, credits, onPick, onDropFiles, onRemove, onAnalyse, onBack }) {
   const [drag, setDrag] = useState(false);
   const depth = useRef(0);
   const lengths = files.length && files.every(f => f.seconds > 0) ? files.map(f => f.seconds) : [];
@@ -688,7 +708,7 @@ function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPic
         <div className="upload-busy" role="status">
           {sentCount ? <PeekCrowd /> : <span className="upload-icon"><Loader2 size={20} className="spin" aria-hidden="true" /></span>}
           <span className="upload-text">
-            <span className="upload-title">{sentCount ? `Showing ${sentCount === 2 ? 'your videos' : 'your video'} to ${viewers.toLocaleString('en')} viewers…` : 'Opening the analysis…'}</span>
+            <span className="upload-title">{sentCount ? `${kind.noun === 'video' ? 'Showing' : 'Playing'} your ${sentCount === 2 ? kind.nouns : kind.noun} to ${viewers.toLocaleString('en')} viewers…` : 'Opening the analysis…'}</span>
             <span className="upload-sub">When it’s done, this turns into a chat about the results.</span>
           </span>
         </div>
@@ -696,15 +716,15 @@ function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPic
         <button type="button" className="upload-zone" onClick={onPick}>
           <span className="upload-icon"><UploadCloud size={22} aria-hidden="true" /></span>
           <span className="upload-text">
-            <span className="upload-title">{drag ? 'Drop it here' : 'Drop a video, or choose one'}</span>
-            <span className="upload-sub">Add two to compare · MP4, MOV or WebM · up to 3 minutes</span>
+            <span className="upload-title">{drag ? 'Drop it here' : kind.noun === 'video' ? 'Drop a video, or choose one' : 'Drop an audio file, or choose one'}</span>
+            <span className="upload-sub">Add two to compare · {kind.formats} · up to 3 minutes</span>
           </span>
         </button>
       ) : (
         <div className="upload-files">
           {files.map((f, i) => (
             <div key={f.url} className="upload-file">
-              <video src={`${f.url}#t=0.5`} muted preload="metadata" playsInline />
+              {kind.noun === 'video' ? <video src={`${f.url}#t=0.5`} muted preload="metadata" playsInline /> : <AudioTile name={f.file.name} url={f.url} small />}
               {files.length === 2 && <span className="upload-tag" data-v={i === 0 ? 'A' : 'B'}>{i === 0 ? 'A' : 'B'}</span>}
               <span className="upload-file-text">
                 <span className="upload-file-name">{f.file.name.replace(/\.[^.]+$/, '')}</span>
@@ -716,7 +736,7 @@ function UploadBox({ files, busy, sentCount, viewers, setViewers, credits, onPic
             </div>
           ))}
           {files.length === 1 && (
-            <button type="button" className="upload-add" onClick={onPick}><Plus size={15} aria-hidden="true" />Add a second video to compare</button>
+            <button type="button" className="upload-add" onClick={onPick}><Plus size={15} aria-hidden="true" />Add a second {kind.noun} to compare</button>
           )}
         </div>
       )}

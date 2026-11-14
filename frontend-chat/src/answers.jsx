@@ -11,6 +11,9 @@ import { clock, COHORT_LABELS } from './insights';
 import { COHORTS, MIX, MIX_KEYS } from './detail';
 import { Compact } from './compact';
 
+/** What the creative is called in a sentence: “the video” or “the audio”. */
+const noun = ins => (ins?.medium === 'audio' ? 'audio' : 'video');
+
 const useSize = (full, compact) => (useContext(Compact) ? compact : full);
 
 /**
@@ -74,7 +77,7 @@ export function Verdict({ ins }) {
         <p>{verdict.sub}</p>
         <AttentionLine ins={ins} />
         <div className="metrics">
-          <MetricCard label="Lands strongly" value={Math.round((v.hold ?? 0) * 100)} suffix="%" context="of the video" />
+          <MetricCard label="Lands strongly" value={Math.round((v.hold ?? 0) * 100)} suffix="%" context={`of the ${noun(ins)}`} />
           <MetricCard label="Best moment" value={Math.round(v.peakContent)} suffix="s" context="in" />
           <MetricCard label="Opening" value={pct(v.hook, v.depth)} suffix="%" context="against the rest" change={OPENING[v.hookTag]} />
         </div>
@@ -130,7 +133,7 @@ function Opening({ ins }) {
     const v = ins.videos[0];
     const diff = pct(v.hook, v.depth);
     const text = {
-      strong: `Your first seconds land ${harder(v.hook, v.depth)} than the rest of the video. That’s the moment people decide to keep watching, so this is a good sign.`,
+      strong: `Your first seconds land ${harder(v.hook, v.depth)} than the rest of the ${noun(ins)}. That’s the moment people decide to keep ${ins.medium === 'audio' ? 'listening' : 'watching'}, so this is a good sign.`,
       steady: 'Your first seconds land about as well as the rest. It won’t lose people at the start, but it isn’t a scroll-stopper either.',
       slow: `Your first seconds land ${Math.abs(diff)}% softer than the rest. People decide fast, so it’s worth leading with something stronger${v.peakContent > 3 ? `, like what’s at ${clock(v.peakContent)}` : ''}.`,
     }[v.hookTag];
@@ -209,7 +212,7 @@ function Working({ ins }) {
 }
 
 /** The drivers over time as Arc's streamgraph: which ones swell and fade through the video. */
-function MixStream({ v, title = 'How the pull shifts through the video' }) {
+function MixStream({ v, title = 'How the pull shifts over time' }) {
   const streamH = useSize(200, 140);
   if (!v?.detail) return null;
   const { mix, n } = v.detail;
@@ -246,7 +249,7 @@ function Audience({ ins }) {
           <div className="answer-block">
             <p className="answer-sub">How steady each audience is, second to second</p>
             <Ridgeline series={COHORTS.filter(c => d.audiences[c]).map(c => ({ id: c, label: COHORT_LABELS[c], values: d.audiences[c].map(x => Math.round((x - lo) / (hi - lo || 1) * 100)) }))}
-              label="Each audience's response across the video" domain={[0, 100]} formatValue={x => `${Math.round(x)}`} rowHeight={rowH} />
+              label={`Each audience's response across the ${noun(ins)}`} domain={[0, 100]} formatValue={x => `${Math.round(x)}`} rowHeight={rowH} />
           </div>
         )}
       </div>
@@ -286,7 +289,7 @@ function Fix({ ins }) {
 function How({ ins }) {
   return (
     <div className="answer">
-      <p>When you send a video, I show it to {ins ? ins.viewers.toLocaleString('en') : 'hundreds of'} simulated viewers across four age groups (kids, Gen Z, adults and 55+) and predict, second by second, how strongly each moment lands with them.</p>
+      <p>When you send a video or audio file, I {ins?.medium === 'audio' ? 'play' : 'show'} it to {ins ? ins.viewers.toLocaleString('en') : 'hundreds of'} simulated viewers across four age groups (kids, Gen Z, adults and 55+) and predict, second by second, how strongly each moment lands with them.</p>
       <p>The verdict comes from comparing those reactions: moment against moment, audience against audience, and one version against the other. It’s a prediction, so treat it as a sharp second opinion rather than a guarantee.</p>
     </div>
   );
@@ -296,8 +299,8 @@ function How({ ins }) {
 function Shift({ ins }) {
   return (
     <div className="answer">
-      <p>Here’s which drivers swell and fade as the video plays. Hover a band to see it at each moment.</p>
-      {ins.videos.map(v => <MixStream key={v.key} v={v} title={ins.mode === 'compare' ? v.name : 'Through the video'} />)}
+      <p>Here’s which drivers swell and fade as the {noun(ins)} plays. Hover a band to see it at each moment.</p>
+      {ins.videos.map(v => <MixStream key={v.key} v={v} title={ins.mode === 'compare' ? v.name : `Through the ${noun(ins)}`} />)}
     </div>
   );
 }

@@ -395,6 +395,16 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .upload-files { display: grid; gap: 4px; }
 .upload-file { position: relative; display: flex; align-items: center; gap: 12px; padding: 6px 4px 6px 6px; border-radius: var(--c-radius-sm); background: var(--c-surface-2); }
 .upload-file video { width: 48px; height: 48px; flex: none; object-fit: cover; border-radius: 10px; background: var(--c-line); }
+/* An audio file, in the upload box and in the message that sent it: an icon tile that plays it on tap. */
+.audio-tile {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; width: 100%; height: 100%; padding: 10px; text-align: center; color: var(--c-series-A);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--c-series-A) 14%, white), color-mix(in oklab, var(--c-series-A) 4%, white));
+}
+.audio-tile:focus-visible { outline: 2px solid var(--c-text); outline-offset: -2px; }
+.audio-tile[data-small] { width: 48px; height: 48px; flex: none; padding: 0; border-radius: 10px; }
+.audio-tile-name { font-size: 12px; font-weight: 600; line-height: 1.25; color: var(--c-text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-break: break-word; }
+.msg-videos figure[data-medium="audio"] { aspect-ratio: 1; }
 .upload-tag { position: absolute; left: 2px; top: 2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; background: var(--c-series-A); }
 .upload-tag[data-v="B"] { background: var(--c-series-B); }
 .upload-file-text { flex: 1; min-width: 0; display: grid; }
@@ -547,7 +557,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .fan-card[data-pos="1"] { --at: translateY(-16px); z-index: 2; animation-delay: .1s; background: color-mix(in oklab, var(--c-surface) 70%, white); }
 .fan-card[data-pos="2"] { --at: rotate(21deg); animation-delay: .24s; }
 .fan-card { transform: var(--at); }
-.fan-card:not([data-locked]):hover, .fan-card:not([data-locked]):focus-visible { transform: translateY(-30px) scale(1.03); }
+/* Hovered, a card lifts out of the fan from where it sits (tilted cards along their tilt) and comes to the front. */
+.fan-card:not([data-locked]):hover, .fan-card:not([data-locked]):focus-visible { transform: var(--at) translateY(-16px) scale(1.03); z-index: 3; }
 .fan-card[data-locked] { cursor: not-allowed; }
 .fan-card[data-locked] .fan-icon { filter: grayscale(1); opacity: .65; }
 .fan-card[data-locked] .fan-title, .fan-card[data-locked] .fan-sub { opacity: .62; }
