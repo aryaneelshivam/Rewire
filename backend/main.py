@@ -323,7 +323,7 @@ def admin_list_credits():
 
 
 # ---------------------------------------------------------------------------
-# Chat: open-ended questions about the open analysis, answered by Claude (assistant.py) with all of its data.
+# Chat: open-ended questions about the open analysis, answered by a model on Groq (assistant.py) with all of its data.
 # ---------------------------------------------------------------------------
 class ChatRequest(BaseModel):
     messages: list[dict]
@@ -371,12 +371,13 @@ def chat(req: ChatRequest):
         except ValueError as e:
             yield str(e)
         except Exception as e:   # the stream has started, so the status is sent: say it in the text instead
-            import anthropic
-            if isinstance(e, anthropic.RateLimitError):
+            import groq
+            if isinstance(e, groq.RateLimitError):
                 yield "\n\nThe assistant is busy right now. Try again in a minute."
-            elif isinstance(e, anthropic.APIConnectionError):
+            elif isinstance(e, groq.APIConnectionError):
                 yield "\n\nI couldn't reach the assistant. Try again in a moment."
-            elif isinstance(e, anthropic.AuthenticationError):
+            elif isinstance(e, (groq.AuthenticationError, groq.PermissionDeniedError)):
+                print(f"chat error: {type(e).__name__}: {e}", file=sys.stderr)
                 yield "\n\nThe assistant isn't set up correctly on this server."
             else:
                 print(f"chat error: {type(e).__name__}: {e}", file=sys.stderr)

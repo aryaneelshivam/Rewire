@@ -7,5 +7,4 @@ pandas
 nilearn
 tribev2
 pyjwt[crypto]>=2.10
-anthropic>=2.8
-google-genai>=3.3
+groq>=1.7

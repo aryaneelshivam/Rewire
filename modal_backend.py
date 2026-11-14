@@ -36,16 +36,12 @@ TEST_CREDITS = 60
 SECONDS_PER_CREDIT = 10
 VIEWER_SURCHARGE = 0.5      # extra share of the cost at 1,000 simulated viewers (in proportion above 200)
 ADMINS = "user_3LzYeTNK3jepPAap9BnXpkcc8FD"
-# The chat assistant (open-ended questions answered by Claude from the analysis data) needs an Anthropic API key,
-# kept in a Modal secret, never in code. Create it once, then name it here and redeploy:
-#   modal secret create rewire-anthropic ANTHROPIC_API_KEY=sk-ant-...
-# Left empty, the API runs without the assistant and the chat answers from its set questions only.
-CHAT_SECRET = "rewire-anthropic"
-# Optional fallback: Gemini answers whenever Claude can't (credit, key, rate limit or outage). Its key goes in a
-# second secret; create it before deploying with this set:
-#   modal secret create rewire-gemini GEMINI_API_KEY=-
-# Set to "" to run without the fallback.
-GEMINI_SECRET = "rewire-gemini"
+# The chat assistant (open-ended questions answered by a model on Groq from the analysis data) needs a Groq API key,
+# kept in a Modal secret, never in code. Create it once before deploying (the "-" opens an editor, so the key stays
+# out of your shell history):
+#   modal secret create rewire-groq GROQ_API_KEY=-
+# Set to "" to run without the assistant; the chat then answers from its set questions only.
+CHAT_SECRET = "rewire-groq"
 
 app = modal.App("rewire-api")
 
@@ -66,9 +62,9 @@ image = (
         "python -c \"from tribev2.utils import get_hcp_labels; [get_hcp_labels(mesh='fsaverage5', combine=False, hemi=h) for h in ('both', 'left', 'right')]\"",
         "python -c \"from nilearn import datasets; datasets.fetch_surf_fsaverage('fsaverage5')\"",
     )
-    # The chat assistant's SDKs, in a layer of their own: changing the layer above re-resolves its packages, and pip would
+    # The chat assistant's SDK, in a layer of its own: changing the layer above re-resolves its packages, and pip would
     # then lift numpy and scipy past the pins the analysis needs. This layer touches neither.
-    .pip_install("anthropic>=2.8", "google-genai>=3.3")
+    .pip_install("groq>=1.7")
     .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
           "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS),
           "REWIRE_TEST_CREDITS": str(TEST_CREDITS),
@@ -85,7 +81,7 @@ data = modal.Volume.from_name("rewire-data", create_if_missing=True, version=2)
 @app.function(
     image=image,
     volumes={"/data": data},
-    secrets=[modal.Secret.from_name(name) for name in (CHAT_SECRET, GEMINI_SECRET) if name],
+    secrets=[modal.Secret.from_name(CHAT_SECRET)] if CHAT_SECRET else [],
     cpu=2.0,
     memory=4096,
     max_containers=1,          # sessions and jobs are in memory: never split them across containers
