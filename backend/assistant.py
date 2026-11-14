@@ -8,13 +8,17 @@ attention and drivers, as the rest of the product does. Per-second series are re
 lags the picture by about two seconds; the app labels moments the same way), so the seconds it names match the
 player and the timeline.
 
-Needs ANTHROPIC_API_KEY (or another credential the Anthropic SDK resolves) in the environment or backend/.env.
+Needs ANTHROPIC_API_KEY in the environment or backend/.env. With GEMINI_API_KEY as well, Gemini answers whenever
+Claude can't (an exhausted credit balance, a bad key, rate limits, an outage): same instructions, same data, same
+conversation. Either key alone is enough to turn the assistant on.
 """
 import json
 import os
+import sys
 
 LAG_S = 2                       # the response trails the picture by about this much; matches the chat frontend
 MODEL = os.environ.get("REWIRE_CHAT_MODEL", "claude-opus-5-5")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 MAX_HISTORY = 24                # turns kept from the conversation; older ones are dropped
 MAX_QUESTION = 2000             # characters in one message
 
@@ -158,9 +162,17 @@ def build_context(results: dict, info: dict, rewire_score, overall_verdict, cont
     return data
 
 
-def configured() -> bool:
-    """Whether the Anthropic SDK can find a credential (an API key or a token in the environment)."""
+def _claude_key() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+
+
+def _gemini_key() -> str:
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+
+
+def configured() -> bool:
+    """Whether either model has a key, so the assistant can answer."""
+    return _claude_key() or bool(_gemini_key())
 
 
 def _history(messages):
@@ -175,19 +187,18 @@ def _history(messages):
     return turns
 
 
-def stream_answer(context: dict, messages: list):
-    """Yields the answer's text as it arrives. Raises ValueError for an empty conversation."""
+def _data_text(context: dict) -> str:
+    return "ANALYSIS DATA (JSON):\n" + json.dumps(context, separators=(",", ":"), ensure_ascii=False)
+
+
+def _claude_stream(context: dict, turns: list):
     import anthropic
 
-    turns = _history(messages)
-    if not turns or turns[-1]["role"] != "user":
-        raise ValueError("Ask a question first.")
     client = anthropic.Anthropic()
     system = [
         {"type": "text", "text": SYSTEM},
         # The data, frozen for this analysis and cached, so follow-up questions don't pay for it again.
-        {"type": "text", "text": "ANALYSIS DATA (JSON):\n" + json.dumps(context, separators=(",", ":"), ensure_ascii=False),
-         "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": _data_text(context), "cache_control": {"type": "ephemeral"}},
     ]
     with client.beta.messages.stream(
         model=MODEL,
@@ -206,3 +217,39 @@ def stream_answer(context: dict, messages: list):
         yield "\n\nI can't help with that one. Ask me about this analysis instead."
     elif final.stop_reason == "max_tokens":
         yield "…"
+
+
+def _gemini_stream(context: dict, turns: list):
+    from google import genai
+
+    client = genai.Client(api_key=_gemini_key())
+    contents = [{"role": "user" if t["role"] == "user" else "model", "parts": [{"text": t["content"]}]} for t in turns]
+    for chunk in client.models.generate_content_stream(
+        model=GEMINI_MODEL,
+        contents=contents,
+        config={"system_instruction": f"{SYSTEM}\n\n{_data_text(context)}", "max_output_tokens": 8192},
+    ):
+        if chunk.text:
+            yield chunk.text
+
+
+def stream_answer(context: dict, messages: list):
+    """Yields the answer's text as it arrives, from Claude, or from Gemini when Claude can't answer and a Gemini key is
+    set. Raises ValueError for an empty conversation."""
+    turns = _history(messages)
+    if not turns or turns[-1]["role"] != "user":
+        raise ValueError("Ask a question first.")
+    if _claude_key():
+        sent = False
+        try:
+            for text in _claude_stream(context, turns):
+                sent = True
+                yield text
+            return
+        except Exception as e:
+            # Fall back only before anything reached the reader; a half answer from one model and the rest from
+            # another would read as one confused reply.
+            if sent or not _gemini_key():
+                raise
+            print(f"chat: Claude failed ({type(e).__name__}: {str(e)[:200]}); answering with Gemini", file=sys.stderr)
+    yield from _gemini_stream(context, turns)

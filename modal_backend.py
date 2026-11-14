@@ -41,6 +41,11 @@ ADMINS = "user_3LzYeTNK3jepPAap9BnXpkcc8FD"
 #   modal secret create rewire-anthropic ANTHROPIC_API_KEY=sk-ant-...
 # Left empty, the API runs without the assistant and the chat answers from its set questions only.
 CHAT_SECRET = "rewire-anthropic"
+# Optional fallback: Gemini answers whenever Claude can't (credit, key, rate limit or outage). Its key goes in a
+# second secret; create it before deploying with this set:
+#   modal secret create rewire-gemini GEMINI_API_KEY=-
+# Set to "" to run without the fallback.
+GEMINI_SECRET = "rewire-gemini"
 
 app = modal.App("rewire-api")
 
@@ -61,9 +66,9 @@ image = (
         "python -c \"from tribev2.utils import get_hcp_labels; [get_hcp_labels(mesh='fsaverage5', combine=False, hemi=h) for h in ('both', 'left', 'right')]\"",
         "python -c \"from nilearn import datasets; datasets.fetch_surf_fsaverage('fsaverage5')\"",
     )
-    # The chat assistant's SDK, in a layer of its own: changing the layer above re-resolves its packages, and pip would
+    # The chat assistant's SDKs, in a layer of their own: changing the layer above re-resolves its packages, and pip would
     # then lift numpy and scipy past the pins the analysis needs. This layer touches neither.
-    .pip_install("anthropic>=2.8")
+    .pip_install("anthropic>=2.8", "google-genai>=3.3")
     .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
           "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS),
           "REWIRE_TEST_CREDITS": str(TEST_CREDITS),
@@ -80,7 +85,7 @@ data = modal.Volume.from_name("rewire-data", create_if_missing=True, version=2)
 @app.function(
     image=image,
     volumes={"/data": data},
-    secrets=[modal.Secret.from_name(CHAT_SECRET)] if CHAT_SECRET else [],
+    secrets=[modal.Secret.from_name(name) for name in (CHAT_SECRET, GEMINI_SECRET) if name],
     cpu=2.0,
     memory=4096,
     max_containers=1,          # sessions and jobs are in memory: never split them across containers
