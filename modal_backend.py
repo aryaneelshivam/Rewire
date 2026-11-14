@@ -40,7 +40,7 @@ ADMINS = "user_3LzYeTNK3jepPAap9BnXpkcc8FD"
 # kept in a Modal secret, never in code. Create it once, then name it here and redeploy:
 #   modal secret create rewire-anthropic ANTHROPIC_API_KEY=sk-ant-...
 # Left empty, the API runs without the assistant and the chat answers from its set questions only.
-CHAT_SECRET = ""
+CHAT_SECRET = "rewire-anthropic"
 
 app = modal.App("rewire-api")
 
