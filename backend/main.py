@@ -559,13 +559,19 @@ def delete_run(run_id: str):
     return {"deleted": run_id}
 
 
+AUDIO_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".aac": "audio/aac",
+               ".flac": "audio/flac", ".ogg": "audio/ogg"}
+
+
 @app.get("/api/runs/{run_id}/video/{variant}")
 def run_video(run_id: str, variant: str):
     _run_or_404(run_id)
     path = runs.video_file(run_id, variant)
     if not path:
         raise HTTPException(status_code=404, detail="This analysis kept no video for that variant")
-    return FileResponse(path)
+    # Audio types named outright: the server's own table may not know them (or names M4A oddly), and Safari won't
+    # play a file served under the wrong type.
+    return FileResponse(path, media_type=AUDIO_TYPES.get(path.suffix.lower()))
 
 
 @app.get("/api/runs/{run_id}/thumb/{variant}")
