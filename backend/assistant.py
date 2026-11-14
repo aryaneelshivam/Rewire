@@ -16,8 +16,14 @@ import sys
 
 LAG_S = 2                       # the response trails the picture by about this much; matches the chat frontend
 MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
-MAX_HISTORY = 24                # turns kept from the conversation; older ones are dropped
-MAX_QUESTION = 2000             # characters in one message
+MAX_HISTORY = 6                 # messages kept from the conversation (three exchanges); older ones are dropped
+MAX_QUESTION = 2000             # characters in one question
+MAX_PAST_ANSWER = 1500          # characters kept from each earlier answer
+MAX_ANSWER_TOKENS = 1200        # room reserved for the answer
+# The analysis data is shrunk until it fits this many tokens. Groq's free tier allows 8,000 tokens a minute per
+# request and model, which has to cover the instructions, the data, the conversation and the answer.
+DATA_TOKENS = int(os.environ.get("GROQ_DATA_TOKENS", "4200"))
+CHARS_PER_TOKEN = 3.8           # a conservative estimate for this JSON
 
 DRIVERS = {   # the backend's dimension names, in the words the app uses
     "visual": "Visuals", "auditory": "Sound", "reward": "Payoff", "memory": "Memorability", "attention": "Focus",
@@ -55,7 +61,10 @@ by about two seconds; the series are already shifted so each value lines up with
 - measures: hook (response to roughly the first five seconds), depth (average response after the opening build-up), \
 peak (strongest three-second stretch), hold (share of seconds that stay at or above a typical level, 0 to 1).
 - drivers: how much each driver contributes overall (per audience and averaged). drivers_by_second: each driver's \
-response every second, per audience.
+response every second, per audience (or, for long videos, averaged over audiences, with audience_response_by_second \
+giving each audience's overall response).
+- seconds_per_value: when present, per-second series are averaged into buckets of that many seconds (value i covers \
+seconds i*n to i*n+n). Name moments by their bucket's start.
 - audiences: each age group's overall response, the second they peak, and which group responds best.
 - transcript: the words spoken, with start times in seconds. scene_changes: seconds where the picture cuts.
 - comparison (two videos only): the overall winner, how much stronger in percent, how many audiences each wins, and \
@@ -173,7 +182,8 @@ def _history(messages):
     """The conversation as the API wants it: user/assistant turns, the newest MAX_HISTORY, starting with the user."""
     turns = []
     for m in messages[-MAX_HISTORY:]:
-        role, text = m.get("role"), str(m.get("content") or "").strip()[:MAX_QUESTION]
+        role = m.get("role")
+        text = str(m.get("content") or "").strip()[:MAX_QUESTION if role == "user" else MAX_PAST_ANSWER]
         if role in ("user", "assistant") and text:
             turns.append({"role": role, "content": text})
     while turns and turns[0]["role"] != "user":
@@ -181,8 +191,77 @@ def _history(messages):
     return turns
 
 
+def _json(context: dict) -> str:
+    return json.dumps(context, separators=(",", ":"), ensure_ascii=False)
+
+
+def _tokens(context: dict) -> int:
+    return int(len(_json(context)) / CHARS_PER_TOKEN)
+
+
+def _round_series(v, n):
+    return [round(x, n) if isinstance(x, (int, float)) else x for x in v]
+
+
+def _bucket(values, k):
+    out = []
+    for i in range(0, len(values), k):
+        part = [x for x in values[i:i + k] if isinstance(x, (int, float))]
+        out.append(round(sum(part) / len(part), 3) if part else None)
+    return out
+
+
+def fit(context: dict, budget: int = None) -> dict:
+    """The data, shrunk only as far as needed to fit `budget` tokens. In order: drop the word-by-word transcript
+    (sentences stay), round the per-second values, average the per-second drivers over audiences (keeping each
+    audience's overall curve), then average seconds into ever larger buckets. Nothing is dropped outright until
+    all of that fails."""
+    import copy
+
+    budget = budget or DATA_TOKENS
+    if _tokens(context) <= budget:
+        return context
+    c = copy.deepcopy(context)
+    for v in c["videos"]:
+        v.pop("transcript_words", None)
+    if _tokens(c) <= budget:
+        return c
+    for v in c["videos"]:
+        v["attention"] = _round_series(v["attention"], 3)
+        v["drivers_by_second"] = {a: {d: _round_series(s, 2) for d, s in ds.items()} for a, ds in v["drivers_by_second"].items()}
+    if _tokens(c) <= budget:
+        return c
+    for v in c["videos"]:
+        per_aud = v["drivers_by_second"]
+        drivers = sorted({d for ds in per_aud.values() for d in ds})
+        n = max((len(s) for ds in per_aud.values() for s in ds.values()), default=0)
+        def mean_at(series_list, t):
+            vals = [s[t] for s in series_list if t < len(s) and isinstance(s[t], (int, float))]
+            return round(sum(vals) / len(vals), 2) if vals else None
+        v["drivers_by_second"] = {d: [mean_at([ds[d] for ds in per_aud.values() if d in ds], t) for t in range(n)] for d in drivers}
+        v["audience_response_by_second"] = {a: [mean_at(list(ds.values()), t) for t in range(n)] for a, ds in per_aud.items()}
+    if _tokens(c) <= budget:
+        return c
+    base = c
+    for k in (2, 3, 4, 5, 6, 8, 10, 15, 20, 30):
+        b = copy.deepcopy(base)
+        for v in b["videos"]:
+            if k >= 4:   # long videos: keep the first 40 lines of speech rather than coarsen the curves further
+                v["transcript_sentences"] = v.get("transcript_sentences", [])[:40]
+            v["seconds_per_value"] = k
+            v["attention"] = _bucket(v["attention"], k)
+            v["drivers_by_second"] = {d: _bucket(s, k) for d, s in v["drivers_by_second"].items()}
+            v["audience_response_by_second"] = {a: _bucket(s, k) for a, s in v["audience_response_by_second"].items()}
+        if _tokens(b) <= budget:
+            return b
+    for v in b["videos"]:     # last resort, for very long videos: the drivers' curves go, their totals stay
+        v.pop("drivers_by_second", None)
+        v["transcript_sentences"] = v.get("transcript_sentences", [])[:40]
+    return b
+
+
 def _data_text(context: dict) -> str:
-    return "ANALYSIS DATA (JSON):\n" + json.dumps(context, separators=(",", ":"), ensure_ascii=False)
+    return "ANALYSIS DATA (JSON):\n" + _json(fit(context))
 
 
 def _reasoning_options() -> dict:
@@ -204,7 +283,7 @@ def stream_answer(context: dict, messages: list):
         model=MODEL,
         messages=[{"role": "system", "content": f"{SYSTEM}\n\n{_data_text(context)}"}, *turns],
         stream=True,
-        max_completion_tokens=4096,
+        max_completion_tokens=MAX_ANSWER_TOKENS,
         temperature=0.3,                    # numbers read off the data, not invention
         **_reasoning_options(),
     )

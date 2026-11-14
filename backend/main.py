@@ -372,8 +372,9 @@ def chat(req: ChatRequest):
             yield str(e)
         except Exception as e:   # the stream has started, so the status is sent: say it in the text instead
             import groq
-            if isinstance(e, groq.RateLimitError):
-                yield "\n\nThe assistant is busy right now. Try again in a minute."
+            if isinstance(e, groq.RateLimitError) or getattr(e, "status_code", None) == 413:
+                print(f"chat error: {type(e).__name__}: {str(e)[:300]}", file=sys.stderr)
+                yield "\n\nThe assistant is getting a lot of questions right now. Try again in a minute."
             elif isinstance(e, groq.APIConnectionError):
                 yield "\n\nI couldn't reach the assistant. Try again in a moment."
             elif isinstance(e, (groq.AuthenticationError, groq.PermissionDeniedError)):
