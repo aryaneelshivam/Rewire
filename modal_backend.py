@@ -55,13 +55,15 @@ image = (
         "pip uninstall -y numpy scipy",
         "pip install 'numpy<2.0.0' 'scipy<1.13.0' --force-reinstall",
     )
-    .pip_install("fastapi[standard]", "joblib", "pandas", "nilearn", "pyjwt[crypto]>=2.10", "python-multipart", "modal",
-                 "anthropic>=2.8")
+    .pip_install("fastapi[standard]", "joblib", "pandas", "nilearn", "pyjwt[crypto]>=2.10", "python-multipart", "modal")
     # The cortical atlas and surface mesh download once, into the image, not on every container start.
     .run_commands(
         "python -c \"from tribev2.utils import get_hcp_labels; [get_hcp_labels(mesh='fsaverage5', combine=False, hemi=h) for h in ('both', 'left', 'right')]\"",
         "python -c \"from nilearn import datasets; datasets.fetch_surf_fsaverage('fsaverage5')\"",
     )
+    # The chat assistant's SDK, in a layer of its own: changing the layer above re-resolves its packages, and pip would
+    # then lift numpy and scipy past the pins the analysis needs. This layer touches neither.
+    .pip_install("anthropic>=2.8")
     .env({"REWIRE_DATA_DIR": "/data", "REWIRE_ENGINE": "modal",
           "CLERK_PUBLISHABLE_KEY": CLERK_PUBLISHABLE_KEY, "CLERK_AUTHORIZED_PARTIES": ",".join(FRONTEND_ORIGINS),
           "REWIRE_TEST_CREDITS": str(TEST_CREDITS),
